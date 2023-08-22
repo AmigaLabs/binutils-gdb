@@ -27,3 +27,4 @@ PLT=".plt          ${RELOCATING-0} :  { *(.plt) }"
 # GOTPLT="${PLT}"
 OTHER_TEXT_SECTIONS="*(.glink)"
 ENABLE_INITFINI_ARRAY=no
+DYNAMIC_LINK=false
