@@ -266,10 +266,7 @@ bfd_cache_lookup_worker (bfd *abfd, enum cache_flag flag)
 	   && !(flag & CACHE_NO_SEEK_ERROR))
     bfd_set_error (bfd_error_system_call);
   else
-    {
-      abfd->flags &= ~BFD_CLOSED_BY_CACHE;
-      return (FILE *) abfd->iostream;
-    }
+    return (FILE *) abfd->iostream;
 
   /* xgettext:c-format */
   _bfd_error_handler (_("reopening %pB: %s"),
@@ -506,12 +503,13 @@ bfd_cache_init (bfd *abfd)
     }
   abfd->iovec = &cache_iovec;
   insert (abfd);
+  abfd->flags &= ~BFD_CLOSED_BY_CACHE;
   ++open_files;
   return true;
 }
 
 /*
-INTERNAL_FUNCTION
+FUNCTION
 	bfd_cache_close
 
 SYNOPSIS
@@ -521,7 +519,6 @@ DESCRIPTION
 	Remove the BFD @var{abfd} from the cache. If the attached file is open,
 	then close it too.
 
-RETURNS
 	<<FALSE>> is returned if closing the file fails, <<TRUE>> is
 	returned if all is well.
 */
@@ -529,6 +526,7 @@ RETURNS
 bool
 bfd_cache_close (bfd *abfd)
 {
+  /* Don't remove this test.  bfd_reinit depends on it.  */
   if (abfd->iovec != &cache_iovec)
     return true;
 
@@ -548,9 +546,10 @@ SYNOPSIS
 
 DESCRIPTION
 	Remove all BFDs from the cache. If the attached file is open,
-	then close it too.
+	then close it too.  Note - despite its name this function will
+	close a BFD even if it is not marked as being cacheable, ie
+	even if bfd_get_cacheable() returns false.
 
-RETURNS
 	<<FALSE>> is returned if closing one of the file fails, <<TRUE>> is
 	returned if all is well.
 */
@@ -561,7 +560,16 @@ bfd_cache_close_all (void)
   bool ret = true;
 
   while (bfd_last_cache != NULL)
-    ret &= bfd_cache_close (bfd_last_cache);
+    {
+      bfd *prev_bfd_last_cache = bfd_last_cache;
+
+      ret &= bfd_cache_close (bfd_last_cache);
+
+      /* Stop a potential infinite loop should bfd_cache_close()
+	 not update bfd_last_cache.  */
+      if (bfd_last_cache == prev_bfd_last_cache)
+	break;
+    }
 
   return ret;
 }

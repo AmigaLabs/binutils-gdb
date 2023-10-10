@@ -17,12 +17,10 @@ load_lib compile-support.exp
 
 standard_testfile .c compile-shlib.c compile-constvar.S compile-nodebug.c
 
-set options {}
-if [test_compiler_info gcc*] {
-    lappend options additional_flags=-g3
-}
+require is_c_compiler_gcc
+set options {additional_flags=-g3}
 
-if { ![istarget x86_64-*-* ] || ![is_lp64_target] } {
+if { ![is_x86_64_m64_target] } {
     verbose "Skipping x86_64 LOC_CONST test."
     set srcfile3 ""
 }
@@ -161,7 +159,12 @@ gdb_test "info sym $infcall_pc" "\r\nNo symbol matches .*" "info sym not found"
 
 gdb_test_no_output "set unwindonsignal on"
 gdb_test "compile code *(volatile int *) 0 = 0;" \
-    "The program being debugged was signaled while in a function called from GDB\\.\r\nGDB has restored the context to what it was before the call\\.\r\n.*" \
+    [multi_line \
+	 "The program being debugged received signal SIGSEGV, Segmentation fault" \
+	 "while in a function called from GDB\\.  GDB has restored the context" \
+	 "to what it was before the call\\.  To change this behavior use" \
+	 "\"set unwindonsignal off\"\\.  Evaluation of the expression containing" \
+	 "the function \\(_gdb_expr\\) will be abandoned\\."] \
     "compile code segfault second"
 
 gdb_breakpoint [gdb_get_line_number "break-here"]
@@ -314,7 +317,12 @@ gdb_test "p globalvar" " = -76" "expect -76"
 
 gdb_test_no_output "set debug compile on"
 gdb_test "compile code static const int readonly = 1; *(int *) &readonly = 2;" \
-    "The program being debugged was signaled while in a function called from GDB\\.\r\nGDB has restored the context to what it was before the call\\.\r\n.*"
+    [multi_line \
+	 "The program being debugged received signal SIGSEGV, Segmentation fault" \
+	 "while in a function called from GDB\\.  GDB has restored the context" \
+	 "to what it was before the call\\.  To change this behavior use" \
+	 "\"set unwindonsignal off\"\\.  Evaluation of the expression containing" \
+	 "the function \\(_gdb_expr\\) will be abandoned\\."]
 gdb_test_no_output "set debug compile off"
 
 
@@ -366,10 +374,7 @@ if { $srcfile3 != "" } {
 
 # Shared library tests.
 
-if {[skip_shlib_tests]} {
-    untested "skipping shlib tests"
-    return;
-}
+require allow_shlib_tests
 
 set libbin [standard_output_file ${testfile}-shlib.so]
 set binfile [standard_output_file ${testfile}-shlib]

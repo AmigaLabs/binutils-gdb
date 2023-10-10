@@ -15,7 +15,7 @@
 
 load_lib "ada.exp"
 
-if { [skip_ada_tests] } { return -1 }
+require allow_ada_tests
 
 standard_ada_testfile vsizelim
 
@@ -31,7 +31,7 @@ if {![runto "vsizelim.adb:$bp_location"]} {
 }
 
 gdb_test "set varsize-limit 16" \
-    "Warning: command 'set varsize-limit' is deprecated.\r\nUse 'set max-value-size'."
+    "Warning: command 'set varsize-limit' is deprecated.\r\nUse 'set max-value-size'\\.\r\n"
 
 gdb_test "print small" " = \"1234567890\""
 

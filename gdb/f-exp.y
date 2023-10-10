@@ -48,9 +48,6 @@
 #include "parser-defs.h"
 #include "language.h"
 #include "f-lang.h"
-#include "bfd.h" /* Required by objfiles.h.  */
-#include "symfile.h" /* Required by objfiles.h.  */
-#include "objfiles.h" /* For have_full_symbols and have_partial_symbols */
 #include "block.h"
 #include <ctype.h>
 #include <algorithm>
@@ -669,14 +666,15 @@ ptype	:	typebase
 			array_size = type_stack->pop_int ();
 			if (array_size != -1)
 			  {
+			    struct type *idx_type
+			      = parse_f_type (pstate)->builtin_integer;
+			    type_allocator alloc (idx_type);
 			    range_type =
-			      create_static_range_type ((struct type *) NULL,
-							parse_f_type (pstate)
-							->builtin_integer,
+			      create_static_range_type (alloc, idx_type,
 							0, array_size - 1);
-			    follow_type =
-			      create_array_type ((struct type *) NULL,
-						 follow_type, range_type);
+			    follow_type = create_array_type (alloc,
+							     follow_type,
+							     range_type);
 			  }
 			else
 			  follow_type = lookup_pointer_type (follow_type);
@@ -1221,7 +1219,7 @@ convert_to_kind_type (struct type *basetype, int kind)
   return nullptr;
 }
 
-struct token
+struct f_token
 {
   /* The string to match against.  */
   const char *oper;
@@ -1239,7 +1237,7 @@ struct token
 
 /* List of Fortran operators.  */
 
-static const struct token fortran_operators[] =
+static const struct f_token fortran_operators[] =
 {
   { ".and.", BOOL_AND, OP_NULL, false },
   { ".or.", BOOL_OR, OP_NULL, false },
@@ -1280,7 +1278,29 @@ static const struct f77_boolean_val boolean_values[]  =
   { ".false.", 0 }
 };
 
-static const token f_keywords[] =
+static const struct f_token f_intrinsics[] =
+{
+  /* The following correspond to actual functions in Fortran and are case
+     insensitive.  */
+  { "kind", KIND, OP_NULL, false },
+  { "abs", UNOP_INTRINSIC, UNOP_ABS, false },
+  { "mod", BINOP_INTRINSIC, BINOP_MOD, false },
+  { "floor", UNOP_OR_BINOP_INTRINSIC, FORTRAN_FLOOR, false },
+  { "ceiling", UNOP_OR_BINOP_INTRINSIC, FORTRAN_CEILING, false },
+  { "modulo", BINOP_INTRINSIC, BINOP_FORTRAN_MODULO, false },
+  { "cmplx", UNOP_OR_BINOP_OR_TERNOP_INTRINSIC, FORTRAN_CMPLX, false },
+  { "lbound", UNOP_OR_BINOP_OR_TERNOP_INTRINSIC, FORTRAN_LBOUND, false },
+  { "ubound", UNOP_OR_BINOP_OR_TERNOP_INTRINSIC, FORTRAN_UBOUND, false },
+  { "allocated", UNOP_INTRINSIC, UNOP_FORTRAN_ALLOCATED, false },
+  { "associated", UNOP_OR_BINOP_INTRINSIC, FORTRAN_ASSOCIATED, false },
+  { "rank", UNOP_INTRINSIC, UNOP_FORTRAN_RANK, false },
+  { "size", UNOP_OR_BINOP_OR_TERNOP_INTRINSIC, FORTRAN_ARRAY_SIZE, false },
+  { "shape", UNOP_INTRINSIC, UNOP_FORTRAN_SHAPE, false },
+  { "loc", UNOP_INTRINSIC, UNOP_FORTRAN_LOC, false },
+  { "sizeof", SIZEOF, OP_NULL, false },
+};
+
+static const f_token f_keywords[] =
 {
   /* Historically these have always been lowercase only in GDB.  */
   { "character", CHARACTER, OP_NULL, true },
@@ -1302,27 +1322,9 @@ static const token f_keywords[] =
   { "real_4", REAL_S4_KEYWORD, OP_NULL, true },
   { "real_8", REAL_S8_KEYWORD, OP_NULL, true },
   { "real_16", REAL_S16_KEYWORD, OP_NULL, true },
-  { "sizeof", SIZEOF, OP_NULL, true },
   { "single", SINGLE, OP_NULL, true },
   { "double", DOUBLE, OP_NULL, true },
   { "precision", PRECISION, OP_NULL, true },
-  /* The following correspond to actual functions in Fortran and are case
-     insensitive.  */
-  { "kind", KIND, OP_NULL, false },
-  { "abs", UNOP_INTRINSIC, UNOP_ABS, false },
-  { "mod", BINOP_INTRINSIC, BINOP_MOD, false },
-  { "floor", UNOP_OR_BINOP_INTRINSIC, FORTRAN_FLOOR, false },
-  { "ceiling", UNOP_OR_BINOP_INTRINSIC, FORTRAN_CEILING, false },
-  { "modulo", BINOP_INTRINSIC, BINOP_FORTRAN_MODULO, false },
-  { "cmplx", UNOP_OR_BINOP_OR_TERNOP_INTRINSIC, FORTRAN_CMPLX, false },
-  { "lbound", UNOP_OR_BINOP_OR_TERNOP_INTRINSIC, FORTRAN_LBOUND, false },
-  { "ubound", UNOP_OR_BINOP_OR_TERNOP_INTRINSIC, FORTRAN_UBOUND, false },
-  { "allocated", UNOP_INTRINSIC, UNOP_FORTRAN_ALLOCATED, false },
-  { "associated", UNOP_OR_BINOP_INTRINSIC, FORTRAN_ASSOCIATED, false },
-  { "rank", UNOP_INTRINSIC, UNOP_FORTRAN_RANK, false },
-  { "size", UNOP_OR_BINOP_OR_TERNOP_INTRINSIC, FORTRAN_ARRAY_SIZE, false },
-  { "shape", UNOP_INTRINSIC, UNOP_FORTRAN_SHAPE, false },
-  { "loc", UNOP_INTRINSIC, UNOP_FORTRAN_LOC, false },
 };
 
 /* Implementation of a dynamically expandable buffer for processing input
@@ -1665,7 +1667,22 @@ yylex (void)
 					pstate->gdbarch (), tmp.c_str ());
     if (yylval.tsym.type != NULL)
       return TYPENAME;
-    
+
+    /* This is post the symbol search as symbols can hide intrinsics.  Also,
+       give Fortran intrinsics priority over C symbols.  This prevents
+       non-Fortran symbols from hiding intrinsics, for example abs.  */
+    if (!result.symbol || result.symbol->language () != language_fortran)
+      for (const auto &intrinsic : f_intrinsics)
+	{
+	  gdb_assert (!intrinsic.case_sensitive);
+	  if (strlen (intrinsic.oper) == namelen
+	      && strncasecmp (tokstart, intrinsic.oper, namelen) == 0)
+	    {
+	      yylval.opcode = intrinsic.opcode;
+	      return intrinsic.token;
+	    }
+	}
+
     /* Input names that aren't symbols but ARE valid hex numbers,
        when the input radix permits them, can be names or numbers
        depending on the parse.  Note we support radixes > 16 here.  */
@@ -1699,7 +1716,7 @@ f_language::parser (struct parser_state *par_state) const
   /* Setting up the parser state.  */
   scoped_restore pstate_restore = make_scoped_restore (&pstate);
   scoped_restore restore_yydebug = make_scoped_restore (&yydebug,
-							parser_debug);
+							par_state->debug);
   gdb_assert (par_state != NULL);
   pstate = par_state;
   last_was_structop = false;

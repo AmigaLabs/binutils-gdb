@@ -27,7 +27,7 @@ namespace eval completion {
     # List of all quote chars, including no-quote at all.
     variable maybe_quoted_list {"" "'" "\""}
 
-    variable keyword_list {"-force-condition" "if" "task" "thread"}
+    variable keyword_list {"-force-condition" "if" "inferior" "task" "thread"}
 
     variable explicit_opts_list \
 	{"-function" "-label" "-line" "-qualified" "-source"}
@@ -94,6 +94,9 @@ proc test_gdb_complete_tab_none { line } {
 	-re "^$line_re$completion::bell_re$" {
 	    pass "$test"
 	}
+	-re "$line_re\[^ \]+ $" {
+	    fail "$test"
+	}
     }
 
     clear_input_line $test
@@ -108,10 +111,14 @@ proc test_gdb_complete_tab_unique { input_line complete_line_re append_char_re }
 
     set test "tab complete \"$input_line\""
     send_gdb "$input_line\t"
+    set partial_complete [string_to_regexp $input_line]
     set res 1
     gdb_test_multiple "" "$test" {
 	-re "^$complete_line_re$append_char_re$" {
 	    pass "$test"
+	}
+	-re "$partial_complete\[^ \]+ $" {
+	    fail "$test"
 	}
 	timeout {
 	    fail "$test (timeout)"
@@ -164,6 +171,9 @@ proc test_gdb_complete_tab_multiple { input_line add_completed_line \
 			}
 		    }
 		}
+		-re "${maybe_bell}\r\n.+\r\n$gdb_prompt $" {
+		    fail "$test"
+		}
 	    }
 	}
     }
@@ -191,6 +201,9 @@ proc test_gdb_complete_cmd_unique { input_line complete_line_re } {
 	-re "^$cmd_re\r\n$complete_line_re\r\n$gdb_prompt $" {
 	    pass $test
 	}
+	-re "$gdb_prompt $" {
+	    fail "$test"
+	}
     }
 }
 
@@ -216,6 +229,9 @@ proc test_gdb_complete_cmd_multiple { cmd_prefix completion_word completion_list
     gdb_test_multiple "complete $cmd_prefix$completion_word" $test {
 	-re "^$cmd_re\r\n$expected_re$gdb_prompt $" {
 	    pass $test
+	}
+	-re "$gdb_prompt $" {
+	    fail "$test"
 	}
     }
 }
@@ -302,7 +318,7 @@ proc test_gdb_complete_multiple {
 
 # Test that all the substring prefixes of INPUT from [0..START) to
 # [0..END) complete to COMPLETION_RE (a regular expression).  If END
-# is ommitted, default to the length of INPUT.
+# is omitted, default to the length of INPUT.
 
 proc test_complete_prefix_range_re {input completion_re start {end -1}} {
     if {$end == -1} {
@@ -329,7 +345,7 @@ proc test_complete_prefix_range_re {input completion_re start {end -1}} {
 }
 
 # Test that all the substring prefixes of COMPLETION from [0..START)
-# to [0..END) complete to COMPLETION.  If END is ommitted, default to
+# to [0..END) complete to COMPLETION.  If END is omitted, default to
 # the length of COMPLETION.
 
 proc test_complete_prefix_range {completion start {end -1}} {
@@ -555,7 +571,7 @@ proc test_gdb_completion_offers_commands {input_line} {
 
     # TUI adds additional commands to the possible completions, so we
     # need different patterns depending on whether or not it is enabled.
-    if { [skip_tui_tests] } {
+    if { ![allow_tui_tests] } {
 	test_gdb_complete_multiple $input_line "" "" {
 	    "!"
 	    "actions"

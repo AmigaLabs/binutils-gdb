@@ -17,6 +17,9 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
 
+#ifndef COFF_AARCH64_H
+#define COFF_AARCH64_H
+
 #define COFFAARCH64 1
 
 #define L_LNNO_SIZE 2
@@ -54,11 +57,10 @@ struct external_reloc
   char r_vaddr[4];
   char r_symndx[4];
   char r_type[2];
-  char r_offset[4];
 };
 
 #define RELOC struct external_reloc
-#define RELSZ 14
+#define RELSZ 10
 
 /* ARM64 relocations types. */
 
@@ -83,3 +85,5 @@ struct external_reloc
 #define IMAGE_REL_ARM64_REL32           0x0011  /* The 32-bit relative address from the byte following the relocation. */
 
 #define ARM_NOTE_SECTION ".note"
+
+#endif /* COFF_AARCH64_H */

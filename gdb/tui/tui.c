@@ -41,6 +41,7 @@
 #include "source.h"
 #include "terminal.h"
 #include "top.h"
+#include "ui.h"
 
 #include <ctype.h>
 #include <signal.h>
@@ -121,6 +122,13 @@ tui_rl_switch_mode (int notused1, int notused2)
 	  rl_deprep_terminal ();
 	  tui_enable ();
 	}
+    }
+  catch (const gdb_exception_forced_quit &ex)
+    {
+      /* Ideally, we'd do a 'throw' here, but as noted above, we can't
+	 do that, so, instead, we'll set the necessary flags so that
+	 a later QUIT check will restart the forced quit.  */
+      set_force_quit_flag ();
     }
   catch (const gdb_exception &ex)
     {
@@ -217,7 +225,7 @@ tui_rl_command_key (int count, int key)
 	  rl_newline (1, '\n');
 
 	  /* Switch to gdb command mode while executing the command.
-	     This way the gdb's continue prompty will be displayed.  */
+	     This way the gdb's continue prompt will be displayed.  */
 	  tui_set_key_mode (TUI_ONE_COMMAND_MODE);
 	  return 0;
 	}
@@ -244,6 +252,13 @@ tui_rl_next_keymap (int notused1, int notused2)
   if (!tui_active)
     tui_rl_switch_mode (0 /* notused */, 0 /* notused */);
 
+  if (rl_end)
+    {
+      rl_end = 0;
+      rl_point = 0;
+      rl_mark = 0;
+    }
+
   tui_set_key_mode (tui_current_key_mode == TUI_COMMAND_MODE
 		    ? TUI_SINGLE_KEY_MODE : TUI_COMMAND_MODE);
   return 0;
@@ -256,11 +271,9 @@ tui_rl_next_keymap (int notused1, int notused2)
 static int
 tui_rl_startup_hook (void)
 {
-  rl_already_prompted = 1;
   if (tui_current_key_mode != TUI_COMMAND_MODE
       && !gdb_in_secondary_prompt_p (current_ui))
     tui_set_key_mode (TUI_SINGLE_KEY_MODE);
-  tui_redisplay_readline ();
   return 0;
 }
 

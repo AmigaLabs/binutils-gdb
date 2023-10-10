@@ -17,10 +17,9 @@
 # supports pauth instructions.  On non pauth systems, all pauth instructions
 # are treated as nops.
 
-if {![is_aarch64_target]} {
-    verbose "Skipping ${gdb_test_file_name}."
-    return
-}
+require is_aarch64_target
+
+require {have_compile_flag -mbranch-protection=pac-ret+leaf}
 
 # Build program with address signing forced on.
 standard_testfile

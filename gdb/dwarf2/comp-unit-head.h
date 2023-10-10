@@ -27,8 +27,11 @@
 #ifndef GDB_DWARF2_COMP_UNIT_H
 #define GDB_DWARF2_COMP_UNIT_H
 
+#include "dwarf2.h"
 #include "dwarf2/leb.h"
-#include "gdbtypes.h"
+#include "dwarf2/types.h"
+
+struct dwarf2_per_objfile;
 
 /* The data in a compilation unit header, after target2host
    translation, looks like this.  */
@@ -105,8 +108,8 @@ public:
   }
 
   /* Read an address from BUF.  BYTES_READ is updated.  */
-  CORE_ADDR read_address (bfd *abfd, const gdb_byte *buf,
-			  unsigned int *bytes_read) const;
+  unrelocated_addr read_address (bfd *abfd, const gdb_byte *buf,
+				 unsigned int *bytes_read) const;
 };
 
 /* Expected enum dwarf_unit_type for read_comp_unit_head.  */

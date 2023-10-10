@@ -15,7 +15,7 @@
 
 load_lib "ada.exp"
 
-if { [skip_ada_tests] } { return -1 }
+require allow_ada_tests
 
 standard_ada_testfile foo
 
@@ -160,6 +160,7 @@ test_gdb_complete "pck" \
                               "p pck.ambiguous_func" \
                               "p pck.external_identical_one" \
                               "p pck.inner.inside_variable" \
+			      "p pck.internal_capitalized" \
                               "p pck.local_identical_one" \
                               "p pck.local_identical_two" \
                               "p pck.my_global_variable" \
@@ -172,6 +173,7 @@ test_gdb_complete "pck." \
                               "p pck.ambiguous_func" \
                               "p pck.external_identical_one" \
                               "p pck.inner.inside_variable" \
+			      "p pck.internal_capitalized" \
                               "p pck.local_identical_one" \
                               "p pck.local_identical_two" \
                               "p pck.my_global_variable" \

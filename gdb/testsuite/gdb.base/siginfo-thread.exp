@@ -16,15 +16,9 @@
 
 # Multi-threaded siginfo test.
 
-if [target_info exists gdb,nosignals] {
-    verbose "Skipping siginfo-thread.exp because of nosignals."
-    return
-}
+require {!target_info exists gdb,nosignals}
 
-if { ![supports_get_siginfo_type] } {
-    verbose "Skipping siginfo-thread.exp because of lack of support."
-    return
-}
+require supports_get_siginfo_type
 
 standard_testfile .c
 

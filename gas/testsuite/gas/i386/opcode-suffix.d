@@ -1,5 +1,5 @@
 #source: opcode.s
-#as: -J
+#as: -J --divide
 #objdump: -dwMsuffix
 #name: i386 opcodes (w/ suffix)
 
@@ -102,7 +102,7 @@ Disassembly of section .text:
  *[0-9a-f]+:	60[ 	]+pushal
  *[0-9a-f]+:	61[ 	]+popal
  *[0-9a-f]+:	62 90 90 90 90 90[ 	]+boundl %edx,-0x6f6f6f70\(%eax\)
- *[0-9a-f]+:	63 90 90 90 90 90[ 	]+arpl[ 	]+%dx,-0x6f6f6f70\(%eax\)
+ *[0-9a-f]+:	63 90 90 90 90 90[ 	]+arpll[ 	]+%edx,-0x6f6f6f70\(%eax\)
  *[0-9a-f]+:	68 90 90 90 90[ 	]+pushl[ 	]+\$0x90909090
  *[0-9a-f]+:	69 90 90 90 90 90 90 90 90 90[ 	]+imull[ 	]+\$0x90909090,-0x6f6f6f70\(%eax\),%edx
  *[0-9a-f]+:	6a 90[ 	]+pushl[ 	]+\$0xffffff90
@@ -248,7 +248,7 @@ Disassembly of section .text:
  *[0-9a-f]+:	fc[ 	]+cld
  *[0-9a-f]+:	fd[ 	]+std
  *[0-9a-f]+:	ff 90 90 90 90 90[ 	]+calll[ 	]+\*-0x6f6f6f70\(%eax\)
- *[0-9a-f]+:	0f 00 90 90 90 90 90[ 	]+lldt[ 	]+-0x6f6f6f70\(%eax\)
+ *[0-9a-f]+:	0f 00 90 90 90 90 90[ 	]+lldtw[ 	]+-0x6f6f6f70\(%eax\)
  *[0-9a-f]+:	0f 01 90 90 90 90 90[ 	]+lgdtl[ 	]+-0x6f6f6f70\(%eax\)
  *[0-9a-f]+:	0f 02 90 90 90 90 90[ 	]+larl[ 	]+-0x6f6f6f70\(%eax\),%edx
  *[0-9a-f]+:	0f 03 90 90 90 90 90[ 	]+lsll[ 	]+-0x6f6f6f70\(%eax\),%edx
@@ -598,7 +598,7 @@ Disassembly of section .text:
 [ 	]*[a-f0-9]+:	df 38                	fistpll \(%eax\)
 [ 	]*[a-f0-9]+:	df 38                	fistpll \(%eax\)
  +[a-f0-9]+:	82 c3 01             	addb   \$0x1,%bl
- +[a-f0-9]+:	82 f3 01             	xorb   \$0x1,%bl
+ +[a-f0-9]+:	82 cb 01             	orb    \$0x1,%bl
  +[a-f0-9]+:	82 d3 01             	adcb   \$0x1,%bl
  +[a-f0-9]+:	82 db 01             	sbbb   \$0x1,%bl
  +[a-f0-9]+:	82 e3 01             	andb   \$0x1,%bl

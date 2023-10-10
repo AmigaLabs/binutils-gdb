@@ -112,7 +112,7 @@ enum
   AVR_LAST_PUSHED_REGNUM = 17,
 
   AVR_ARG1_REGNUM = 24,         /* Single byte argument */
-  AVR_ARGN_REGNUM = 25,         /* Multi byte argments */
+  AVR_ARGN_REGNUM = 25,         /* Multi byte arguments */
   AVR_LAST_ARG_REGNUM = 8,      /* Last argument register */
 
   AVR_RET1_REGNUM = 24,         /* Single byte return value */
@@ -240,7 +240,7 @@ avr_register_type (struct gdbarch *gdbarch, int reg_nr)
   return builtin_type (gdbarch)->builtin_uint8;
 }
 
-/* Instruction address checks and convertions.  */
+/* Instruction address checks and conversions.  */
 
 static CORE_ADDR
 avr_make_iaddr (CORE_ADDR x)
@@ -259,7 +259,7 @@ avr_convert_iaddr_to_raw (CORE_ADDR x)
   return ((x) & 0xffffffff);
 }
 
-/* SRAM address checks and convertions.  */
+/* SRAM address checks and conversions.  */
 
 static CORE_ADDR
 avr_make_saddr (CORE_ADDR x)
@@ -277,7 +277,7 @@ avr_convert_saddr_to_raw (CORE_ADDR x)
   return ((x) & 0xffffffff);
 }
 
-/* EEPROM address checks and convertions.  I don't know if these will ever
+/* EEPROM address checks and conversions.  I don't know if these will ever
    actually be used, but I've added them just the same.  TRoth */
 
 /* TRoth/2002-04-08: Commented out for now to allow fix for problem with large
@@ -1298,8 +1298,8 @@ avr_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
       int last_regnum;
       int j;
       struct value *arg = args[i];
-      struct type *type = check_typedef (value_type (arg));
-      const bfd_byte *contents = value_contents (arg).data ();
+      struct type *type = check_typedef (arg->type ());
+      const bfd_byte *contents = arg->contents ().data ();
       int len = type->length ();
 
       /* Calculate the potential last register needed.
@@ -1473,10 +1473,10 @@ avr_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
 
   /* Create a type for PC.  We can't use builtin types here, as they may not
      be defined.  */
-  tdep->void_type = arch_type (gdbarch, TYPE_CODE_VOID, TARGET_CHAR_BIT,
-			       "void");
+  type_allocator alloc (gdbarch);
+  tdep->void_type = alloc.new_type (TYPE_CODE_VOID, TARGET_CHAR_BIT, "void");
   tdep->func_void_type = make_function_type (tdep->void_type, NULL);
-  tdep->pc_type = arch_pointer_type (gdbarch, 4 * TARGET_CHAR_BIT, NULL,
+  tdep->pc_type = init_pointer_type (alloc, 4 * TARGET_CHAR_BIT, NULL,
 				     tdep->func_void_type);
 
   set_gdbarch_short_bit (gdbarch, 2 * TARGET_CHAR_BIT);

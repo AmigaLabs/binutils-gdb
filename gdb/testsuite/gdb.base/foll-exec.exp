@@ -18,9 +18,7 @@
 
 # Until "catch exec" is implemented on other targets...
 #
-if {![istarget "*-linux*"]} {
-    return
-}
+require {istarget "*-linux*"}
 
 standard_testfile foll-exec.c
 
@@ -379,11 +377,6 @@ proc do_exec_tests {} {
    }
 }
 
-# Start with a fresh gdb
-
-gdb_exit
 clean_restart $binfile
 
 do_exec_tests
-
-return 0

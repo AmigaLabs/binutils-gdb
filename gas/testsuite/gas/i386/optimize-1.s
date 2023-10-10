@@ -170,3 +170,35 @@ _start:
 	vporq		128(%eax), %ymm2, %ymm3
 	vpxord		128(%eax), %ymm2, %ymm3
 	vpxorq		128(%eax), %ymm2, %ymm3
+
+	pcmpgtb		%mm2, %mm2
+	pcmpgtb		%xmm2, %xmm2
+	vpcmpgtb	%xmm2, %xmm2, %xmm0
+	vpcmpgtb	%ymm2, %ymm2, %ymm0
+
+	pcmpgtw		%mm2, %mm2
+	pcmpgtw		%xmm2, %xmm2
+	vpcmpgtw	%xmm2, %xmm2, %xmm0
+	vpcmpgtw	%ymm2, %ymm2, %ymm0
+
+	pcmpgtd		%mm2, %mm2
+	pcmpgtd		%xmm2, %xmm2
+	vpcmpgtd	%xmm2, %xmm2, %xmm0
+	vpcmpgtd	%ymm2, %ymm2, %ymm0
+
+	pcmpgtq		%xmm2, %xmm2
+	vpcmpgtq	%xmm2, %xmm2, %xmm0
+	vpcmpgtq	%ymm2, %ymm2, %ymm0
+
+	bt	$15, %ax
+	bt	$16, %ax
+	btc	$15, %ax
+	btr	$15, %ax
+	bts	$15, %ax
+
+	.code16
+	bt	$15, %eax
+	bt	$16, %eax
+	btc	$15, %eax
+	btr	$15, %eax
+	bts	$15, %eax

@@ -16,6 +16,38 @@
 ## You should have received a copy of the GNU General Public License
 ## along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+AM_CPPFLAGS_%C% = \
+	-DPOLL_QUIT_INTERVAL=0x20 \
+	-DWITH_TARGET_WORD_BITSIZE=32 -DWITH_TARGET_WORD_MSB=31
+
+nodist_%C%_libsim_a_SOURCES = \
+	%D%/modules.c
+%C%_libsim_a_SOURCES = \
+	$(common_libcommon_a_SOURCES)
+%C%_libsim_a_LIBADD = \
+	%D%/itable.o \
+	%D%/semantics.o \
+	%D%/idecode.o \
+	%D%/icache.o \
+	%D%/engine.o \
+	%D%/irun.o \
+	%D%/support.o \
+	$(patsubst %,%D%/%,$(SIM_NEW_COMMON_OBJS)) \
+	$(patsubst %,%D%/dv-%.o,$(SIM_HW_DEVICES)) \
+	$(patsubst %,%D%/dv-%.o,$(%C%_SIM_EXTRA_HW_DEVICES)) \
+	%D%/interp.o \
+	%D%/op_utils.o \
+	%D%/sim-resume.o
+$(%C%_libsim_a_OBJECTS) $(%C%_libsim_a_LIBADD): %D%/hw-config.h
+
+noinst_LIBRARIES += %D%/libsim.a
+
+## Override wildcards that trigger common/modules.c to be (incorrectly) used.
+%D%/modules.o: %D%/modules.c
+
+%D%/%.o: common/%.c ; $(SIM_COMPILE)
+-@am__include@ %D%/$(DEPDIR)/*.Po
+
 %C%_run_SOURCES =
 %C%_run_LDADD = \
 	%D%/nrun.o \
@@ -25,7 +57,6 @@
 noinst_PROGRAMS += %D%/run
 
 %C%_SIM_EXTRA_HW_DEVICES = mn103cpu mn103int mn103tim mn103ser mn103iop
-AM_MAKEFLAGS += %C%_SIM_EXTRA_HW_DEVICES="$(%C%_SIM_EXTRA_HW_DEVICES)"
 
 ## List all generated headers to help Automake dependency tracking.
 BUILT_SOURCES += \
@@ -56,8 +87,8 @@ BUILT_SOURCES += \
 	$(%C%_BUILT_SRC_FROM_IGEN) \
 	%D%/stamp-igen
 
-## This makes sure build tools are available before building the arch-subdirs.
-SIM_ALL_RECURSIVE_DEPS += $(%C%_BUILD_OUTPUTS)
+## Generating modules.c requires all sources to scan.
+%D%/modules.c: | $(%C%_BUILD_OUTPUTS)
 
 $(%C%_BUILT_SRC_FROM_IGEN): %D%/stamp-igen
 

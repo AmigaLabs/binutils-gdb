@@ -70,14 +70,14 @@ extern void push_subfile ();
 
 extern const char *pop_subfile ();
 
-extern struct compunit_symtab *end_compunit_symtab (CORE_ADDR end_addr,
-						    int section);
+extern struct compunit_symtab *end_compunit_symtab (CORE_ADDR end_addr);
 
 extern struct context_stack *push_context (int desc, CORE_ADDR valu);
 
 extern struct context_stack pop_context ();
 
-extern void record_line (struct subfile *subfile, int line, CORE_ADDR pc);
+extern void record_line (struct subfile *subfile, int line,
+			 unrelocated_addr pc);
 
 extern struct compunit_symtab *start_compunit_symtab (struct objfile *objfile,
 						      const char *name,

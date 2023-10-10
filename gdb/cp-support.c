@@ -20,6 +20,7 @@
 
 #include "defs.h"
 #include "cp-support.h"
+#include "language.h"
 #include "demangle.h"
 #include "gdbcmd.h"
 #include "dictionary.h"
@@ -35,7 +36,7 @@
 #include "namespace.h"
 #include <signal.h>
 #include "gdbsupport/gdb_setjmp.h"
-#include "safe-ctype.h"
+#include "gdbsupport/gdb-safe-ctype.h"
 #include "gdbsupport/selftest.h"
 #include "gdbsupport/gdb-sigmask.h"
 #include <atomic>
@@ -673,7 +674,7 @@ mangled_name_to_comp (const char *mangled_name, int options,
 					      options, memory);
       if (ret)
 	{
-	  std::unique_ptr<demangle_parse_info> info (new demangle_parse_info);
+	  auto info = gdb::make_unique<demangle_parse_info> ();
 	  info->tree = ret;
 	  *demangled_p = NULL;
 	  return info;
@@ -1273,12 +1274,9 @@ add_symbol_overload_list_block (const char *name,
 				const struct block *block,
 				std::vector<symbol *> *overload_list)
 {
-  struct block_iterator iter;
-  struct symbol *sym;
-
   lookup_name_info lookup_name (name, symbol_name_match_type::FULL);
 
-  ALL_BLOCK_SYMBOLS_WITH_NAME (block, lookup_name, iter, sym)
+  for (struct symbol *sym : block_iterator_range (block, &lookup_name))
     overload_list_add_symbol (sym, name, overload_list);
 }
 
@@ -1306,15 +1304,17 @@ add_symbol_overload_list_namespace (const char *func_name,
     }
 
   /* Look in the static block.  */
-  block = block_static_block (get_selected_block (0));
-  if (block)
-    add_symbol_overload_list_block (name, block, overload_list);
+  block = get_selected_block (0);
+  block = block == nullptr ? nullptr : block->static_block ();
+  if (block != nullptr)
+    {
+      add_symbol_overload_list_block (name, block, overload_list);
 
-  /* Look in the global block.  */
-  block = block_global_block (block);
-  if (block)
-    add_symbol_overload_list_block (name, block, overload_list);
-
+      /* Look in the global block.  */
+      block = block->global_block ();
+      if (block)
+	add_symbol_overload_list_block (name, block, overload_list);
+    }
 }
 
 /* Search the namespace of the given type and namespace of and public
@@ -1400,7 +1400,7 @@ add_symbol_overload_list_using (const char *func_name,
   for (block = get_selected_block (0);
        block != NULL;
        block = block->superblock ())
-    for (current = block_using (block);
+    for (current = block->get_using ();
 	current != NULL;
 	current = current->next)
       {
@@ -1455,13 +1455,16 @@ add_symbol_overload_list_qualified (const char *func_name,
        b = b->superblock ())
     add_symbol_overload_list_block (func_name, b, overload_list);
 
-  surrounding_static_block = block_static_block (get_selected_block (0));
+  surrounding_static_block = get_selected_block (0);
+  surrounding_static_block = (surrounding_static_block == nullptr
+			      ? nullptr
+			      : surrounding_static_block->static_block ());
 
   /* Go through the symtabs and check the externs and statics for
      symbols which match.  */
 
   const block *block = get_selected_block (0);
-  struct objfile *current_objfile = block ? block_objfile (block) : nullptr;
+  struct objfile *current_objfile = block ? block->objfile () : nullptr;
 
   gdbarch_iterate_over_objfiles_in_search_order
     (current_objfile ? current_objfile->arch () : target_gdbarch (),
@@ -1653,7 +1656,13 @@ gdb_demangle (const char *name, int options)
 	     we might be in a background thread.  Instead, arrange for
 	     the reporting to happen on the main thread.  */
 	  std::string copy = name;
-	  run_on_main_thread ([=] ()
+	  run_on_main_thread ([
+#if __cplusplus >= 201402L
+			       =, copy = std::move (copy)
+#else
+			       =
+#endif
+			       ] ()
 	    {
 	      report_failed_demangle (copy.c_str (), core_dump_allowed,
 				      crash_signal);
@@ -1773,6 +1782,8 @@ cp_symbol_name_matches_1 (const char *symbol_search_name,
   completion_match_for_lcd *match_for_lcd
     = (comp_match_res != NULL ? &comp_match_res->match_for_lcd : NULL);
 
+  gdb_assert (match_for_lcd == nullptr || match_for_lcd->empty ());
+
   while (true)
     {
       if (strncmp_iw_with_mode (sname, lookup_name, lookup_name_len,
@@ -1805,6 +1816,11 @@ cp_symbol_name_matches_1 (const char *symbol_search_name,
 	    }
 	  return true;
 	}
+
+      /* Clear match_for_lcd so the next strncmp_iw_with_mode call starts
+	 from scratch.  */
+      if (match_for_lcd != nullptr)
+	match_for_lcd->clear ();
 
       unsigned int len = cp_find_first_component (sname);
 
@@ -2093,7 +2109,7 @@ quote (const char *str)
 /* Check that removing parameter info out of NAME produces EXPECTED.
    COMPLETION_MODE indicates whether we're testing normal and
    completion mode.  FILE and LINE are used to provide better test
-   location information in case ithe check fails.  */
+   location information in case the check fails.  */
 
 static void
 check_remove_params (const char *file, int line,

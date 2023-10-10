@@ -18,14 +18,13 @@
 
 load_lib gdb-guile.exp
 
+require allow_guile_tests
+
 standard_testfile
 
 if { [prepare_for_testing "failed to prepare" ${testfile} ${srcfile}] } {
     return -1
 }
-
-# Skip all tests if Guile scripting is not enabled.
-if { [skip_guile_tests] } { continue }
 
 proc_with_prefix test_bkpt_basic { } {
     global srcfile testfile hex decimal
@@ -180,7 +179,7 @@ proc_with_prefix test_bkpt_cond_and_cmds { } {
     gdb_scm_test_silent_cmd "guile (define blist (breakpoints))" \
 	"get breakpoint list 6"
     gdb_test "guile (print (breakpoint-commands (list-ref blist (- (length blist) 1))))" \
-	"print \"Command for breakpoint has been executed.\".*print result"
+	"print \"Command for breakpoint has been executed.\".*print result\r\n"
 }
 
 proc_with_prefix test_bkpt_invisible { } {

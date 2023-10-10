@@ -1053,8 +1053,9 @@ void
 prepare_resume_reply (char *buf, ptid_t ptid, const target_waitstatus &status)
 {
   client_state &cs = get_client_state ();
-  threads_debug_printf ("Writing resume reply for %s:%d",
-			target_pid_to_str (ptid).c_str (), status.kind ());
+  threads_debug_printf ("Writing resume reply for %s: %s",
+			target_pid_to_str (ptid).c_str (),
+			status.to_string ().c_str ());
 
   switch (status.kind ())
     {
@@ -1067,7 +1068,6 @@ prepare_resume_reply (char *buf, ptid_t ptid, const target_waitstatus &status)
     case TARGET_WAITKIND_SYSCALL_ENTRY:
     case TARGET_WAITKIND_SYSCALL_RETURN:
       {
-	const char **regp;
 	struct regcache *regcache;
 	char *buf_start = buf;
 
@@ -1154,8 +1154,6 @@ prepare_resume_reply (char *buf, ptid_t ptid, const target_waitstatus &status)
 
 	switch_to_thread (the_target, ptid);
 
-	regp = current_target_desc ()->expedite_regs;
-
 	regcache = get_thread_regcache (current_thread, 1);
 
 	if (the_target->stopped_by_watchpoint ())
@@ -1187,18 +1185,18 @@ prepare_resume_reply (char *buf, ptid_t ptid, const target_waitstatus &status)
 	    buf += strlen (buf);
 	  }
 
-	while (*regp)
-	  {
-	    buf = outreg (regcache, find_regno (regcache->tdesc, *regp), buf);
-	    regp ++;
-	  }
+	/* Handle the expedited registers.  */
+	for (const std::string &expedited_reg :
+	     current_target_desc ()->expedite_regs)
+	  buf = outreg (regcache, find_regno (regcache->tdesc,
+					      expedited_reg.c_str ()), buf);
 	*buf = '\0';
 
 	/* Formerly, if the debugger had not used any thread features
 	   we would not burden it with a thread status response.  This
 	   was for the benefit of GDB 4.13 and older.  However, in
 	   recent GDB versions the check (``if (cont_thread != 0)'')
-	   does not have the desired effect because of sillyness in
+	   does not have the desired effect because of silliness in
 	   the way that the remote protocol handles specifying a
 	   thread.  Since thread support relies on qSymbol support
 	   anyway, assume GDB can handle threads.  */

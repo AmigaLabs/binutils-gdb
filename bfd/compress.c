@@ -32,7 +32,7 @@
 #define MAX_COMPRESSION_HEADER_SIZE 24
 
 /*
-CODE_FRAGMENT
+EXTERNAL
 .{* Types of compressed DWARF debug sections.  *}
 .enum compressed_debug_section_type
 .{
@@ -263,9 +263,6 @@ SYNOPSIS
 
 DESCRIPTION
 	Return the size of the compression header of SEC in ABFD.
-
-RETURNS
-	Return the size of the compression header in bytes.
 */
 
 int
@@ -1068,7 +1065,8 @@ bfd_init_section_compress_status (bfd *abfd, sec_ptr sec)
       || sec->size == 0
       || sec->rawsize != 0
       || sec->contents != NULL
-      || sec->compress_status != COMPRESS_SECTION_NONE)
+      || sec->compress_status != COMPRESS_SECTION_NONE
+      || _bfd_section_size_insane (abfd, sec))
     {
       bfd_set_error (bfd_error_invalid_operation);
       return false;
@@ -1083,7 +1081,10 @@ bfd_init_section_compress_status (bfd *abfd, sec_ptr sec)
 
   if (!bfd_get_section_contents (abfd, sec, uncompressed_buffer,
 				 0, uncompressed_size))
-    return false;
+    {
+      free (uncompressed_buffer);
+      return false;
+    }
 
   sec->contents = uncompressed_buffer;
   if (bfd_compress_section_contents (abfd, sec) == 0)

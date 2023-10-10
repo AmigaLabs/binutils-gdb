@@ -19,9 +19,8 @@
 # This test tests getrandom syscall for reverse execution.
 #
 
-if ![supports_reverse] {
-    return
-}
+require supports_reverse
+require {have_system_header sys/random.h}
 
 standard_testfile
 

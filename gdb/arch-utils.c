@@ -21,7 +21,7 @@
 
 #include "arch-utils.h"
 #include "gdbcmd.h"
-#include "inferior.h"		/* enum CALL_DUMMY_LOCATION et al.  */
+#include "inferior.h"
 #include "infrun.h"
 #include "regcache.h"
 #include "sim-regno.h"
@@ -1092,10 +1092,33 @@ default_read_core_file_mappings
 {
 }
 
+/* See arch-utils.h.  */
+bool
+default_use_target_description_from_corefile_notes (struct gdbarch *gdbarch,
+						    struct bfd *corefile_bfd)
+{
+  /* Always trust the corefile target description contained in the target
+     description note.  */
+  return true;
+}
+
 CORE_ADDR
 default_get_return_buf_addr (struct type *val_type, frame_info_ptr cur_frame)
 {
   return 0;
+}
+
+bool
+default_dwarf2_omit_typedef_p (struct type *target_type, const char *producer,
+			       const char *name)
+{
+  return false;
+}
+
+static CORE_ADDR
+default_update_call_site_pc (struct gdbarch *gdbarch, CORE_ADDR pc)
+{
+  return pc;
 }
 
 /* Non-zero if we want to trace architecture code.  */
@@ -1178,8 +1201,8 @@ default_gdbarch_return_value
 
   if (read_value != nullptr)
     {
-      *read_value = allocate_value (valtype);
-      readbuf = value_contents_raw (*read_value).data ();
+      *read_value = value::allocate (valtype);
+      readbuf = (*read_value)->contents_raw ().data ();
     }
 
   return gdbarch->return_value (gdbarch, function, valtype, regcache,
@@ -1237,6 +1260,7 @@ struct gdbarch_registration
   enum bfd_architecture bfd_architecture;
   gdbarch_init_ftype *init;
   gdbarch_dump_tdep_ftype *dump_tdep;
+  gdbarch_supports_arch_info_ftype *supports_arch_info;
   struct gdbarch_list *arches;
   struct gdbarch_registration *next;
 };
@@ -1246,7 +1270,7 @@ static struct gdbarch_registration *gdbarch_registry = NULL;
 std::vector<const char *>
 gdbarch_printable_names ()
 {
-  /* Accumulate a list of names based on the registed list of
+  /* Accumulate a list of names based on the registered list of
      architectures.  */
   std::vector<const char *> arches;
 
@@ -1260,7 +1284,9 @@ gdbarch_printable_names ()
 	internal_error (_("gdbarch_architecture_names: multi-arch unknown"));
       do
 	{
-	  arches.push_back (ap->printable_name);
+	  if (rego->supports_arch_info == nullptr
+	      || rego->supports_arch_info (ap))
+	    arches.push_back (ap->printable_name);
 	  ap = ap->next;
 	}
       while (ap != NULL);
@@ -1273,7 +1299,8 @@ gdbarch_printable_names ()
 void
 gdbarch_register (enum bfd_architecture bfd_architecture,
 		  gdbarch_init_ftype *init,
-		  gdbarch_dump_tdep_ftype *dump_tdep)
+		  gdbarch_dump_tdep_ftype *dump_tdep,
+		  gdbarch_supports_arch_info_ftype *supports_arch_info)
 {
   struct gdbarch_registration **curr;
   const struct bfd_arch_info *bfd_arch_info;
@@ -1306,6 +1333,7 @@ gdbarch_register (enum bfd_architecture bfd_architecture,
   (*curr)->bfd_architecture = bfd_architecture;
   (*curr)->init = init;
   (*curr)->dump_tdep = dump_tdep;
+  (*curr)->supports_arch_info = supports_arch_info;
   (*curr)->arches = NULL;
   (*curr)->next = NULL;
 }

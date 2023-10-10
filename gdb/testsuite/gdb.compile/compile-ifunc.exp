@@ -15,11 +15,11 @@
 
 load_lib compile-support.exp
 
-if {[skip_ifunc_tests]} {
-    return 0
-}
+require allow_ifunc_tests
 
 standard_testfile
+
+require is_c_compiler_gcc
 
 set flags ""
 if [test_compiler_info gcc*] {

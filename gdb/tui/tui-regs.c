@@ -91,12 +91,6 @@ tui_register_format (frame_info_ptr frame, int regnum)
 
   /* Expand tabs into spaces, since ncurses on MS-Windows doesn't.  */
   tab_expansion_file stream;
-
-  scoped_restore save_pagination
-    = make_scoped_restore (&pagination_enabled, false);
-  scoped_restore save_stdout
-    = make_scoped_restore (&gdb_stdout, &stream);
-
   gdbarch_print_registers_info (gdbarch, &stream, frame, regnum, 1);
 
   /* Remove the possible \n.  */
@@ -108,7 +102,7 @@ tui_register_format (frame_info_ptr frame, int regnum)
 }
 
 /* Get the register value from the given frame and format it for the
-   display.  When changep is set, check if the new register value has
+   display.  When changedp is set, check if the new register value has
    changed with respect to the previous call.  */
 static void
 tui_get_register (frame_info_ptr frame,
@@ -216,7 +210,7 @@ tui_data_window::show_register_group (const reggroup *group,
   int regnum, pos;
 
   /* Make a new title showing which group we display.  */
-  title = string_printf ("Register group: %s", group->name ());
+  this->set_title (string_printf ("Register group: %s", group->name ()));
 
   /* See how many registers must be displayed.  */
   nr_regs = 0;

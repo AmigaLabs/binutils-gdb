@@ -17,10 +17,9 @@
 # This file was created by Jan Kratochvil <jan.kratochvil@redhat.com>.
 
 # This test only works on Linux
-if { ![isnative] || [is_remote host] || [use_gdb_stub]
-     || ![istarget *-linux*] } {
-    return
-}
+require !use_gdb_stub isnative
+require {!is_remote host}
+require {istarget *-linux*}
 
 standard_testfile
 set executable_nothr ${testfile}-nothr

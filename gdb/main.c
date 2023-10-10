@@ -19,6 +19,7 @@
 
 #include "defs.h"
 #include "top.h"
+#include "ui.h"
 #include "target.h"
 #include "inferior.h"
 #include "symfile.h"
@@ -114,12 +115,7 @@ set_gdb_data_directory (const char *new_datadir)
   struct stat st;
 
   if (stat (new_datadir, &st) < 0)
-    {
-      int save_errno = errno;
-
-      gdb_printf (gdb_stderr, "Warning: ");
-      print_sys_errmsg (new_datadir, save_errno);
-    }
+    warning_filename_and_errno (new_datadir, errno);
   else if (!S_ISDIR (st.st_mode))
     warning (_("%ps is not a directory."),
 	     styled_string (file_name_style.style (), new_datadir));
@@ -410,6 +406,10 @@ start_event_loop ()
 	{
 	  result = gdb_do_one_event ();
 	}
+      catch (const gdb_exception_forced_quit &ex)
+	{
+	  throw;
+	}
       catch (const gdb_exception &ex)
 	{
 	  exception_print (gdb_stderr, ex);
@@ -425,7 +425,7 @@ start_event_loop ()
 	     get around to resetting the prompt, which leaves readline
 	     in a messed-up state.  Reset it here.  */
 	  current_ui->prompt_state = PROMPT_NEEDED;
-	  gdb::observers::command_error.notify ();
+	  top_level_interpreter ()->on_command_error ();
 	  /* This call looks bizarre, but it is required.  If the user
 	     entered a command that caused an error,
 	     after_char_processing_hook won't be called from
@@ -465,7 +465,7 @@ captured_command_loop ()
 
   /* Give the interpreter a chance to print a prompt, if necessary  */
   if (ui->prompt_state != PROMPT_BLOCKED)
-    interp_pre_command_loop (top_level_interpreter ());
+    top_level_interpreter ()->pre_command_loop ();
 
   /* Now it's time to start the event loop.  */
   start_event_loop ();
@@ -517,6 +517,10 @@ catch_command_errors (catch_command_errors_const_ftype command,
       /* Do any commands attached to breakpoint we stopped at.  */
       if (do_bp_actions)
 	bpstat_do_actions ();
+    }
+  catch (const gdb_exception_forced_quit &e)
+    {
+      quit_force (NULL, 0);
     }
   catch (const gdb_exception &e)
     {
@@ -645,6 +649,10 @@ captured_main_1 (struct captured_main_args *context)
   int save_auto_load;
   int ret = 1;
 
+  const char *no_color = getenv ("NO_COLOR");
+  if (no_color != nullptr && *no_color != '\0')
+    cli_styling = false;
+
 #ifdef HAVE_USEFUL_SBRK
   /* Set this before constructing scoped_command_stats.  */
   lim_at_start = (char *) sbrk (0);
@@ -709,6 +717,11 @@ captured_main_1 (struct captured_main_args *context)
 
   debug_file_directory
     = relocate_gdb_directory (DEBUGDIR, DEBUGDIR_RELOCATABLE);
+
+#ifdef ADDITIONAL_DEBUG_DIRS
+  debug_file_directory = (debug_file_directory + DIRNAME_SEPARATOR
+			  + ADDITIONAL_DEBUG_DIRS);
+#endif
 
   gdb_datadir = relocate_gdb_directory (GDB_DATADIR,
 					GDB_DATADIR_RELOCATABLE);
@@ -1056,7 +1069,8 @@ captured_main_1 (struct captured_main_args *context)
       symarg = argv[optind];
       execarg = argv[optind];
       ++optind;
-      set_inferior_args_vector (argc - optind, &argv[optind]);
+      current_inferior ()->set_args
+	(gdb::array_view<char * const> (&argv[optind], argc - optind));
     }
   else
     {
@@ -1309,6 +1323,10 @@ captured_main (void *data)
 	{
 	  captured_command_loop ();
 	}
+      catch (const gdb_exception_forced_quit &ex)
+	{
+	  quit_force (NULL, 0);
+	}
       catch (const gdb_exception &ex)
 	{
 	  exception_print (gdb_stderr, ex);
@@ -1470,5 +1488,5 @@ Report bugs to %ps.\n\
   if (stream == gdb_stdout)
     gdb_printf (stream, _("\n\
 You can ask GDB-related questions on the GDB users mailing list\n\
-(gdb@sourceware.org) or on GDB's IRC channel (#gdb on Freenode).\n"));
+(gdb@sourceware.org) or on GDB's IRC channel (#gdb on Libera.Chat).\n"));
 }

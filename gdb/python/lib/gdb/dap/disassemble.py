@@ -1,4 +1,4 @@
-# Copyright 2022 Free Software Foundation, Inc.
+# Copyright 2022-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,18 +21,21 @@ from .startup import send_gdb_with_response, in_gdb_thread
 
 @in_gdb_thread
 def _disassemble(pc, skip_insns, count):
+    inf = gdb.selected_inferior()
     try:
         arch = gdb.selected_frame().architecture()
     except gdb.error:
         # Maybe there was no frame.
-        arch = gdb.selected_inferior().architecture()
+        arch = inf.architecture()
     result = []
     total_count = skip_insns + count
     for elt in arch.disassemble(pc, count=total_count)[skip_insns:]:
+        mem = inf.read_memory(elt["addr"], elt["length"])
         result.append(
             {
                 "address": hex(elt["addr"]),
                 "instruction": elt["asm"],
+                "instructionBytes": mem.hex(),
             }
         )
     return {
@@ -43,7 +46,12 @@ def _disassemble(pc, skip_insns, count):
 @request("disassemble")
 @capability("supportsDisassembleRequest")
 def disassemble(
-    *, memoryReference, offset=0, instructionOffset=0, instructionCount, **extra
+    *,
+    memoryReference: str,
+    offset: int = 0,
+    instructionOffset: int = 0,
+    instructionCount: int,
+    **extra
 ):
     pc = int(memoryReference, 0) + offset
     return send_gdb_with_response(

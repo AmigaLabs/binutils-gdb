@@ -148,6 +148,7 @@ DESCRIPTION
 	the entry points which call them. Too bad we can't have one
 	macro to define them both!
 
+EXTERNAL
 .enum bfd_flavour
 .{
 .  {* N.B. Update bfd_flavour_name if you change this.  *}
@@ -173,14 +174,12 @@ DESCRIPTION
 .
 .enum bfd_endian { BFD_ENDIAN_BIG, BFD_ENDIAN_LITTLE, BFD_ENDIAN_UNKNOWN };
 .
-.{* Forward declaration.  *}
-.typedef struct bfd_link_info _bfd_link_info;
-.
-.{* Forward declaration.  *}
-.typedef struct flag_info flag_info;
-.
+.{* Forward declarations.  *}
+.struct flag_info;
 .typedef void (*bfd_cleanup) (bfd *);
 .
+
+CODE_FRAGMENT
 .typedef struct bfd_target
 .{
 .  {* Identifies the kind of target, e.g., SunOS4, Ultrix, etc.  *}
@@ -258,9 +257,10 @@ DESCRIPTION
 .  {* Write cached information into a file being written, at <<bfd_close>>.  *}
 .  bool (*_bfd_write_contents[bfd_type_end]) (bfd *);
 .
+
 The general target vector.  These vectors are initialized using the
 BFD_JUMP_TABLE macros.
-.
+
 .  {* Generic entry points.  *}
 .#define BFD_JUMP_TABLE_GENERIC(NAME) \
 .  NAME##_close_and_cleanup, \
@@ -420,7 +420,7 @@ BFD_JUMP_TABLE macros.
 .    while using BFD for everything else.  Currently used by the assembler
 .    when creating COFF files.  *}
 .  asymbol *
-.	(*_bfd_make_debug_symbol) (bfd *, void *, unsigned long size);
+.	(*_bfd_make_debug_symbol) (bfd *);
 .#define bfd_read_minisymbols(b, d, m, s) \
 .	BFD_SEND (b, _read_minisymbols, (b, d, m, s))
 .  long	(*_read_minisymbols) (bfd *, bool, void **, unsigned int *);
@@ -769,6 +769,8 @@ extern const bfd_target ia64_elf64_vms_vec;
 extern const bfd_target ia64_pei_vec;
 extern const bfd_target ip2k_elf32_vec;
 extern const bfd_target iq2000_elf32_vec;
+extern const bfd_target kvx_elf32_vec;
+extern const bfd_target kvx_elf64_vec;
 extern const bfd_target lm32_elf32_vec;
 extern const bfd_target lm32_elf32_fdpic_vec;
 extern const bfd_target loongarch_elf64_vec;
@@ -1129,6 +1131,11 @@ static const bfd_target * const _bfd_target_vector[] =
 	&ip2k_elf32_vec,
 	&iq2000_elf32_vec,
 
+#ifdef BFD64
+	&kvx_elf32_vec,
+	&kvx_elf64_vec,
+#endif
+
 	&lm32_elf32_vec,
 
 	&m32c_elf32_vec,
@@ -1473,7 +1480,7 @@ static const struct targmatch bfd_target_match[] = {
 };
 
 /*
-CODE_FRAGMENT
+INTERNAL
 .{* Cached _bfd_check_format messages are put in this.  *}
 .struct per_xvec_message
 .{

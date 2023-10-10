@@ -92,7 +92,6 @@ responsibility among the other maintainers.
   gprofng	   Vladimir Mezentsev <vladimir.mezentsev@oracle.com>
   H8300		   Prafulla Thakare <prafulla.thakare@kpitcummins.com>
   HPPA		   Dave Anglin <dave.anglin@bell.net>
-  HPPA elf32	   Alan Modra <amodra@gmail.com>
   HPPA elf64	   Jeff Law <law@redhat.com> [Basic maintainance only]
   IA-64		   Jim Wilson <wilson@tuliptree.org>
   IQ2000	   Stan Cox <scox@redhat.com>
@@ -117,7 +116,6 @@ responsibility among the other maintainers.
   MMIX		   Hans-Peter Nilsson <hp@bitrange.com>
   MN10300	   Alexandre Oliva <aoliva@sourceware.org>
   Moxie		   Anthony Green <green@moxielogic.com>
-  MSP430	   Dmitry Diky <diwil@spec.ru>
   NDS32		   Kuan-Lin Chen <kuanlinchentw@gmail.com>
   NDS32		   Wei-Cheng Wang <cole945@gmail.com>
   NetBSD support   Matt Thomas <matt@netbsd.org>

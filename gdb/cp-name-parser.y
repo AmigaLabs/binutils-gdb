@@ -40,7 +40,7 @@
 #include "defs.h"
 
 #include <unistd.h>
-#include "safe-ctype.h"
+#include "gdbsupport/gdb-safe-ctype.h"
 #include "demangle.h"
 #include "cp-support.h"
 #include "c-support.h"
@@ -2038,7 +2038,7 @@ cp_demangled_name_to_comp (const char *demangled_name,
 
   state.demangle_info = allocate_info ();
 
-  std::unique_ptr<demangle_parse_info> result (new demangle_parse_info);
+  auto result = gdb::make_unique<demangle_parse_info> ();
   result->info = state.demangle_info;
 
   if (yyparse (&state))

@@ -18,6 +18,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
+#include "top.h"
 #include "block.h"
 #include "frame.h"
 #include "symtab.h"
@@ -267,7 +268,6 @@ sympy_value (PyObject *self, PyObject *args)
   struct symbol *symbol = NULL;
   frame_info_ptr frame_info = NULL;
   PyObject *frame_obj = NULL;
-  struct value *value = NULL;
 
   if (!PyArg_ParseTuple (args, "|O", &frame_obj))
     return NULL;
@@ -285,6 +285,7 @@ sympy_value (PyObject *self, PyObject *args)
       return NULL;
     }
 
+  PyObject *result = nullptr;
   try
     {
       if (frame_obj != NULL)
@@ -301,14 +302,16 @@ sympy_value (PyObject *self, PyObject *args)
 	 was found, so we have no block to pass to read_var_value.  This will
 	 yield an incorrect value when symbol is not local to FRAME_INFO (this
 	 can happen with nested functions).  */
-      value = read_var_value (symbol, NULL, frame_info);
+      scoped_value_mark free_values;
+      struct value *value = read_var_value (symbol, NULL, frame_info);
+      result = value_to_value_object (value);
     }
   catch (const gdb_exception &except)
     {
       GDB_PY_HANDLE_EXCEPTION (except);
     }
 
-  return value_to_value_object (value);
+  return result;
 }
 
 /* Given a symbol, and a symbol_object that has previously been
@@ -373,6 +376,19 @@ sympy_dealloc (PyObject *obj)
     sym_obj->next->prev = sym_obj->prev;
   sym_obj->symbol = NULL;
   Py_TYPE (obj)->tp_free (obj);
+}
+
+/* __repr__ implementation for gdb.Symbol.  */
+
+static PyObject *
+sympy_repr (PyObject *self)
+{
+  const auto symbol = symbol_object_to_symbol (self);
+  if (symbol == nullptr)
+    return PyUnicode_FromFormat ("<%s (invalid)>", Py_TYPE (self)->tp_name);
+
+  return PyUnicode_FromFormat ("<%s print_name=%s>", Py_TYPE (self)->tp_name,
+			       symbol->print_name ());
 }
 
 /* Implementation of
@@ -515,6 +531,10 @@ gdbpy_lookup_static_symbol (PyObject *self, PyObject *args, PyObject *kw)
 	= get_selected_frame (_("No frame selected."));
       block = get_frame_block (selected_frame, NULL);
     }
+  catch (const gdb_exception_forced_quit &e)
+    {
+      quit_force (NULL, 0);
+    }
   catch (const gdb_exception &except)
     {
       /* Nothing.  */
@@ -582,9 +602,12 @@ gdbpy_lookup_static_symbols (PyObject *self, PyObject *args, PyObject *kw)
 	{
 	  for (compunit_symtab *cust : objfile->compunits ())
 	    {
-	      const struct blockvector *bv;
+	      /* Skip included compunits to prevent including compunits from
+		 being searched twice.  */
+	      if (cust->user != nullptr)
+		continue;
 
-	      bv = cust->blockvector ();
+	      const struct blockvector *bv = cust->blockvector ();
 	      const struct block *block = bv->static_block ();
 
 	      if (block != nullptr)
@@ -611,7 +634,7 @@ gdbpy_lookup_static_symbols (PyObject *self, PyObject *args, PyObject *kw)
   return return_list.release ();
 }
 
-int
+static int CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION
 gdbpy_initialize_symbols (void)
 {
   if (PyType_Ready (&symbol_object_type) < 0)
@@ -680,6 +703,8 @@ gdbpy_initialize_symbols (void)
 				 (PyObject *) &symbol_object_type);
 }
 
+GDBPY_INITIALIZE_FILE (gdbpy_initialize_symbols);
+
 
 
 static gdb_PyGetSetDef symbol_object_getset[] = {
@@ -732,7 +757,7 @@ PyTypeObject symbol_object_type = {
   0,				  /*tp_getattr*/
   0,				  /*tp_setattr*/
   0,				  /*tp_compare*/
-  0,				  /*tp_repr*/
+  sympy_repr,                    /*tp_repr*/
   0,				  /*tp_as_number*/
   0,				  /*tp_as_sequence*/
   0,				  /*tp_as_mapping*/

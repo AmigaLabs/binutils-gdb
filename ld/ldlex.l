@@ -233,6 +233,7 @@ V_IDENTIFIER [*?.$_a-zA-Z\[\]\-\!\^\\]([*?.$_a-zA-Z0-9\[\]\-\!\^\\]|::)*
 <SCRIPT,EXPRESSION,MRI,WILD>"/="	{ RTOKEN(DIVEQ); }
 <SCRIPT,EXPRESSION,MRI,WILD>"&="	{ RTOKEN(ANDEQ); }
 <SCRIPT,EXPRESSION,MRI,WILD>"|="	{ RTOKEN(OREQ); }
+<SCRIPT,EXPRESSION,MRI,WILD>"^="	{ RTOKEN(XOREQ); }
 <EXPRESSION,MRI>"&&"			{ RTOKEN(ANDAND); }
 <SCRIPT,EXPRESSION,MRI>">"		{ RTOKEN('>'); }
 <SCRIPT,EXPRESSION,MRI,INPUTLIST>","	{ RTOKEN(','); }
@@ -247,6 +248,7 @@ V_IDENTIFIER [*?.$_a-zA-Z\[\]\-\!\^\\]([*?.$_a-zA-Z0-9\[\]\-\!\^\\]|::)*
 <EXPRESSION,MRI>"/"			{ RTOKEN('/'); }
 <EXPRESSION,MRI>"%"			{ RTOKEN('%'); }
 <EXPRESSION,MRI>"<"			{ RTOKEN('<'); }
+<EXPRESSION,MRI>"^"			{ RTOKEN('^'); }
 <SCRIPT,EXPRESSION,MRI,WILD>"="		{ RTOKEN('='); }
 <SCRIPT,EXPRESSION,MRI,WILD>"}"		{ RTOKEN('}'); }
 <SCRIPT,EXPRESSION,MRI,WILD>"{"		{ RTOKEN('{'); }
@@ -309,6 +311,8 @@ V_IDENTIFIER [*?.$_a-zA-Z\[\]\-\!\^\\]([*?.$_a-zA-Z0-9\[\]\-\!\^\\]|::)*
 <WILD>"LONG"				{ RTOKEN(LONG); }
 <WILD>"SHORT"				{ RTOKEN(SHORT); }
 <WILD>"BYTE"				{ RTOKEN(BYTE); }
+<WILD>"ASCIZ"				{ RTOKEN(ASCIZ); }
+<WILD>"LINKER_VERSION"			{ RTOKEN(LINKER_VERSION); }
 <SCRIPT>"NOFLOAT"			{ RTOKEN(NOFLOAT); }
 <SCRIPT,EXPRESSION>"NOCROSSREFS"	{ RTOKEN(NOCROSSREFS); }
 <SCRIPT,EXPRESSION>"NOCROSSREFS_TO"	{ RTOKEN(NOCROSSREFS_TO); }
@@ -487,8 +491,8 @@ V_IDENTIFIER [*?.$_a-zA-Z\[\]\-\!\^\\]([*?.$_a-zA-Z0-9\[\]\-\!\^\\]|::)*
   return END;
 }
 
-<SCRIPT,WILD,MRI,VERS_START,VERS_SCRIPT,VERS_NODE>.	lex_warn_invalid (" in script", yytext);
-<EXPRESSION>.	lex_warn_invalid (" in expression", yytext);
+<SCRIPT,WILD,MRI,VERS_START,VERS_SCRIPT,VERS_NODE>.	lex_warn_invalid (_(" in script"), yytext);
+<EXPRESSION>.	lex_warn_invalid (_(" in expression"), yytext);
 
 %%
 
@@ -664,7 +668,7 @@ static int
 yy_input (char *buf, int max_size)
 {
   int result = 0;
-  if (YY_CURRENT_BUFFER->yy_input_file)
+  if (YY_CURRENT_BUFFER != NULL && YY_CURRENT_BUFFER->yy_input_file)
     {
       if (yyin)
 	{

@@ -1858,8 +1858,11 @@ gprel32_with_gp (bfd *abfd, asymbol *symbol, arelent *reloc_entry,
   else
     relocation = symbol->value;
 
-  relocation += symbol->section->output_section->vma;
-  relocation += symbol->section->output_offset;
+  if (symbol->section->output_section != NULL)
+    {
+      relocation += symbol->section->output_section->vma;
+      relocation += symbol->section->output_offset;
+    }
 
   if (!_bfd_mips_reloc_offset_in_range (abfd, input_section, reloc_entry,
 					check_inplace))
@@ -2599,7 +2602,7 @@ static const struct ecoff_debug_swap mips_elf32_ecoff_debug_swap = {
 					_bfd_mips_elf_print_private_bfd_data
 #define bfd_elf32_bfd_relax_section	_bfd_mips_elf_relax_section
 #define bfd_elf32_mkobject		_bfd_mips_elf_mkobject
-#define bfd_elf32_close_and_cleanup	_bfd_mips_elf_close_and_cleanup
+#define bfd_elf32_bfd_free_cached_info	_bfd_mips_elf_free_cached_info
 
 /* Support for SGI-ish mips targets.  */
 #define TARGET_LITTLE_SYM		mips_elf32_le_vec

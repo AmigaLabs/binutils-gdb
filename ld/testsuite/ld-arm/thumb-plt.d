@@ -1,8 +1,8 @@
 #source: thumb-plt.s
 #name: Thumb only PLT and GOT
-#ld: -shared -e0
+#ld: -shared -e0 -z max-page-size=0x10000
 #objdump: -dr
-#skip: *-*-pe *-*-wince *-*-vxworks armeb-*-* *-*-gnueabihf
+#skip: *-*-pe *-*-wince *-*-vxworks armeb-*-* *-*-gnueabihf *-*-musleabihf
 
 .*: +file format .*arm.*
 

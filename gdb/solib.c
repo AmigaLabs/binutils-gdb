@@ -19,7 +19,6 @@
 
 #include "defs.h"
 
-#include <sys/types.h>
 #include <fcntl.h>
 #include "symtab.h"
 #include "bfd.h"
@@ -30,20 +29,16 @@
 #include "command.h"
 #include "target.h"
 #include "frame.h"
-#include "gdbsupport/gdb_regex.h"
 #include "inferior.h"
 #include "gdbsupport/environ.h"
-#include "language.h"
-#include "gdbcmd.h"
-#include "completer.h"
+#include "cli/cli-cmds.h"
 #include "elf/external.h"
 #include "elf/common.h"
-#include "filenames.h"		/* for DOSish file names */
+#include "filenames.h"
 #include "exec.h"
 #include "solist.h"
 #include "observable.h"
 #include "readline/tilde.h"
-#include "remote.h"
 #include "solib.h"
 #include "interps.h"
 #include "filesystem.h"
@@ -53,7 +48,6 @@
 #include "debuginfod-support.h"
 #include "source.h"
 #include "cli/cli-style.h"
-#include "solib-target.h"
 
 /* See solib.h.  */
 
@@ -430,9 +424,6 @@ solib_bfd_fopen (const char *pathname, int fd)
 {
   gdb_bfd_ref_ptr abfd (gdb_bfd_open (pathname, gnutarget, fd));
 
-  if (abfd != NULL && !gdb_bfd_has_target_filename (abfd.get ()))
-    bfd_set_cacheable (abfd.get (), 1);
-
   if (abfd == NULL)
     {
       /* Arrange to free PATHNAME when the error is thrown.  */
@@ -760,6 +751,24 @@ solib_used (const struct so_list *const known)
   return false;
 }
 
+/* Notify interpreters and observers that solib SO has been loaded.  */
+
+static void
+notify_solib_loaded (so_list *so)
+{
+  interps_notify_solib_loaded (so);
+  gdb::observers::solib_loaded.notify (so);
+}
+
+/* Notify interpreters and observers that solib SO has been unloaded.  */
+
+static void
+notify_solib_unloaded (program_space *pspace, so_list *so)
+{
+  interps_notify_solib_unloaded (so);
+  gdb::observers::solib_unloaded.notify (pspace, so);
+}
+
 /* See solib.h.  */
 
 void
@@ -785,7 +794,7 @@ update_solib_list (int from_tty)
 	    {
 	      ops->open_symbol_file_object (from_tty);
 	    }
-	  catch (const gdb_exception &ex)
+	  catch (const gdb_exception_error &ex)
 	    {
 	      exception_fprintf (gdb_stderr, ex,
 				 "Error reading attached "
@@ -860,7 +869,7 @@ update_solib_list (int from_tty)
 	{
 	  /* Notify any observer that the shared object has been
 	     unloaded before we remove it from GDB's tables.  */
-	  gdb::observers::solib_unloaded.notify (gdb);
+	  notify_solib_unloaded (current_program_space, gdb);
 
 	  current_program_space->deleted_solibs.push_back (gdb->so_name);
 
@@ -896,8 +905,6 @@ update_solib_list (int from_tty)
       /* Fill in the rest of each of the `struct so_list' nodes.  */
       for (i = inferior; i; i = i->next)
 	{
-
-	  i->pspace = current_program_space;
 	  current_program_space->added_solibs.push_back (i);
 
 	  try
@@ -920,7 +927,7 @@ update_solib_list (int from_tty)
 
 	  /* Notify any observer that the shared object has been
 	     loaded now that we've added it to GDB's tables.  */
-	  gdb::observers::solib_loaded.notify (i);
+	  notify_solib_loaded (i);
 	}
 
       /* If a library was not found, issue an appropriate warning
@@ -959,7 +966,7 @@ bool
 libpthread_name_p (const char *name)
 {
   return (strstr (name, "/libpthread") != NULL
-          || strstr (name, "/libc.") != NULL );
+	  || strstr (name, "/libc.") != NULL );
 }
 
 /* Return non-zero if SO is the libpthread shared library.  */
@@ -1228,7 +1235,7 @@ clear_solib (void)
       struct so_list *so = current_program_space->so_list;
 
       current_program_space->so_list = so->next;
-      gdb::observers::solib_unloaded.notify (so);
+      notify_solib_unloaded (current_program_space, so);
       current_program_space->remove_target_sections (so);
       free_so (so);
     }
@@ -1475,13 +1482,11 @@ show_auto_solib_add (struct ui_file *file, int from_tty,
 /* Lookup the value for a specific symbol from dynamic symbol table.  Look
    up symbol from ABFD.  MATCH_SYM is a callback function to determine
    whether to pick up a symbol.  DATA is the input of this callback
-   function.  Return NULL if symbol is not found.  */
+   function.  Return 0 if symbol is not found.  */
 
 CORE_ADDR
-gdb_bfd_lookup_symbol_from_symtab (bfd *abfd,
-				   int (*match_sym) (const asymbol *,
-						     const void *),
-				   const void *data)
+gdb_bfd_lookup_symbol_from_symtab
+     (bfd *abfd, gdb::function_view<bool (const asymbol *)> match_sym)
 {
   long storage_needed = bfd_get_symtab_upper_bound (abfd);
   CORE_ADDR symaddr = 0;
@@ -1499,7 +1504,7 @@ gdb_bfd_lookup_symbol_from_symtab (bfd *abfd,
 	{
 	  asymbol *sym  = *symbol_table++;
 
-	  if (match_sym (sym, data))
+	  if (match_sym (sym))
 	    {
 	      struct gdbarch *gdbarch = target_gdbarch ();
 	      symaddr = sym->value;
@@ -1517,7 +1522,7 @@ gdb_bfd_lookup_symbol_from_symtab (bfd *abfd,
 
 		  msym.set_value_address (symaddr);
 		  gdbarch_elf_make_msymbol_special (gdbarch, sym, &msym);
-		  symaddr = msym.value_raw_address ();
+		  symaddr = CORE_ADDR (msym.unrelocated_address ());
 		}
 
 	      /* BFD symbols are section relative.  */
@@ -1671,14 +1676,12 @@ gdb_bfd_read_elf_soname (const char *filename)
 
 /* Lookup the value for a specific symbol from symbol table.  Look up symbol
    from ABFD.  MATCH_SYM is a callback function to determine whether to pick
-   up a symbol.  DATA is the input of this callback function.  Return NULL
+   up a symbol.  DATA is the input of this callback function.  Return 0
    if symbol is not found.  */
 
 static CORE_ADDR
-bfd_lookup_symbol_from_dyn_symtab (bfd *abfd,
-				   int (*match_sym) (const asymbol *,
-						     const void *),
-				   const void *data)
+bfd_lookup_symbol_from_dyn_symtab
+     (bfd *abfd, gdb::function_view<bool (const asymbol *)> match_sym)
 {
   long storage_needed = bfd_get_dynamic_symtab_upper_bound (abfd);
   CORE_ADDR symaddr = 0;
@@ -1695,7 +1698,7 @@ bfd_lookup_symbol_from_dyn_symtab (bfd *abfd,
 	{
 	  asymbol *sym = *symbol_table++;
 
-	  if (match_sym (sym, data))
+	  if (match_sym (sym))
 	    {
 	      /* BFD symbols are section relative.  */
 	      symaddr = sym->value + sym->section->vma;
@@ -1709,20 +1712,19 @@ bfd_lookup_symbol_from_dyn_symtab (bfd *abfd,
 /* Lookup the value for a specific symbol from symbol table and dynamic
    symbol table.  Look up symbol from ABFD.  MATCH_SYM is a callback
    function to determine whether to pick up a symbol.  DATA is the
-   input of this callback function.  Return NULL if symbol is not
+   input of this callback function.  Return 0 if symbol is not
    found.  */
 
 CORE_ADDR
-gdb_bfd_lookup_symbol (bfd *abfd,
-		       int (*match_sym) (const asymbol *, const void *),
-		       const void *data)
+gdb_bfd_lookup_symbol
+     (bfd *abfd, gdb::function_view<bool (const asymbol *)> match_sym)
 {
-  CORE_ADDR symaddr = gdb_bfd_lookup_symbol_from_symtab (abfd, match_sym, data);
+  CORE_ADDR symaddr = gdb_bfd_lookup_symbol_from_symtab (abfd, match_sym);
 
   /* On FreeBSD, the dynamic linker is stripped by default.  So we'll
      have to check the dynamic string table too.  */
   if (symaddr == 0)
-    symaddr = bfd_lookup_symbol_from_dyn_symtab (abfd, match_sym, data);
+    symaddr = bfd_lookup_symbol_from_dyn_symtab (abfd, match_sym);
 
   return symaddr;
 }
@@ -1737,7 +1739,7 @@ remove_user_added_objfile (struct objfile *objfile)
 {
   if (objfile != 0 && objfile->flags & OBJF_USERLOADED)
     {
-      for (struct so_list *so : current_program_space->solibs ())
+      for (struct so_list *so : objfile->pspace->solibs ())
 	if (so->objfile == objfile)
 	  so->objfile = NULL;
     }
@@ -1749,7 +1751,8 @@ _initialize_solib ()
 {
   gdb::observers::free_objfile.attach (remove_user_added_objfile,
 				       "solib");
-  gdb::observers::inferior_execd.attach ([] (inferior *inf)
+  gdb::observers::inferior_execd.attach ([] (inferior *exec_inf,
+					     inferior *follow_inf)
     {
       solib_create_inferior_hook (0);
     }, "solib");

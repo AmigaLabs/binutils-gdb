@@ -1,3 +1,294 @@
+2023-10-09  Nick Clifton  <nickc@redhat.com>
+
+	PR 30951
+	* ldlex.l (yy_input): Check for YY_CURRENT_BUFFER being NULL.
+
+	PR 30954
+	* ldlang.c (map_input_to_output_sections): Check that os is non
+	NULL before using it.
+
+2023-10-05  A. Wilcox  <awilfox@adelielinux.org>
+
+	PR 30905
+	* testsuite/ld-elf/pr28158.rd: Adjust regexp to allow for section
+	indicies larger than 9.
+
+2023-10-05  A. Wilcox  <awilfox@adelielinux.org>
+
+	PR 30917
+	* testsuite/ld-elf/dt-relr.exp: Skip for MUSL targets.
+
+2023-10-05  A. Wilcox  <awilfox@adelielinux.org>
+
+	PR 30918
+	* testsuite/ld-shared/shared.exp: Add XFAILs for tests that fail
+	with the MUSL library.
+
+2023-10-05  A. Wilcox  <awilfox@adelielinux.org>
+
+	PR 30923
+	* testsuite/ld-arm/thumb-plt-got.d: Skip test for configurations
+	using the MUSL library.
+	* testsuite/ld-arm/thumb-plt.d: Likewise.
+
+2023-10-05  A. Wilcox  <awilfox@adelielinux.org>
+
+	PR 30925
+	PR 22001
+	* testsuite/ld-i386/i386.exp: Skip the pr22001 test with TEXTREL
+	relocations enabled on configurations using the MUSL library.
+
+2023-10-05  A. Wilcox  <awilfox@adelielinux.org>
+
+	PR 30924
+	* testsuite/ld-elfvers/vers.exp (objdump_emptyverstuff): Handle
+	EABI version information in objdump's output.
+
+2023-10-02  Nick Clifton  <nickc@redhat.com>
+
+	* pe-dll.c (fill_edata): Use bfd_get_current_time when filling in
+	the timestamp.
+
+2023-09-27  Hsinyuan Xavier  <TheLastLin@hotmail.com>
+
+	PR 30875
+	* ldlang.c (get_os_init_flag): New function.
+	(exp_init_os, map_input_to_output_sections): Use it.
+
+2023-07-24  Johannes Schauer Marin Rodrigues  <josch@debian.org>
+
+	* pe-dll.c (fill_edata): If inserting a timestamp, use the value
+	held in the SOURCE_DATE_EPOCH environment variable, if it is
+	defined.
+	* ld.texi (--insert-timestamp): Document change in behaviour.
+
+2023-07-03  Nick Clifton  <nickc@redhat.com>
+
+	* configure: Regenerate.
+
+2023-07-03  Nick Clifton  <nickc@redhat.com>
+
+	2.41 Branch Point.
+
+2023-06-28  Nikita Popov  <npopov@redhat.com>
+	    Nick Clifton  <nickc@redhat.com>
+
+	PR 30568
+	* ldfile.c (ldfile_try_open_bfd): Do not track lto generated
+	temporary files.
+
+2023-06-21  Nick Clifton  <nickc@redhat.com>
+
+	PR 29072
+	* testsuite/ld-elf/elf.exp (target_defaults_to_execstack): Always
+	return false for linkers configured with the --enable-default-execstack=no
+	option.
+
+2023-06-14  Nick Clifton  <nickc@redhat.com>
+
+	PR 30374
+	* ldfile.c (struct input_remap): New structure.
+	(ldfile_add_remap): New function.
+	(ldfile_remap_input_free): New function.
+	(ldfile_add_remap_file): New function.
+	(ldfile_possibly_remap_input): New function.
+	(ldfile_print_input_remaps): New function.
+	* ldfile.h: Add prototypes for new functions.
+	* ldlang.c (new_afile): Call ldfile_possibly_remap_input.
+	(lang_finish): Call ldfile_remap_input_free.
+	(lang_map): Call ldfile_print_input_remaps.
+	* ldlex.h (OPTION_REMAP_INPUTS, OPTION_REMAP_INPUTS_FILE): Define.
+	* lexsup.c (ld_options): Add --remap-inputs-file and --remap-inputs.
+	(parse_args): Handle new options.
+	* NEWS: Mention the new feature.
+	* ld.texi: Document the new options.
+	* testsuite/ld-misc/input-remap.exp: New test driver.
+	* testsuite/ld-misc/remaps.r: New file: Expected linker output.
+	* testsuite/ld-misc/remaps.txt: New file.  Input remaps file.
+
+2023-06-07  Nick Clifton  <nickc@redhat.com>
+
+	PR 30499
+	* testsuite/ld-elfcomm/elfcomm.exp: Update regexps to match new
+	output from the linker.
+
+2023-05-17  Luca Bacci  <luca.bacci@outlook.com>
+
+	PR 30421
+	* emultempl/pe.em (set_decoration): New function.
+	(pe_fixup_stdcalls): Call the new function.
+	* emultempl/pep.em (set_decoration): New function.
+	(pep_fixup_stdcalls): Call the new function.
+	* pe-dll.c (make_one): Check for decoated symbols.
+
+2023-05-16  Nick Clifton  <nickc@redhat.com>
+
+	PR 30359
+	* ld.texi (WIN32): Document how to create a resource only DLL.
+
+2023-05-16  Nick Clifton  <nickc@redhat.com>
+
+	* ld.texi (-Ur): Clarify the actions of this option.
+
+2023-05-10  Nick Clifton  <nickc@redhat.com>
+
+	PR 16566
+	* ldlang.c (ld_is_local_symbol): New function.
+	(print_input_section): Add code to display local symbols in the
+	section.
+	* ldlex.h (enum option_values): Add OPTION_PRINT_MAP_LOCALS and
+	OPTION_PRINT_MAP_LOCALS.
+	* lexsup.c (ld_options[]): Add entries for --print-map-locals
+	and --no-print-map-locals.
+	* NEWS: Mention the new feature.
+	* ld.h (struct ld_config_type): Add print_map_locals field.
+	* ld.texi: Document the new command line option.
+	* testsuite/ld-scripts/sizeof.s: Add a local symbol.
+	* testsuite/ld-scripts/map-locals.d: New test control file.
+	* testsuite/ld-scripts/map-address.exp: Run the new test.
+
+2023-05-04  Nick Clifton  <nickc@redhat.com>
+
+	PR 30300
+	* emultempl/pep.em (set_entry_point): Add an undefined reference
+	to the entry point if it has been constructed heuristically.
+	* emultempl/pe.em (set_entry_point): Likewise.
+
+2023-05-04  Dimitar Dimitrov  <dimitar@dinux.eu>
+
+	* scripttempl/pru.sc (OUTPUT_SECTION_ALIGN): New helper variable
+	to place at end of DMEM output sections.
+	(.data): Use the helper variable.
+	(.eh_frame): New output section.
+	(.gnu_extab): Ditto.
+	(.gcc_except_table): Ditto.
+	(.resource_table): Use the helper variable.
+
+2023-04-27  Nick Clifton  <nickc@redhat.com>
+
+	* ldmisc.c (vfinfo): Add support for %x and %lx.
+
+2023-04-18  mengqinggang  <mengqinggang@loongson.cn>
+
+	* testsuite/ld-loongarch-elf/macro_op.d: Regenerated.
+
+2023-04-17  Nick Clifton  <nickc@redhat.com>
+
+	PR 30354
+	* emulparams/armelf.sh (OTHER_PLT_SECTIONS): Define in order to
+	handle the .gnu.sgstubs section.
+
+2023-04-13  Claudiu Zissulescu  <claziss@synopsys.com>
+
+	* testsuite/ld-arc/arc.exp: Update execution predicate.
+	* testsuite/ld-arc/nps-1a.d: Add linker script option.
+	* testsuite/ld-arc/nps-1b.d: Likewise.
+	* testsuite/ld-arc/relax-local-pic.d: Update matching patterns.
+
+2023-04-12  Nick Clifton  <nickc@redhat.com>
+
+	* ld.texi (--enable-non-contiguous-regions): Fix typos in script
+	example.
+
+2023-03-15  Nick Clifton  <nickc@redhat.com>
+
+	PR 30187
+	* NEWS: Mention the new feature.
+	* ld.texi: Document the new feature.
+	* ldgram.y: Handle LINKER_VERSION token.
+	* ldlang.c (lang_add_version): New function.
+	(enable_linker_version): New global variable.
+	* ldlang.h (land_add_version): Prototype.
+	(enable_linker_version): Export.
+	* ldlex.h (OPTION_ENABLE_LINKER_VERSION): Define.
+	(OPTION_DISABLE_LINKER_VERSION): Define.
+	* ldlex.l (LINKER_VERSION): Add token.
+	* lexsup.c (ld_options): Add --enable-linker-version and
+	--disable-linker-version.
+	(parse_args): Handle the new options.
+	* scripttempl/arclinux.sc: Remove stabs and comment sections and
+	replace with inclusion of misc-sections.sc
+	* scripttempl/avr.sc: Likewise.
+	* scripttempl/dlx.sc: Likewise.
+	* scripttempl/elf.sc: Likewise.
+	* scripttempl/elf32cr16.sc: Likewise.
+	* scripttempl/elf32crx.sc: Likewise.
+	* scripttempl/elf32msp430.sc: Likewise.
+	* scripttempl/elf64bpf.sc: Likewise.
+	* scripttempl/elf64hppa.sc: Likewise.
+	* scripttempl/elf_chaos.sc: Likewise.
+	* scripttempl/elfarc.sc: Likewise.
+	* scripttempl/elfarcv2.sc: Likewise.
+	* scripttempl/elfd10v.sc: Likewise.
+	* scripttempl/elfd30v.sc: Likewise.
+	* scripttempl/elfm68hc11.sc: Likewise.
+	* scripttempl/elfm68hc12.sc: Likewise.
+	* scripttempl/elfm9s12z.sc: Likewise.
+	* scripttempl/elfmicroblaze.sc: Likewise.
+	* scripttempl/elfxgate.sc: Likewise.
+	* scripttempl/elfxtensa.sc: Likewise.
+	* scripttempl/epiphany_4x4.sc: Likewise.
+	* scripttempl/ft32.sc: Likewise.
+	* scripttempl/ip2k.sc: Likewise.
+	* scripttempl/iq2000.sc: Likewise.
+	* scripttempl/mep.sc: Likewise.
+	* scripttempl/nds32elf.sc: Likewise.
+	* scripttempl/pru.sc: Likewise.
+	* scripttempl/v850.sc: Likewise.
+	* scripttempl/v850_rh850.sc: Likewise.
+	* scripttempl/visium.sc: Likewise.
+	* scripttempl/xstormy16.sc: Likewise.
+	* scripttempl/z80.sc: Likewise.
+	* testsuite/ld-scripts/script.exp: Run new tests.
+	* scripttempl/misc-sections.sc: New file.
+	* testsuite/ld-scripts/ld-version-2.d: New file.
+	* testsuite/ld-scripts/ld-version.d: New file.
+	* testsuite/ld-scripts/ld-version.t: New file.
+
+2023-02-23  Fangrui Song  <i@maskray.me>
+
+	* emultempl/riscvelf.em: Add option parsing.
+	* testsuite/ld-riscv-elf/code-model-relax-medlow-01-norelaxgp.d: New.
+	* testsuite/ld-riscv-elf/pcgp-relax-01-norelaxgp.d: New.
+	* testsuite/ld-riscv-elf/pcgp-relax-02.d: Test --relax --relax-gp can be
+	used together.
+
+2023-02-20  Nick Clifton  <nickc@redhat.com>
+
+	PR 30004
+	* pe-dll.c (pe_dll_build_sections): Do not build an edata section
+	if all symbols are being excluded.
+
+2023-02-15  Nick Clifton  <nickc@redhat.com>
+
+	PR 30078
+	* testsuite/ld-elf/merge4b.s: Use .asciz instead of .string in
+	order to avoid the special behaviour of the .string directive on
+	HPPA architectures.
+
+2023-02-14  Nick Clifton  <nickc@redhat.com>
+
+	* ld.texi (Plugins): Mention that the -plugin command line option
+	is used to load plugins.
+
+2023-01-27  Nick Clifton  <nickc@redhat.com>
+
+	PR 29998
+	* pe-dll.c (build_filler_bfd): Initialise the next field of the
+	filler input statement, so that it does not break the file chain.
+
+2023-01-24  Nick Clifton  <nickc@redhat.com>
+
+	PR 29998
+	* pe-dll.c (generate_reloc): Handle sections with no assigned
+	output section.  Terminate early of there are no relocs to put in
+	the .reloc section.
+	(pe_exe_fill_sections): Do not emit an empty .reloc section.
+
+2023-01-06  Nick Clifton  <nickc@redhat.com>
+
+	* po/bg.po: Updated Bulgarian translation.
+
 2023-01-05  Nick Clifton  <nickc@redhat.com>
 
 	* configure.tgt: Add arm64pe as an extra emulation for aarch64pe.

@@ -471,7 +471,7 @@ struct language_defn
      If that PC falls in a trampoline belonging to this language, return
      the address of the first pc in the real function, or 0 if it isn't a
      language tramp for this language.  */
-  virtual CORE_ADDR skip_trampoline (frame_info_ptr fi, CORE_ADDR pc) const
+  virtual CORE_ADDR skip_trampoline (const frame_info_ptr &fi, CORE_ADDR pc) const
   {
     return (CORE_ADDR) 0;
   }
@@ -548,7 +548,7 @@ struct language_defn
 			  struct ui_file * stream) const;
 
 /* Print the character string STRING, printing at most LENGTH characters.
-   Printing stops early if the number hits print_max; repeat counts
+   Printing stops early if the number hits print_max_chars; repeat counts
    are printed as appropriate.  Print ellipses at the end if we
    had to stop before printing LENGTH characters, or if FORCE_ELLIPSES.  */
 
@@ -567,6 +567,17 @@ struct language_defn
 
   /* Return true if TYPE is a string type.  */
   virtual bool is_string_type_p (struct type *type) const;
+
+  /* Return true if TYPE is array-like.  */
+  virtual bool is_array_like (struct type *type) const
+  { return false; }
+
+  /* Underlying implementation of value_to_array.  Return a value of
+     array type that corresponds to VAL.  The caller must ensure that
+     is_array_like is true for VAL's type.  Return nullptr if the type
+     cannot be handled.  */
+  virtual struct value *to_array (struct value *val) const
+  { return nullptr; }
 
   /* Return a string that is used by the 'set print max-depth' setting.
      When GDB replaces a struct or union (during value printing) that is
@@ -602,6 +613,12 @@ struct language_defn
   virtual char string_lower_bound () const
   { return c_style_arrays_p () ? 0 : 1; }
 
+  /* Return the LEN characters long string at PTR as a value suitable for
+     this language.  GDBARCH is used to infer the character type.  The
+     default implementation returns a null-terminated C string.  */
+  virtual struct value *value_string (struct gdbarch *gdbarch,
+				      const char *ptr, ssize_t len) const;
+
   /* Returns true if the symbols names should be stored in GDB's data
      structures for minimal/partial/full symbols using their linkage (aka
      mangled) form; false if the symbol names should be demangled first.
@@ -631,7 +648,7 @@ struct language_defn
   { return false; }
 
   /* Is this language case sensitive?  The return value from this function
-     provides the automativ setting for 'set case-sensitive', as a
+     provides the automatic setting for 'set case-sensitive', as a
      consequence, a user is free to override this setting if they want.  */
 
   virtual enum case_sensitivity case_sensitivity () const
@@ -761,8 +778,9 @@ struct symbol *
 
 extern void language_info ();
 
-extern enum language set_language (enum language);
-
+/* Set the current language to LANG.  */
+
+extern void set_language (enum language lang);
 
 /* Test a character to decide whether it can be printed in literal form
    or needs to be printed in another representation.  For example,
@@ -789,12 +807,7 @@ extern const char *language_str (enum language);
 
 /* Check for a language-specific trampoline.  */
 
-extern CORE_ADDR skip_language_trampoline (frame_info_ptr, CORE_ADDR pc);
-
-/* Return demangled language symbol, or NULL.  */
-extern gdb::unique_xmalloc_ptr<char> language_demangle
-     (const struct language_defn *current_language,
-      const char *mangled, int options);
+extern CORE_ADDR skip_language_trampoline (const frame_info_ptr &, CORE_ADDR pc);
 
 /* Return information about whether TYPE should be passed
    (and returned) by reference at the language level.  */

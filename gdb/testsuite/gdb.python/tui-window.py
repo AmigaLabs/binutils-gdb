@@ -42,6 +42,7 @@ class TestWindow:
 
 gdb.register_window_type("test", TestWindow)
 
+
 # Call REMOVE_TITLE on the global window object.
 def delete_window_title():
     the_window.remove_title()
@@ -50,6 +51,11 @@ def delete_window_title():
 # A TUI window "constructor" that always fails.
 def failwin(win):
     raise RuntimeError("Whoops")
+
+
+# Change the title of the window.
+def change_window_title():
+    the_window.win.title = "New Title"
 
 
 gdb.register_window_type("fail", failwin)

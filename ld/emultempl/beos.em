@@ -379,7 +379,7 @@ gld${EMULATION_NAME}_after_open (void)
   /* Pass the wacky PE command line options into the output bfd.
      FIXME: This should be done via a function, rather than by
      including an internal BFD header.  */
-  if (!coff_data(link_info.output_bfd)->pe)
+  if (!obj_pe (link_info.output_bfd))
     {
       einfo (_("%F%P: PE operations on non PE file\n"));
     }
@@ -718,7 +718,7 @@ then
 # Scripts compiled in.
 
 # sed commands to quote an ld script as a C string.
-sc="-f stringify.sed"
+sc="-f ${srcdir}/emultempl/stringify.sed"
 
 fragment <<EOF
 {

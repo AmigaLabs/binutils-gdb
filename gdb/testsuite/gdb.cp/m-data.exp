@@ -18,7 +18,7 @@
 
 # This file is part of the gdb testsuite
 
-if { [skip_cplus_tests] } { return }
+require allow_cplus_tests
 
 #
 # test running programs
@@ -96,4 +96,3 @@ gdb_test "print shadow" "\\$\[0-9]\* = 1" "shadowing member"
 gdb_test "print ::shadow" "\\$\[0-9]\* = 0" "shadowed global variable"
 
 gdb_exit
-return 0

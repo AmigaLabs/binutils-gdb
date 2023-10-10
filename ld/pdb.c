@@ -107,6 +107,13 @@ struct globals
   htab_t hashmap;
 };
 
+struct in_sc
+{
+  asection *s;
+  uint16_t sect_num;
+  uint16_t mod_index;
+};
+
 static const uint32_t crc_table[] =
 {
   0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f,
@@ -213,7 +220,7 @@ create_old_directory_stream (bfd *pdb)
 
   bfd_putl32 (0, buf);
 
-  return bfd_bwrite (buf, sizeof (uint32_t), stream) == sizeof (uint32_t);
+  return bfd_write (buf, sizeof (uint32_t), stream) == sizeof (uint32_t);
 }
 
 /* Calculate the hash of a given string.  */
@@ -281,7 +288,7 @@ populate_info_stream (bfd *pdb, bfd *info_stream, const unsigned char *guid)
   bfd_putl16 (bfd_getb16 (&guid[6]), &h.guid[6]);
   memcpy (&h.guid[8], &guid[8], 8);
 
-  if (bfd_bwrite (&h, sizeof (h), info_stream) != sizeof (h))
+  if (bfd_write (&h, sizeof (h), info_stream) != sizeof (h))
     return false;
 
   /* Write hash list of named streams.  This is a "rollover" hash, i.e.
@@ -337,7 +344,7 @@ populate_info_stream (bfd *pdb, bfd *info_stream, const unsigned char *guid)
 
   bfd_putl32 (names_length, int_buf);
 
-  if (bfd_bwrite (int_buf, sizeof (uint32_t), info_stream) !=
+  if (bfd_write (int_buf, sizeof (uint32_t), info_stream) !=
       sizeof (uint32_t))
     goto end;
 
@@ -348,7 +355,7 @@ populate_info_stream (bfd *pdb, bfd *info_stream, const unsigned char *guid)
 
       size_t len = strlen (b->filename) + 1;
 
-      if (bfd_bwrite (b->filename, len, info_stream) != len)
+      if (bfd_write (b->filename, len, info_stream) != len)
 	goto end;
     }
 
@@ -356,13 +363,13 @@ populate_info_stream (bfd *pdb, bfd *info_stream, const unsigned char *guid)
 
   bfd_putl32 (num_entries, int_buf);
 
-  if (bfd_bwrite (int_buf, sizeof (uint32_t), info_stream) !=
+  if (bfd_write (int_buf, sizeof (uint32_t), info_stream) !=
       sizeof (uint32_t))
     goto end;
 
   bfd_putl32 (num_buckets, int_buf);
 
-  if (bfd_bwrite (int_buf, sizeof (uint32_t), info_stream) !=
+  if (bfd_write (int_buf, sizeof (uint32_t), info_stream) !=
       sizeof (uint32_t))
     goto end;
 
@@ -370,7 +377,7 @@ populate_info_stream (bfd *pdb, bfd *info_stream, const unsigned char *guid)
 
   bfd_putl32 ((num_buckets + 31) / 32, int_buf);
 
-  if (bfd_bwrite (int_buf, sizeof (uint32_t), info_stream) !=
+  if (bfd_write (int_buf, sizeof (uint32_t), info_stream) !=
       sizeof (uint32_t))
     goto end;
 
@@ -389,7 +396,7 @@ populate_info_stream (bfd *pdb, bfd *info_stream, const unsigned char *guid)
 
       bfd_putl32 (v, int_buf);
 
-      if (bfd_bwrite (int_buf, sizeof (uint32_t), info_stream) !=
+      if (bfd_write (int_buf, sizeof (uint32_t), info_stream) !=
 	  sizeof (uint32_t))
 	goto end;
     }
@@ -398,7 +405,7 @@ populate_info_stream (bfd *pdb, bfd *info_stream, const unsigned char *guid)
 
   bfd_putl32 (0, int_buf);
 
-  if (bfd_bwrite (int_buf, sizeof (uint32_t), info_stream) !=
+  if (bfd_write (int_buf, sizeof (uint32_t), info_stream) !=
       sizeof (uint32_t))
     goto end;
 
@@ -410,13 +417,13 @@ populate_info_stream (bfd *pdb, bfd *info_stream, const unsigned char *guid)
 	{
 	  bfd_putl32 (buckets[i]->offset, int_buf);
 
-	  if (bfd_bwrite (int_buf, sizeof (uint32_t), info_stream) !=
+	  if (bfd_write (int_buf, sizeof (uint32_t), info_stream) !=
 	      sizeof (uint32_t))
 	    goto end;
 
 	  bfd_putl32 (buckets[i]->value, int_buf);
 
-	  if (bfd_bwrite (int_buf, sizeof (uint32_t), info_stream) !=
+	  if (bfd_write (int_buf, sizeof (uint32_t), info_stream) !=
 	      sizeof (uint32_t))
 	    goto end;
 	}
@@ -424,13 +431,13 @@ populate_info_stream (bfd *pdb, bfd *info_stream, const unsigned char *guid)
 
   bfd_putl32 (0, int_buf);
 
-  if (bfd_bwrite (int_buf, sizeof (uint32_t), info_stream) !=
+  if (bfd_write (int_buf, sizeof (uint32_t), info_stream) !=
       sizeof (uint32_t))
     goto end;
 
   bfd_putl32 (PDB_STREAM_VERSION_VC140, int_buf);
 
-  if (bfd_bwrite (int_buf, sizeof (uint32_t), info_stream) !=
+  if (bfd_write (int_buf, sizeof (uint32_t), info_stream) !=
       sizeof (uint32_t))
     goto end;
 
@@ -522,7 +529,7 @@ populate_type_stream (bfd *pdb, bfd *stream, struct types *types)
 	      &h.hash_adj_buffer_offset);
   bfd_putl32 (0, &h.hash_adj_buffer_length);
 
-  if (bfd_bwrite (&h, sizeof (h), stream) != sizeof (h))
+  if (bfd_write (&h, sizeof (h), stream) != sizeof (h))
     return false;
 
   /* Write the type definitions into the main stream, and the hashes
@@ -538,13 +545,13 @@ populate_type_stream (bfd *pdb, bfd *stream, struct types *types)
 
       size = bfd_getl16 (e->data);
 
-      if (bfd_bwrite (e->data, size + sizeof (uint16_t), stream)
+      if (bfd_write (e->data, size + sizeof (uint16_t), stream)
 	  != size + sizeof (uint16_t))
 	return false;
 
       bfd_putl32 (e->cv_hash % NUM_TPI_HASH_BUCKETS, buf);
 
-      if (bfd_bwrite (buf, sizeof (uint32_t), hash_stream)
+      if (bfd_write (buf, sizeof (uint32_t), hash_stream)
 	  != sizeof (uint32_t))
 	return false;
 
@@ -570,13 +577,13 @@ populate_type_stream (bfd *pdb, bfd *stream, struct types *types)
 
 	  bfd_putl32 (TPI_FIRST_INDEX + e->index, buf);
 
-	  if (bfd_bwrite (buf, sizeof (uint32_t), hash_stream)
+	  if (bfd_write (buf, sizeof (uint32_t), hash_stream)
 	      != sizeof (uint32_t))
 	    return false;
 
 	  bfd_putl32 (old_off, buf);
 
-	  if (bfd_bwrite (buf, sizeof (uint32_t), hash_stream)
+	  if (bfd_write (buf, sizeof (uint32_t), hash_stream)
 	      != sizeof (uint32_t))
 	    return false;
 	}
@@ -591,13 +598,20 @@ populate_type_stream (bfd *pdb, bfd *stream, struct types *types)
 static uint16_t
 get_arch_number (bfd *abfd)
 {
-  if (abfd->arch_info->arch != bfd_arch_i386)
-    return 0;
+  switch (abfd->arch_info->arch)
+    {
+    case bfd_arch_i386:
+      if (abfd->arch_info->mach & bfd_mach_x86_64)
+	return IMAGE_FILE_MACHINE_AMD64;
+      else
+	return IMAGE_FILE_MACHINE_I386;
 
-  if (abfd->arch_info->mach & bfd_mach_x86_64)
-    return IMAGE_FILE_MACHINE_AMD64;
+    case bfd_arch_aarch64:
+      return IMAGE_FILE_MACHINE_ARM64;
 
-  return IMAGE_FILE_MACHINE_I386;
+    default:
+      return 0;
+    }
 }
 
 /* Validate the DEBUG_S_FILECHKSMS entry within a module's .debug$S
@@ -866,7 +880,7 @@ add_globals_ref (struct globals *glob, bfd *sym_rec_stream, const char *name,
   g->offset = bfd_tell (sym_rec_stream);
   g->hash = hash;
   g->refcount = 1;
-  memcpy (g->data, data, len + 1);
+  memcpy (g->data, data, len);
 
   glob->num_entries++;
 
@@ -877,7 +891,7 @@ add_globals_ref (struct globals *glob, bfd *sym_rec_stream, const char *name,
 
   glob->last = g;
 
-  return bfd_bwrite (data, len, sym_rec_stream) == len;
+  return bfd_write (data, len, sym_rec_stream) == len;
 }
 
 /* Find the end of the current scope within symbols data.  */
@@ -3618,13 +3632,20 @@ handle_debugt_section (asection *s, bfd *mod, struct types *types,
 static uint16_t
 target_processor (bfd *abfd)
 {
-  if (abfd->arch_info->arch != bfd_arch_i386)
-    return 0;
+  switch (abfd->arch_info->arch)
+    {
+    case bfd_arch_i386:
+      if (abfd->arch_info->mach & bfd_mach_x86_64)
+	return CV_CFL_X64;
+      else
+	return CV_CFL_80386;
 
-  if (abfd->arch_info->mach & bfd_mach_x86_64)
-    return CV_CFL_X64;
-  else
-    return CV_CFL_80386;
+    case bfd_arch_aarch64:
+      return CV_CFL_ARM64;
+
+    default:
+      return 0;
+    }
 }
 
 /* Create the symbols that go in "* Linker *", the dummy module created
@@ -3849,7 +3870,7 @@ populate_module_stream (bfd *stream, bfd *mod, uint32_t *sym_byte_size,
 
   bfd_putl32 (CV_SIGNATURE_C13, int_buf);
 
-  if (bfd_bwrite (int_buf, sizeof (uint32_t), stream) != sizeof (uint32_t))
+  if (bfd_write (int_buf, sizeof (uint32_t), stream) != sizeof (uint32_t))
     {
       free (c13_info);
       free (syms);
@@ -3858,7 +3879,7 @@ populate_module_stream (bfd *stream, bfd *mod, uint32_t *sym_byte_size,
 
   if (syms)
     {
-      if (bfd_bwrite (syms, *sym_byte_size, stream) != *sym_byte_size)
+      if (bfd_write (syms, *sym_byte_size, stream) != *sym_byte_size)
 	{
 	  free (c13_info);
 	  free (syms);
@@ -3870,7 +3891,7 @@ populate_module_stream (bfd *stream, bfd *mod, uint32_t *sym_byte_size,
 
   if (c13_info)
     {
-      if (bfd_bwrite (c13_info, *c13_info_size, stream) != *c13_info_size)
+      if (bfd_write (c13_info, *c13_info_size, stream) != *c13_info_size)
 	{
 	  free (c13_info);
 	  return false;
@@ -3883,7 +3904,7 @@ populate_module_stream (bfd *stream, bfd *mod, uint32_t *sym_byte_size,
 
   bfd_putl32 (0, int_buf);
 
-  if (bfd_bwrite (int_buf, sizeof (uint32_t), stream) != sizeof (uint32_t))
+  if (bfd_write (int_buf, sizeof (uint32_t), stream) != sizeof (uint32_t))
     return false;
 
   return true;
@@ -4104,6 +4125,27 @@ find_section_number (bfd *abfd, asection *sect)
   return 0;
 }
 
+/* Used as parameter to qsort, to sort section contributions by section and
+   offset.  */
+static int
+section_contribs_compare (const void *p1, const void *p2)
+{
+  const struct in_sc *sc1 = p1;
+  const struct in_sc *sc2 = p2;
+
+  if (sc1->sect_num < sc2->sect_num)
+    return -1;
+  if (sc1->sect_num > sc2->sect_num)
+    return 1;
+
+  if (sc1->s->output_offset < sc2->s->output_offset)
+    return -1;
+  if (sc1->s->output_offset > sc2->s->output_offset)
+    return 1;
+
+  return 0;
+}
+
 /* Create the substream which maps addresses in the image file to locations
    in the original object files.  */
 static bool
@@ -4114,6 +4156,8 @@ create_section_contrib_substream (bfd *abfd, void **data, uint32_t *size)
   uint16_t mod_index;
   char *sect_flags;
   file_ptr offset;
+  struct in_sc *sc_in, *sc2;
+  uint32_t *ptr;
 
   for (bfd *in = coff_data (abfd)->link_info->input_bfds; in;
        in = in->link.next)
@@ -4141,10 +4185,9 @@ create_section_contrib_substream (bfd *abfd, void **data, uint32_t *size)
 
   for (unsigned int i = 0; i < abfd->section_count; i++)
     {
-      bfd_seek (abfd, offset, SEEK_SET);
-
-      if (bfd_bread (sect_flags + (i * sizeof (uint32_t)), sizeof (uint32_t),
-		     abfd) != sizeof (uint32_t))
+      if (bfd_seek (abfd, offset, SEEK_SET) != 0
+	  || bfd_read (sect_flags + (i * sizeof (uint32_t)), sizeof (uint32_t),
+		       abfd) != sizeof (uint32_t))
 	{
 	  free (*data);
 	  free (sect_flags);
@@ -4154,8 +4197,11 @@ create_section_contrib_substream (bfd *abfd, void **data, uint32_t *size)
       offset += sizeof (struct external_scnhdr);
     }
 
-  sc =
-    (struct section_contribution *) ((uint8_t *) *data + sizeof (uint32_t));
+  /* Microsoft's DIA expects section contributions to be sorted by section
+     number and offset, otherwise it will be unable to resolve line numbers.  */
+
+  sc_in = xmalloc (num_sc * sizeof (* sc_in));
+  sc2 = sc_in;
 
   mod_index = 0;
   for (bfd *in = coff_data (abfd)->link_info->input_bfds; in;
@@ -4163,32 +4209,43 @@ create_section_contrib_substream (bfd *abfd, void **data, uint32_t *size)
     {
       for (asection *s = in->sections; s; s = s->next)
 	{
-	  uint16_t sect_num;
-
 	  if (s->size == 0 || discarded_section (s))
 	    continue;
 
-	  sect_num = find_section_number (abfd, s->output_section);
+	  sc2->s = s;
+	  sc2->sect_num = find_section_number (abfd, s->output_section);
+	  sc2->mod_index = mod_index;
 
-	  memcpy (&sc->characteristics,
-		  sect_flags + ((sect_num - 1) * sizeof (uint32_t)),
-		  sizeof (uint32_t));
-
-	  bfd_putl16 (sect_num, &sc->section);
-	  bfd_putl16 (0, &sc->padding1);
-	  bfd_putl32 (s->output_offset, &sc->offset);
-	  bfd_putl32 (s->size, &sc->size);
-	  bfd_putl16 (mod_index, &sc->module_index);
-	  bfd_putl16 (0, &sc->padding2);
-	  bfd_putl32 (0, &sc->data_crc);
-	  bfd_putl32 (0, &sc->reloc_crc);
-
-	  sc++;
+	  sc2++;
 	}
 
       mod_index++;
     }
 
+  qsort (sc_in, num_sc, sizeof (* sc_in), section_contribs_compare);
+
+  ptr = *data;
+  sc = (struct section_contribution *) (ptr + 1); /* Skip the version word.  */
+
+  for (unsigned int i = 0; i < num_sc; i++)
+    {
+      memcpy (&sc->characteristics,
+	      sect_flags + ((sc_in[i].sect_num - 1) * sizeof (uint32_t)),
+	      sizeof (uint32_t));
+
+      bfd_putl16 (sc_in[i].sect_num, &sc->section);
+      bfd_putl16 (0, &sc->padding1);
+      bfd_putl32 (sc_in[i].s->output_offset, &sc->offset);
+      bfd_putl32 (sc_in[i].s->size, &sc->size);
+      bfd_putl16 (sc_in[i].mod_index, &sc->module_index);
+      bfd_putl16 (0, &sc->padding2);
+      bfd_putl32 (0, &sc->data_crc);
+      bfd_putl32 (0, &sc->reloc_crc);
+
+      sc++;
+    }
+
+  free (sc_in);
   free (sect_flags);
 
   return true;
@@ -4377,7 +4434,7 @@ create_globals_stream (bfd *pdb, struct globals *glob, uint16_t *stream_num)
 	      &h.entries_size);
   bfd_putl32 (buckets_size, &h.buckets_size);
 
-  if (bfd_bwrite (&h, sizeof (h), stream) != sizeof (h))
+  if (bfd_write (&h, sizeof (h), stream) != sizeof (h))
     return false;
 
   /* Write hash entries, sorted by hash.  */
@@ -4389,7 +4446,7 @@ create_globals_stream (bfd *pdb, struct globals *glob, uint16_t *stream_num)
       bfd_putl32 (sorted[i]->offset + 1, &hr.offset);
       bfd_putl32 (sorted[i]->refcount, &hr.reference);
 
-      if (bfd_bwrite (&hr, sizeof (hr), stream) != sizeof (hr))
+      if (bfd_write (&hr, sizeof (hr), stream) != sizeof (hr))
 	goto end;
     }
 
@@ -4405,7 +4462,7 @@ create_globals_stream (bfd *pdb, struct globals *glob, uint16_t *stream_num)
 	    v |= 1 << j;
 	}
 
-      if (bfd_bwrite (&v, sizeof (v), stream) != sizeof (v))
+      if (bfd_write (&v, sizeof (v), stream) != sizeof (v))
 	goto end;
     }
 
@@ -4413,7 +4470,7 @@ create_globals_stream (bfd *pdb, struct globals *glob, uint16_t *stream_num)
 
   bfd_putl32 (0, int_buf);
 
-  if (bfd_bwrite (int_buf, sizeof (uint32_t), stream) != sizeof (uint32_t))
+  if (bfd_write (int_buf, sizeof (uint32_t), stream) != sizeof (uint32_t))
     goto end;
 
   /* Write the bucket offsets.  */
@@ -4426,7 +4483,7 @@ create_globals_stream (bfd *pdb, struct globals *glob, uint16_t *stream_num)
 	     Microsoft's parser.  */
 	  bfd_putl32 (buckets[i]->index * 0xc, int_buf);
 
-	  if (bfd_bwrite (int_buf, sizeof (uint32_t), stream) !=
+	  if (bfd_write (int_buf, sizeof (uint32_t), stream) !=
 	      sizeof (uint32_t))
 	    goto end;
 	}
@@ -4560,7 +4617,7 @@ populate_dbi_stream (bfd *stream, bfd *abfd, bfd *pdb,
   bfd_putl16 (get_arch_number (abfd), &h.machine);
   bfd_putl32 (0, &h.padding);
 
-  if (bfd_bwrite (&h, sizeof (h), stream) != sizeof (h))
+  if (bfd_write (&h, sizeof (h), stream) != sizeof (h))
     {
       free (source_info);
       free (sc);
@@ -4568,7 +4625,7 @@ populate_dbi_stream (bfd *stream, bfd *abfd, bfd *pdb,
       return false;
     }
 
-  if (bfd_bwrite (mod_info, mod_info_size, stream) != mod_info_size)
+  if (bfd_write (mod_info, mod_info_size, stream) != mod_info_size)
     {
       free (source_info);
       free (sc);
@@ -4578,7 +4635,7 @@ populate_dbi_stream (bfd *stream, bfd *abfd, bfd *pdb,
 
   free (mod_info);
 
-  if (bfd_bwrite (sc, sc_size, stream) != sc_size)
+  if (bfd_write (sc, sc_size, stream) != sc_size)
     {
       free (source_info);
       free (sc);
@@ -4587,7 +4644,7 @@ populate_dbi_stream (bfd *stream, bfd *abfd, bfd *pdb,
 
   free (sc);
 
-  if (bfd_bwrite (source_info, source_info_size, stream) != source_info_size)
+  if (bfd_write (source_info, source_info_size, stream) != source_info_size)
     {
       free (source_info);
       return false;
@@ -4607,7 +4664,7 @@ populate_dbi_stream (bfd *stream, bfd *abfd, bfd *pdb,
   bfd_putl16 (0xffff, &opt.new_fpo_stream);
   bfd_putl16 (0xffff, &opt.orig_section_header_stream);
 
-  if (bfd_bwrite (&opt, sizeof (opt), stream) != sizeof (opt))
+  if (bfd_write (&opt, sizeof (opt), stream) != sizeof (opt))
     return false;
 
   return true;
@@ -4723,11 +4780,11 @@ populate_publics_stream (bfd *stream, bfd *abfd, bfd *sym_rec_stream)
 	      bfd_putl32 (p->address, &ps.offset);
 	      bfd_putl16 (p->section, &ps.section);
 
-	      if (bfd_bwrite (&ps, sizeof (struct pubsym), sym_rec_stream) !=
+	      if (bfd_write (&ps, sizeof (struct pubsym), sym_rec_stream) !=
 		  sizeof (struct pubsym))
 		goto end;
 
-	      if (bfd_bwrite (name, name_len + 1, sym_rec_stream) !=
+	      if (bfd_write (name, name_len + 1, sym_rec_stream) !=
 		  name_len + 1)
 		goto end;
 
@@ -4735,7 +4792,7 @@ populate_publics_stream (bfd *stream, bfd *abfd, bfd *sym_rec_stream)
 		{
 		  uint8_t b = 0;
 
-		  if (bfd_bwrite (&b, sizeof (uint8_t), sym_rec_stream) !=
+		  if (bfd_write (&b, sizeof (uint8_t), sym_rec_stream) !=
 		      sizeof (uint8_t))
 		    goto end;
 		}
@@ -4800,7 +4857,7 @@ populate_publics_stream (bfd *stream, bfd *abfd, bfd *sym_rec_stream)
   bfd_putl32 (0, &header.thunk_table_offset);
   bfd_putl32 (0, &header.num_sects);
 
-  if (bfd_bwrite (&header, sizeof (header), stream) != sizeof (header))
+  if (bfd_write (&header, sizeof (header), stream) != sizeof (header))
     goto end;
 
   /* Output the global hash header.  */
@@ -4811,7 +4868,7 @@ populate_publics_stream (bfd *stream, bfd *abfd, bfd *sym_rec_stream)
 	      &hash_header.entries_size);
   bfd_putl32 (buckets_size, &hash_header.buckets_size);
 
-  if (bfd_bwrite (&hash_header, sizeof (hash_header), stream) !=
+  if (bfd_write (&hash_header, sizeof (hash_header), stream) !=
       sizeof (hash_header))
     goto end;
 
@@ -4824,7 +4881,7 @@ populate_publics_stream (bfd *stream, bfd *abfd, bfd *sym_rec_stream)
       bfd_putl32 (sorted[i]->offset + 1, &hr.offset);
       bfd_putl32 (1, &hr.reference);
 
-      if (bfd_bwrite (&hr, sizeof (hr), stream) != sizeof (hr))
+      if (bfd_write (&hr, sizeof (hr), stream) != sizeof (hr))
 	goto end;
     }
 
@@ -4840,7 +4897,7 @@ populate_publics_stream (bfd *stream, bfd *abfd, bfd *sym_rec_stream)
 	    v |= 1 << j;
 	}
 
-      if (bfd_bwrite (&v, sizeof (v), stream) != sizeof (v))
+      if (bfd_write (&v, sizeof (v), stream) != sizeof (v))
 	goto end;
     }
 
@@ -4848,7 +4905,7 @@ populate_publics_stream (bfd *stream, bfd *abfd, bfd *sym_rec_stream)
 
   bfd_putl32 (0, int_buf);
 
-  if (bfd_bwrite (int_buf, sizeof (uint32_t), stream) != sizeof (uint32_t))
+  if (bfd_write (int_buf, sizeof (uint32_t), stream) != sizeof (uint32_t))
     goto end;
 
   /* Write the bucket offsets.  */
@@ -4861,7 +4918,7 @@ populate_publics_stream (bfd *stream, bfd *abfd, bfd *sym_rec_stream)
 	     Microsoft's parser.  */
 	  bfd_putl32 (buckets[i]->index * 0xc, int_buf);
 
-	  if (bfd_bwrite (int_buf, sizeof (uint32_t), stream) !=
+	  if (bfd_write (int_buf, sizeof (uint32_t), stream) !=
 	      sizeof (uint32_t))
 	    goto end;
 	}
@@ -4879,7 +4936,7 @@ populate_publics_stream (bfd *stream, bfd *abfd, bfd *sym_rec_stream)
 	{
 	  bfd_putl32 (sorted[i]->offset, int_buf);
 
-	  if (bfd_bwrite (int_buf, sizeof (uint32_t), stream) !=
+	  if (bfd_write (int_buf, sizeof (uint32_t), stream) !=
 	      sizeof (uint32_t))
 	    goto end;
 	}
@@ -4935,18 +4992,19 @@ create_section_header_stream (bfd *pdb, bfd *abfd, uint16_t *num)
 
   scn_base = bfd_coff_filhsz (abfd) + bfd_coff_aoutsz (abfd);
 
-  bfd_seek (abfd, scn_base, SEEK_SET);
+  if (bfd_seek (abfd, scn_base, SEEK_SET) != 0)
+    return false;
 
   len = section_count * sizeof (struct external_scnhdr);
   buf = xmalloc (len);
 
-  if (bfd_bread (buf, len, abfd) != len)
+  if (bfd_read (buf, len, abfd) != len)
     {
       free (buf);
       return false;
     }
 
-  if (bfd_bwrite (buf, len, stream) != len)
+  if (bfd_write (buf, len, stream) != len)
     {
       free (buf);
       return false;
@@ -4969,25 +5027,25 @@ populate_names_stream (bfd *stream, struct string_table *strings)
   bfd_putl32 (STRING_TABLE_SIGNATURE, &h.signature);
   bfd_putl32 (STRING_TABLE_VERSION, &h.version);
 
-  if (bfd_bwrite (&h, sizeof (h), stream) != sizeof (h))
+  if (bfd_write (&h, sizeof (h), stream) != sizeof (h))
     return false;
 
   bfd_putl32 (strings->strings_len, int_buf);
 
-  if (bfd_bwrite (int_buf, sizeof (uint32_t), stream) != sizeof (uint32_t))
+  if (bfd_write (int_buf, sizeof (uint32_t), stream) != sizeof (uint32_t))
     return false;
 
   int_buf[0] = 0;
 
-  if (bfd_bwrite (int_buf, 1, stream) != 1)
+  if (bfd_write (int_buf, 1, stream) != 1)
     return false;
 
   for (struct string *s = strings->strings_head; s; s = s->next)
     {
-      if (bfd_bwrite (s->s, s->len, stream) != s->len)
+      if (bfd_write (s->s, s->len, stream) != s->len)
 	return false;
 
-      if (bfd_bwrite (int_buf, 1, stream) != 1)
+      if (bfd_write (int_buf, 1, stream) != 1)
 	return false;
 
       num_strings++;
@@ -5015,7 +5073,7 @@ populate_names_stream (bfd *stream, struct string_table *strings)
 
   bfd_putl32 (num_buckets, int_buf);
 
-  if (bfd_bwrite (int_buf, sizeof (uint32_t), stream) != sizeof (uint32_t))
+  if (bfd_write (int_buf, sizeof (uint32_t), stream) != sizeof (uint32_t))
     {
       free (buckets);
       return false;
@@ -5028,7 +5086,7 @@ populate_names_stream (bfd *stream, struct string_table *strings)
       else
 	bfd_putl32 (0, int_buf);
 
-      if (bfd_bwrite (int_buf, sizeof (uint32_t), stream) !=
+      if (bfd_write (int_buf, sizeof (uint32_t), stream) !=
 	  sizeof (uint32_t))
 	{
 	  free (buckets);
@@ -5040,7 +5098,7 @@ populate_names_stream (bfd *stream, struct string_table *strings)
 
   bfd_putl32 (num_strings, int_buf);
 
-  if (bfd_bwrite (int_buf, sizeof (uint32_t), stream) != sizeof (uint32_t))
+  if (bfd_write (int_buf, sizeof (uint32_t), stream) != sizeof (uint32_t))
     return false;
 
   return true;

@@ -49,16 +49,12 @@
 # which is then used by a shared object.
 
 # This test can't be run on targets lacking shared library support.
-if [skip_shlib_tests] {
-    return 0
-}
+require allow_shlib_tests
 
 load_lib dwarf.exp
 
 # This test can only be run on targets which support DWARF-2 and use gas.
-if ![dwarf2_support] {
-    return 0
-}
+require dwarf2_support
 
 # gdb_test_file_name is the name of this file without the .exp
 # extension.  Use it to form basenames for the main program
@@ -71,6 +67,7 @@ set lib_basename ${::gdb_test_file_name}-lib
 # which will be ${srcfile3} after the execution of standard_testfile.
 
 standard_testfile $main_basename.c $lib_basename.c $lib_basename.S
+include_file locexpr-data-member-location.h
 
 set libsrc "${::srcdir}/${::subdir}/${::srcfile2}"
 set lib_so [standard_output_file ${lib_basename}.so]

@@ -151,6 +151,7 @@ ecoff_frob_file (void)
   ecoff_build_debug (hdr, &buf, debug_swap);
 
   /* Finish up the ecoff_tdata structure.  */
+  ecoff_data (stdoutput)->debug_info.alloc_syments = true;
   set = buf;
 #define SET(ptr, count, type, size) \
   if (hdr->count == 0) \
@@ -290,6 +291,7 @@ const struct format_ops ecoff_format_ops =
      the single-format definition (0) would be in order.  */
   1,	/* emit_section_symbols.  */
   0,	/* begin.  */
+  0,	/* end.  */
   ecoff_new_file,
   obj_ecoff_frob_symbol,
   ecoff_frob_file,

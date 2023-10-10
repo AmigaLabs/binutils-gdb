@@ -22,7 +22,7 @@
 /* Originally by Steve Chamberlain, sac@cygnus.com */
 
 #include "defs.h"
-#include "frame.h"		/* required by inferior.h */
+#include "frame.h"
 #include "inferior.h"
 #include "infrun.h"
 #include "target.h"
@@ -612,21 +612,13 @@ windows_nat_target::delete_thread (ptid_t ptid, DWORD exit_code,
 
   id = ptid.lwp ();
 
-  /* Emit a notification about the thread being deleted.
+  /* Note that no notification was printed when the main thread was
+     created, and thus, unless in verbose mode, we should be symmetrical,
+     and avoid an exit notification for the main thread here as well.  */
 
-     Note that no notification was printed when the main thread
-     was created, and thus, unless in verbose mode, we should be
-     symmetrical, and avoid that notification for the main thread
-     here as well.  */
-
-  if (info_verbose)
-    gdb_printf ("[Deleting %s]\n", target_pid_to_str (ptid).c_str ());
-  else if (print_thread_events && !main_thread_p)
-    gdb_printf (_("[%s exited with code %u]\n"),
-		target_pid_to_str (ptid).c_str (),
-		(unsigned) exit_code);
-
-  ::delete_thread (find_thread_ptid (this, ptid));
+  bool silent = (main_thread_p && !info_verbose);
+  thread_info *to_del = this->find_thread (ptid);
+  delete_thread_with_exit_code (to_del, exit_code, silent);
 
   auto iter = std::find_if (windows_process.thread_list.begin (),
 			    windows_process.thread_list.end (),
@@ -1944,7 +1936,7 @@ windows_nat_target::do_initial_windows_stuff (DWORD pid, bool attaching)
       this->resume (minus_one_ptid, 0, GDB_SIGNAL_0);
     }
 
-  switch_to_thread (find_thread_ptid (this, last_ptid));
+  switch_to_thread (this->find_thread (last_ptid));
 
   /* Now that the inferior has been started and all DLLs have been mapped,
      we can iterate over all DLLs and load them in.
@@ -2123,7 +2115,7 @@ windows_nat_target::files_info ()
 
   gdb_printf ("\tUsing the running image of %s %s.\n",
 	      inf->attach_flag ? "attached" : "child",
-	      target_pid_to_str (inferior_ptid).c_str ());
+	      target_pid_to_str (ptid_t (inf->pid)).c_str ());
 }
 
 /* Modify CreateProcess parameters for use of a new separate console.
@@ -2633,7 +2625,7 @@ windows_nat_target::create_inferior (const char *exec_file,
       tty = open (inferior_tty.c_str (), O_RDWR | O_NOCTTY);
       if (tty < 0)
 	{
-	  print_sys_errmsg (inferior_tty.c_str (), errno);
+	  warning_filename_and_errno (inferior_tty.c_str (), errno);
 	  ostdin = ostdout = ostderr = -1;
 	}
       else

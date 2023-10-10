@@ -17,7 +17,7 @@
 
 # This file is part of the gdb testsuite.
 
-if { [skip_cplus_tests] } { return }
+require allow_cplus_tests
 
 #
 # test running programs
@@ -54,4 +54,3 @@ gdb_test_multiple "print obj->myB" "print obj->myB" {
 }
 
 gdb_exit
-return 0

@@ -19,14 +19,10 @@
 load_lib dwarf.exp
 
 # We run objcopy locally to split out the .dwo file.
-if [is_remote host] {
-    return 0
-}
+require {!is_remote host}
 
 # This test can only be run on targets which support DWARF-2 and use gas.
-if ![dwarf2_support] {
-    return 0
-}
+require dwarf2_support
 
 # We place the entire source code for the test into a single .c file,
 # but we generate the DWARF in two separate .S files.  Each .S is

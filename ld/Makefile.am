@@ -40,12 +40,12 @@ am__skipyacc =
 ZLIB = @zlibdir@ -lz
 ZLIBINC = @zlibinc@
 
-ELF_CLFAGS=-DELF_LIST_OPTIONS=@elf_list_options@ \
+ELF_CFLAGS=-DELF_LIST_OPTIONS=@elf_list_options@ \
 	   -DELF_SHLIB_LIST_OPTIONS=@elf_shlib_list_options@ \
 	   -DELF_PLT_UNWIND_LIST_OPTIONS=@elf_plt_unwind_list_options@
 WARN_CFLAGS = @WARN_CFLAGS@
 NO_WERROR = @NO_WERROR@
-AM_CFLAGS = $(WARN_CFLAGS) $(ELF_CLFAGS) $(JANSSON_CFLAGS) $(ZSTD_CFLAGS)
+AM_CFLAGS = $(WARN_CFLAGS) $(ELF_CFLAGS) $(JANSSON_CFLAGS) $(ZSTD_CFLAGS)
 
 # We put the scripts in the directory $(scriptdir)/ldscripts.
 # We can't put the scripts in $(datadir) because the SEARCH_DIR
@@ -128,7 +128,7 @@ CXXFLAGS_FOR_TARGET = `echo $(CXXFLAGS) | sed -e 's/-fsanitize=[^ ]*//g'`
 
 transform = s/^ld-new$$/$(installed_linker)/;@program_transform_name@
 bin_PROGRAMS = ld-new
-info_TEXINFOS = ld.texi
+info_TEXINFOS = ld.texi ldint.texi
 ld_TEXINFOS = configdoc.texi
 noinst_TEXINFOS = ldint.texi
 man_MANS = ld.1
@@ -389,6 +389,7 @@ ALL_64_EMULATION_SOURCES = \
 	eaarch64linux32.c \
 	eaarch64linux32b.c \
 	eaarch64linuxb.c \
+	eaarch64nto.c \
 	eaarch64pe.c \
 	earm64pe.c \
 	eelf32_x86_64.c \
@@ -407,6 +408,7 @@ ALL_64_EMULATION_SOURCES = \
 	eelf32ebmipvxworks.c \
 	eelf32elmip.c \
 	eelf32elmipvxworks.c \
+	eelf32kvx.c \
 	eelf32l4300.c \
 	eelf32lmip.c \
 	eelf32loongarch.c \
@@ -440,6 +442,8 @@ ALL_64_EMULATION_SOURCES = \
 	eelf64btsmip.c \
 	eelf64btsmip_fbsd.c \
 	eelf64hppa.c \
+	eelf64kvx.c \
+	eelf64kvx_linux.c \
 	eelf64loongarch.c \
 	eelf64lppc.c \
 	eelf64lppc_fbsd.c \
@@ -493,7 +497,8 @@ GENERATED_HFILES = ldgram.h ldemul-list.h deffilep.h
 
 # Require an early dependency on the generated headers, as the dependency
 # tracking will not cause them to be built beforehand.
-BUILT_SOURCES = $(GENERATED_HFILES)
+BUILT_SOURCES = $(GENERATED_HFILES) @MAINT@ $(GENERATED_CFILES) \
+	$(ALL_EMULATION_SOURCES) $(ALL_64_EMULATION_SOURCES)
 
 OFILES = ldgram.@OBJEXT@ ldlex-wrapper.@OBJEXT@ lexsup.@OBJEXT@ ldlang.@OBJEXT@ \
 	mri.@OBJEXT@ ldctor.@OBJEXT@ ldmain.@OBJEXT@ plugin.@OBJEXT@ \
@@ -548,7 +553,7 @@ po/SRC-POTFILES.in: @MAINT@ Makefile
 	for f in $(SRC_POTFILES); do echo $$f; done | LC_ALL=C sort > $@-tmp \
 	  && mv $@-tmp $(srcdir)/po/SRC-POTFILES.in
 
-po/BLD-POTFILES.in: @MAINT@ Makefile $(BLD_POTFILES)
+po/BLD-POTFILES.in: @MAINT@ Makefile
 	for f in $(BLD_POTFILES); do echo $$f; done | LC_ALL=C sort > $@-tmp \
 	  && mv $@-tmp $(srcdir)/po/BLD-POTFILES.in
 
@@ -616,8 +621,8 @@ ldemul-list.h: Makefile
 	echo "  0") >ldemul-tmp.h
 	mv ldemul-tmp.h ldemul-list.h
 
-stringify.sed: ${srcdir}/emultempl/$(STRINGIFY)
-	  $(AM_V_GEN)cp ${srcdir}/emultempl/$(STRINGIFY) stringify.sed
+ldscripts/stamp:
+	$(AM_V_GEN)test -d $(@D) || mkdir $(@D); touch $@
 
 if AMDEP
   GENDEPDIR=$(DEPDIR)
@@ -625,7 +630,7 @@ else
   GENDEPDIR=
 endif
 GENSCRIPTS = $(SHELL) $(srcdir)/genscripts.sh "${srcdir}" "${libdir}" "${prefix}" "${exec_prefix}" @host@ @target@ @target_alias@ "$(GENDEPDIR)" "${LIB_PATH}" "@EMULATION_LIBPATH@" "@NATIVE_LIB_DIRS@" @use_sysroot@ @enable_initfini_array@
-GEN_DEPENDS = $(srcdir)/genscripts.sh stringify.sed
+GEN_DEPENDS = $(srcdir)/genscripts.sh ldscripts/stamp
 
 @TDIRS@
 
@@ -961,7 +966,8 @@ $(ALL_EMULATION_SOURCES) $(ALL_64_EMULATION_SOURCES): $(GEN_DEPENDS)
 # We need this for automake to use YLWRAP.
 EXTRA_ld_new_SOURCES = deffilep.y ldlex.l
 # Allow dependency tracking to work for these files, too.
-EXTRA_ld_new_SOURCES += ldelf.c ldelfgen.c pdb.c pep-dll.c pe-dll.c
+EXTRA_ld_new_SOURCES += ldelf.c ldelfgen.c pdb.c pep-dll.c pe-dll.c \
+	 pep-dll-aarch64.c pep-dll-x86_64.c
 
 ld_new_SOURCES = ldgram.y ldlex-wrapper.c lexsup.c ldlang.c mri.c ldctor.c ldmain.c \
 	ldwrite.c ldexp.c ldemul.c ldver.c ldmisc.c ldfile.c ldcref.c plugin.c \
@@ -991,11 +997,12 @@ check-DEJAGNU: site.exp
 		CC="$(CC)" CFLAGS="$(CFLAGS)" \
 		CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS)" \
 		CC_FOR_TARGET="$(CC_FOR_TARGET)" \
-		CFLAGS_FOR_TARGET="$(CFLAGS_FOR_TARGET)" \
+		CFLAGS_FOR_TARGET="$(filter-out -ffile-prefix-map=%,$(CFLAGS_FOR_TARGET))" \
 		CXX_FOR_TARGET="$(CXX_FOR_TARGET)" \
-		CXXFLAGS_FOR_TARGET="$(CXXFLAGS_FOR_TARGET)" \
+		CXXFLAGS_FOR_TARGET="$(filter-out -ffile-prefix-map=%,$(CXXFLAGS_FOR_TARGET))" \
 		OFILES="$(OFILES)" BFDLIB="$(TESTBFDLIB)" CTFLIB="$(TESTCTFLIB) $(ZLIB)" \
 		SFRAMELIB="$(TESTSFRAMELIB)" \
+		JANSSON_LIBS="$(JANSSON_LIBS)" ZSTD_LIBS="$(ZSTD_LIBS)" \
 		LIBIBERTY="$(LIBIBERTY) $(LIBINTL)" LIBS="$(LIBS)" \
 		DO_COMPARE="`echo '$(do_compare)' | sed -e 's,\\$$,,g'`" \
 		$(RUNTESTFLAGS); \
@@ -1056,7 +1063,19 @@ ld.1: $(srcdir)/ld.texi configdoc.texi
 		(rm -f $@.T$$$$ && exit 1)
 	$(AM_V_at)rm -f ld.pod
 
-MAINTAINERCLEANFILES = configdoc.texi ld.1
+# Build the man page from the texinfo file
+# The sed command removes the no-adjust Nroff command so that
+# the man output looks standard.
+ldint.1: $(srcdir)/ldint.texi configdoc.texi
+	$(AM_V_GEN)touch $@
+	$(AM_V_at)-$(TEXI2POD) $(MANCONF) < $(srcdir)/ldint.texi > ldint.pod
+	$(AM_V_at)-($(POD2MAN) ldint.pod | \
+		sed -e '/^.if n .na/d' > $@.T$$$$ && \
+		mv -f $@.T$$$$ $@) || \
+		(rm -f $@.T$$$$ && exit 1)
+	$(AM_V_at)rm -f ldint.pod
+
+MAINTAINERCLEANFILES = configdoc.texi ld.1 ldint.1
 
 # We want to reconfigure if configure.host or configure.tgt changes.
 # development.sh is used to determine -Werror default.
@@ -1096,7 +1115,10 @@ install-exec-local: ld-new$(EXEEXT) install-binPROGRAMS
 install-data-local: install-bfdpluginLTLIBRARIES
 	$(mkinstalldirs) $(DESTDIR)$(scriptdir)/ldscripts
 	for f in ldscripts/* ; do \
-	  $(INSTALL_DATA) $$f $(DESTDIR)$(scriptdir)/$$f ; \
+	  case $$f in \
+	    stamp) ;; \
+	    *) $(INSTALL_DATA) $$f $(DESTDIR)$(scriptdir)/$$f ; \
+	  esac \
 	done
 	rm -f $(DESTDIR)$(bfdplugindir)/libdep.la
 	rm -f $(DESTDIR)$(bfdplugindir)/libdep.dll.a
@@ -1118,7 +1140,7 @@ doc/ld/index.html: ld.texi $(ld_TEXINFOS)
 	$(AM_V_GEN)$(MAKEINFOHTML) $(AM_MAKEINFOHTMLFLAGS) $(MAKEINFOFLAGS) \
 	  --split=node -I$(srcdir) $(srcdir)/ld.texi -o doc/ld
 
-DISTCLEANFILES = site.exp development.exp enablings.exp site.bak stringify.sed
+DISTCLEANFILES = site.exp development.exp enablings.exp site.bak
 distclean-local:
 	rm -rf ldscripts
 

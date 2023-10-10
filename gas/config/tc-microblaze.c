@@ -755,7 +755,7 @@ parse_imm (char * s, expressionS * e, offsetT min, offsetT max)
       if ((e->X_add_number >> 31) == 1)
 	e->X_add_number |= -((addressT) (1U << 31));
 
-      if (e->X_add_number < min || e->X_add_number > max)
+      if ((int)e->X_add_number < min || (int)e->X_add_number > max)
 	{
 	  as_fatal (_("operand must be absolute in range %lx..%lx, not %lx"),
 		    (long) min, (long) max, (long) e->X_add_number);
@@ -1854,6 +1854,8 @@ struct option md_longopts[] =
 {
   {"EB", no_argument, NULL, OPTION_EB},
   {"EL", no_argument, NULL, OPTION_EL},
+  {"mlittle-endian", no_argument, NULL, OPTION_EL},
+  {"mbig-endian", no_argument, NULL, OPTION_EB},
   { NULL,          no_argument, NULL, 0}
 };
 
@@ -2524,6 +2526,9 @@ md_show_usage (FILE * stream ATTRIBUTE_UNUSED)
   /*  fprintf(stream, _("\
       MicroBlaze options:\n\
       -noSmall         Data in the comm and data sections do not go into the small data section\n")); */
+  fprintf (stream, _(" MicroBlaze specific assembler options:\n"));
+  fprintf (stream, "  -%-23s%s\n", "mbig-endian", N_("assemble for a big endian cpu"));
+  fprintf (stream, "  -%-23s%s\n", "mlittle-endian", N_("assemble for a little endian cpu"));      
 }
 
 

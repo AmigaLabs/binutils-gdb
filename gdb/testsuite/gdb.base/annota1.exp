@@ -19,9 +19,7 @@
 # This testcase cannot use runto_main because of the different prompt
 # we get when using annotation level 2.
 #
-if ![target_can_use_run_cmd] {
-    return 0
-}
+require target_can_use_run_cmd
 
 set breakpoints_invalid "\r\n\032\032breakpoints-invalid\r\n"
 
@@ -497,10 +495,7 @@ proc thread_test {} {
 
     if { [gdb_compile_pthreads "${srcdir}/${subdir}/${srcfile}" "${binfile}" executable {debug nowarnings}] == "" } {
 
-	gdb_exit
-	gdb_start
-	gdb_reinitialize_dir $srcdir/$subdir
-	gdb_load ${binfile}
+	clean_restart $binfile
 	if {![runto_main]} {
 	    return
 	}

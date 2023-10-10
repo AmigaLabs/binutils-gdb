@@ -21,7 +21,7 @@
 #include "arch-utils.h"
 #include <signal.h>
 #include <fcntl.h>
-#include "frame.h"		/* required by inferior.h */
+#include "frame.h"
 #include "inferior.h"
 #include "infrun.h"
 #include "symtab.h"
@@ -47,6 +47,7 @@
 #include "build-id.h"
 #include "gdbsupport/pathstuff.h"
 #include "gdbsupport/scoped_fd.h"
+#include "gdbsupport/x86-xstate.h"
 #include "debuginfod-support.h"
 #include <unordered_map>
 #include <unordered_set>
@@ -108,6 +109,8 @@ public:
      core file notes.  */
   bool fetch_memtags (CORE_ADDR address, size_t len,
 		      gdb::byte_vector &tags, int type) override;
+
+  x86_xsave_layout fetch_x86_xsave_layout () override;
 
   /* A few helpers.  */
 
@@ -233,6 +236,16 @@ core_target::build_file_mappings ()
 	   weed out non-file-backed mappings.  */
 	gdb_assert (filename != nullptr);
 
+	if (unavailable_paths.find (filename) != unavailable_paths.end ())
+	  {
+	    /* We have already seen some mapping for FILENAME but failed to
+	       find/open the file.  There is no point in trying the same
+	       thing again so just record that the range [start, end) is
+	       unavailable.  */
+	    m_core_unavailable_mappings.emplace_back (start, end - start);
+	    return;
+	  }
+
 	struct bfd *bfd = bfd_map[filename];
 	if (bfd == nullptr)
 	  {
@@ -250,32 +263,23 @@ core_target::build_file_mappings ()
 	    if (expanded_fname == nullptr)
 	      {
 		m_core_unavailable_mappings.emplace_back (start, end - start);
-		/* Print just one warning per path.  */
-		if (unavailable_paths.insert (filename).second)
-		  warning (_("Can't open file %s during file-backed mapping "
-			     "note processing"),
-			   filename);
+		unavailable_paths.insert (filename);
+		warning (_("Can't open file %s during file-backed mapping "
+			   "note processing"),
+			 filename);
 		return;
 	      }
 
-	    bfd = bfd_map[filename] = bfd_openr (expanded_fname.get (),
-						 "binary");
+	    bfd = bfd_openr (expanded_fname.get (), "binary");
 
 	    if (bfd == nullptr || !bfd_check_format (bfd, bfd_object))
 	      {
 		m_core_unavailable_mappings.emplace_back (start, end - start);
-		/* If we get here, there's a good chance that it's due to
-		   an internal error.  We issue a warning instead of an
-		   internal error because of the possibility that the
-		   file was removed in between checking for its
-		   existence during the expansion in exec_file_find()
-		   and the calls to bfd_openr() / bfd_check_format(). 
-		   Output both the path from the core file note along
-		   with its expansion to make debugging this problem
-		   easier.  */
+		unavailable_paths.insert (filename);
 		warning (_("Can't open file %s which was expanded to %s "
 			   "during file-backed mapping note processing"),
 			 filename, expanded_fname.get ());
+
 		if (bfd != nullptr)
 		  bfd_close (bfd);
 		return;
@@ -284,6 +288,7 @@ core_target::build_file_mappings ()
 	       This can be checked before/after a core file detach via
 	       "maint info bfds".  */
 	    gdb_bfd_record_inclusion (core_bfd, bfd);
+	    bfd_map[filename] = bfd;
 	  }
 
 	/* Make new BFD section.  All sections have the same name,
@@ -326,7 +331,7 @@ core_target::clear_core ()
     {
       switch_to_no_thread ();    /* Avoid confusion from thread
 				    stuff.  */
-      exit_inferior_silent (current_inferior ());
+      exit_inferior (current_inferior ());
 
       /* Clear out solib state while the bfd is still open.  See
 	 comments in clear_solib in solib.c.  */
@@ -351,40 +356,24 @@ core_target::close ()
 /* Look for sections whose names start with `.reg/' so that we can
    extract the list of threads in a core file.  */
 
-static void
-add_to_thread_list (asection *asect, asection *reg_sect)
-{
-  int core_tid;
-  int pid, lwpid;
-  bool fake_pid_p = false;
-  struct inferior *inf;
+/* If ASECT is a section whose name begins with '.reg/' then extract the
+   lwpid after the '/' and create a new thread in INF.
 
+   If REG_SECT is not nullptr, and the both ASECT and REG_SECT point at the
+   same position in the parent bfd object then switch to the newly created
+   thread, otherwise, the selected thread is left unchanged.  */
+
+static void
+add_to_thread_list (asection *asect, asection *reg_sect, inferior *inf)
+{
   if (!startswith (bfd_section_name (asect), ".reg/"))
     return;
 
-  core_tid = atoi (bfd_section_name (asect) + 5);
-
-  pid = bfd_core_file_pid (core_bfd);
-  if (pid == 0)
-    {
-      fake_pid_p = true;
-      pid = CORELOW_PID;
-    }
-
-  lwpid = core_tid;
-
-  inf = current_inferior ();
-  if (inf->pid == 0)
-    {
-      inferior_appeared (inf, pid);
-      inf->fake_pid_p = fake_pid_p;
-    }
-
-  ptid_t ptid (pid, lwpid);
-
+  int lwpid = atoi (bfd_section_name (asect) + 5);
+  ptid_t ptid (inf->pid, lwpid);
   thread_info *thr = add_thread (inf->process_target (), ptid);
 
-/* Warning, Will Robinson, looking at BFD private data! */
+  /* Warning, Will Robinson, looking at BFD private data! */
 
   if (reg_sect != NULL
       && asect->filepos == reg_sect->filepos)	/* Did we find .reg?  */
@@ -419,6 +408,153 @@ core_file_command (const char *filename, int from_tty)
     }
   else
     core_target_open (filename, from_tty);
+}
+
+/* A vmcore file is a core file created by the Linux kernel at the point of
+   a crash.  Each thread in the core file represents a real CPU core, and
+   the lwpid for each thread is the pid of the process that was running on
+   that core at the moment of the crash.
+
+   However, not every CPU core will have been running a process, some cores
+   will be idle.  For these idle cores the CPU writes an lwpid of 0.  And
+   of course, multiple cores might be idle, so there could be multiple
+   threads with an lwpid of 0.
+
+   The problem is GDB doesn't really like threads with an lwpid of 0; GDB
+   presents such a thread as a process rather than a thread.  And GDB
+   certainly doesn't like multiple threads having the same lwpid, each time
+   a new thread is seen with the same lwpid the earlier thread (with the
+   same lwpid) will be deleted.
+
+   This function addresses both of these problems by assigning a fake lwpid
+   to any thread with an lwpid of 0.
+
+   GDB finds the lwpid information by looking at the bfd section names
+   which include the lwpid, e.g. .reg/NN where NN is the lwpid.  This
+   function looks though all the section names looking for sections named
+   .reg/NN.  If any sections are found where NN == 0, then we assign a new
+   unique value of NN.  Then, in a second pass, any sections ending /0 are
+   assigned their new number.
+
+   Remember, a core file may contain multiple register sections for
+   different register sets, but the sets are always grouped by thread, so
+   we can figure out which registers should be assigned the same new
+   lwpid.  For example, consider a core file containing:
+
+     .reg/0, .reg2/0, .reg/0, .reg2/0
+
+   This represents two threads, each thread contains a .reg and .reg2
+   register set.  The .reg represents the start of each thread.  After
+   renaming the sections will now look like this:
+
+     .reg/1, .reg2/1, .reg/2, .reg2/2
+
+   After calling this function the rest of the core file handling code can
+   treat this core file just like any other core file.  */
+
+static void
+rename_vmcore_idle_reg_sections (bfd *abfd, inferior *inf)
+{
+  /* Map from the bfd section to its lwpid (the /NN number).  */
+  std::vector<std::pair<asection *, int>> sections_and_lwpids;
+
+  /* The set of all /NN numbers found.  Needed so we can easily find unused
+     numbers in the case that we need to rename some sections.  */
+  std::unordered_set<int> all_lwpids;
+
+  /* A count of how many sections called .reg/0 we have found.  */
+  unsigned zero_lwpid_count = 0;
+
+  /* Look for all the .reg sections.  Record the section object and the
+     lwpid which is extracted from the section name.  Spot if any have an
+     lwpid of zero.  */
+  for (asection *sect : gdb_bfd_sections (core_bfd))
+    {
+      if (startswith (bfd_section_name (sect), ".reg/"))
+	{
+	  int lwpid = atoi (bfd_section_name (sect) + 5);
+	  sections_and_lwpids.emplace_back (sect, lwpid);
+	  all_lwpids.insert (lwpid);
+	  if (lwpid == 0)
+	    zero_lwpid_count++;
+	}
+    }
+
+  /* If every ".reg/NN" section has a non-zero lwpid then we don't need to
+     do any renaming.  */
+  if (zero_lwpid_count == 0)
+    return;
+
+  /* Assign a new number to any .reg sections with an lwpid of 0.  */
+  int new_lwpid = 1;
+  for (auto &sect_and_lwpid : sections_and_lwpids)
+    if (sect_and_lwpid.second == 0)
+      {
+	while (all_lwpids.find (new_lwpid) != all_lwpids.end ())
+	  new_lwpid++;
+	sect_and_lwpid.second = new_lwpid;
+	new_lwpid++;
+      }
+
+  /* Now update the names of any sections with an lwpid of 0.  This is
+     more than just the .reg sections we originally found.  */
+  std::string replacement_lwpid_str;
+  auto iter = sections_and_lwpids.begin ();
+  int replacement_lwpid = 0;
+  for (asection *sect : gdb_bfd_sections (core_bfd))
+    {
+      if (iter != sections_and_lwpids.end () && sect == iter->first)
+	{
+	  gdb_assert (startswith (bfd_section_name (sect), ".reg/"));
+
+	  int lwpid = atoi (bfd_section_name (sect) + 5);
+	  if (lwpid == iter->second)
+	    {
+	      /* This section was not given a new number.  */
+	      gdb_assert (lwpid != 0);
+	      replacement_lwpid = 0;
+	    }
+	  else
+	    {
+	      replacement_lwpid = iter->second;
+	      ptid_t ptid (inf->pid, replacement_lwpid);
+	      if (!replacement_lwpid_str.empty ())
+		replacement_lwpid_str += ", ";
+	      replacement_lwpid_str += target_pid_to_str (ptid);
+	    }
+
+	  iter++;
+	}
+
+      if (replacement_lwpid != 0)
+	{
+	  const char *name = bfd_section_name (sect);
+	  size_t len = strlen (name);
+
+	  if (strncmp (name + len - 2, "/0", 2) == 0)
+	    {
+	      /* This section needs a new name.  */
+	      std::string name_str
+		= string_printf ("%.*s/%d",
+				 static_cast<int> (len - 2),
+				 name, replacement_lwpid);
+	      char *name_buf
+		= static_cast<char *> (bfd_alloc (abfd, name_str.size () + 1));
+	      if (name_buf == nullptr)
+		error (_("failed to allocate space for section name '%s'"),
+		       name_str.c_str ());
+	      memcpy (name_buf, name_str.c_str(), name_str.size () + 1);
+	      bfd_rename_section (sect, name_buf);
+	    }
+	}
+    }
+
+  if (zero_lwpid_count == 1)
+    warning (_("found thread with pid 0, assigned replacement Target Id: %s"),
+	     replacement_lwpid_str.c_str ());
+  else
+    warning (_("found threads with pid 0, assigned replacement Target Ids: %s"),
+	     replacement_lwpid_str.c_str ());
 }
 
 /* Locate (and load) an executable file (and symbols) given the core file
@@ -541,12 +677,30 @@ core_target_open (const char *arg, int from_tty)
      previous session, and the frame cache being stale.  */
   registers_changed ();
 
+  /* Find (or fake) the pid for the process in this core file, and
+     initialise the current inferior with that pid.  */
+  bool fake_pid_p = false;
+  int pid = bfd_core_file_pid (core_bfd);
+  if (pid == 0)
+    {
+      fake_pid_p = true;
+      pid = CORELOW_PID;
+    }
+
+  inferior *inf = current_inferior ();
+  gdb_assert (inf->pid == 0);
+  inferior_appeared (inf, pid);
+  inf->fake_pid_p = fake_pid_p;
+
+  /* Rename any .reg/0 sections, giving them each a fake lwpid.  */
+  rename_vmcore_idle_reg_sections (core_bfd, inf);
+
   /* Build up thread list from BFD sections, and possibly set the
      current thread to the .reg/NN section matching the .reg
      section.  */
   asection *reg_sect = bfd_get_section_by_name (core_bfd, ".reg");
   for (asection *sect : gdb_bfd_sections (core_bfd))
-    add_to_thread_list (sect, reg_sect);
+    add_to_thread_list (sect, reg_sect, inf);
 
   if (inferior_ptid == null_ptid)
     {
@@ -556,13 +710,10 @@ core_target_open (const char *arg, int from_tty)
 	 which was the "main" thread.  The latter case shouldn't
 	 usually happen, but we're dealing with input here, which can
 	 always be broken in different ways.  */
-      thread_info *thread = first_thread_of_inferior (current_inferior ());
+      thread_info *thread = first_thread_of_inferior (inf);
 
       if (thread == NULL)
-	{
-	  inferior_appeared (current_inferior (), CORELOW_PID);
-	  thread = add_thread_silent (target, ptid_t (CORELOW_PID));
-	}
+	thread = add_thread_silent (target, ptid_t (CORELOW_PID));
 
       switch_to_thread (thread);
     }
@@ -1078,35 +1229,47 @@ core_target::thread_alive (ptid_t ptid)
 const struct target_desc *
 core_target::read_description ()
 {
-  /* If the core file contains a target description note then we will use
-     that in preference to anything else.  */
-  bfd_size_type tdesc_note_size = 0;
-  struct bfd_section *tdesc_note_section
-    = bfd_get_section_by_name (core_bfd, ".gdb-tdesc");
-  if (tdesc_note_section != nullptr)
-    tdesc_note_size = bfd_section_size (tdesc_note_section);
-  if (tdesc_note_size > 0)
+  /* First check whether the target wants us to use the corefile target
+     description notes.  */
+  if (gdbarch_use_target_description_from_corefile_notes (m_core_gdbarch,
+							  core_bfd))
     {
-      gdb::char_vector contents (tdesc_note_size + 1);
-      if (bfd_get_section_contents (core_bfd, tdesc_note_section,
-				    contents.data (), (file_ptr) 0,
-				    tdesc_note_size))
+      /* If the core file contains a target description note then go ahead and
+	 use that.  */
+      bfd_size_type tdesc_note_size = 0;
+      struct bfd_section *tdesc_note_section
+	= bfd_get_section_by_name (core_bfd, ".gdb-tdesc");
+      if (tdesc_note_section != nullptr)
+	tdesc_note_size = bfd_section_size (tdesc_note_section);
+      if (tdesc_note_size > 0)
 	{
-	  /* Ensure we have a null terminator.  */
-	  contents[tdesc_note_size] = '\0';
-	  const struct target_desc *result
-	    = string_read_description_xml (contents.data ());
-	  if (result != nullptr)
-	    return result;
+	  gdb::char_vector contents (tdesc_note_size + 1);
+	  if (bfd_get_section_contents (core_bfd, tdesc_note_section,
+					contents.data (), (file_ptr) 0,
+					tdesc_note_size))
+	    {
+	      /* Ensure we have a null terminator.  */
+	      contents[tdesc_note_size] = '\0';
+	      const struct target_desc *result
+		= string_read_description_xml (contents.data ());
+	      if (result != nullptr)
+		return result;
+	    }
 	}
     }
 
+  /* If the architecture provides a corefile target description hook, use
+     it now.  Even if the core file contains a target description in a note
+     section, it is not useful for targets that can potentially have distinct
+     descriptions for each thread.  One example is AArch64's SVE/SME
+     extensions that allow per-thread vector length changes, resulting in
+     registers with different sizes.  */
   if (m_core_gdbarch && gdbarch_core_read_description_p (m_core_gdbarch))
     {
       const struct target_desc *result;
 
       result = gdbarch_core_read_description (m_core_gdbarch, this, core_bfd);
-      if (result != NULL)
+      if (result != nullptr)
 	return result;
     }
 
@@ -1237,6 +1400,24 @@ core_target::fetch_memtags (CORE_ADDR address, size_t len,
   }
 
   return false;
+}
+
+/* Implementation of the "fetch_x86_xsave_layout" target_ops method.  */
+
+x86_xsave_layout
+core_target::fetch_x86_xsave_layout ()
+{
+  if (m_core_gdbarch != nullptr &&
+      gdbarch_core_read_x86_xsave_layout_p (m_core_gdbarch))
+    {
+      x86_xsave_layout layout;
+      if (!gdbarch_core_read_x86_xsave_layout (m_core_gdbarch, layout))
+	return {};
+
+      return layout;
+    }
+
+  return {};
 }
 
 /* Get a pointer to the current core target.  If not connected to a

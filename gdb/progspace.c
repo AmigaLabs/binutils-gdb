@@ -28,6 +28,7 @@
 #include "inferior.h"
 #include <algorithm>
 #include "cli/cli-style.h"
+#include "observable.h"
 
 /* The last program space number assigned.  */
 static int last_program_space_num = 0;
@@ -98,6 +99,7 @@ program_space::program_space (address_space *aspace_)
     aspace (aspace_)
 {
   program_spaces.push_back (this);
+  gdb::observers::new_program_space.notify (this);
 }
 
 /* See progspace.h.  */
@@ -106,6 +108,7 @@ program_space::~program_space ()
 {
   gdb_assert (this != current_program_space);
 
+  gdb::observers::free_program_space.notify (this);
   remove_program_space (this);
 
   scoped_restore_current_program_space restore_pspace;
@@ -176,6 +179,22 @@ program_space::remove_objfile (struct objfile *objfile)
 
   if (objfile == symfile_object_file)
     symfile_object_file = NULL;
+}
+
+/* See progspace.h.  */
+
+struct objfile *
+program_space::objfile_for_address (CORE_ADDR address)
+{
+  for (auto iter : objfiles ())
+    {
+      /* Don't check separate debug objfiles.  */
+      if (iter->separate_debug_objfile_backlink != nullptr)
+	continue;
+      if (is_addr_in_objfile (address, iter))
+	return iter;
+    }
+  return nullptr;
 }
 
 /* See progspace.h.  */

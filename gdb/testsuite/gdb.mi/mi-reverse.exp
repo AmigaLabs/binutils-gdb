@@ -27,9 +27,7 @@
 # but to verify the correct output response to MI operations.
 #
 
-if ![supports_reverse] {
-    return
-}
+require supports_reverse
 
 load_lib mi-support.exp
 set MIFLAGS "-i=mi"
@@ -167,4 +165,3 @@ proc test_controlled_execution_reverse {} {
 test_controlled_execution_reverse
 
 mi_gdb_exit
-return 0

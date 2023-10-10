@@ -114,7 +114,7 @@ i386_windows_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
      calling convention is used, so the 'this' pointer is passed in ECX.  */
   bool thiscall = false;
 
-  struct type *type = check_typedef (value_type (function));
+  struct type *type = check_typedef (function->type ());
   if (type->code () == TYPE_CODE_PTR)
     type = check_typedef (type->target_type ());
 
@@ -122,7 +122,7 @@ i386_windows_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
      artificial flag of the first parameter ('this' pointer).  */
   if (type->code () == TYPE_CODE_METHOD
       && type->num_fields () > 0
-      && TYPE_FIELD_ARTIFICIAL (type, 0)
+      && type->field (0).is_artificial ()
       && type->field (0).type ()->code () == TYPE_CODE_PTR)
     thiscall = 1;
 

@@ -25,6 +25,7 @@
 #include "event-top.h"
 #include "command.h"
 #include "top.h"
+#include "ui.h"
 #include "tui/tui.h"
 #include "tui/tui-data.h"
 #include "tui/tui-io.h"
@@ -522,36 +523,37 @@ tui_puts_internal (WINDOW *w, const char *string, int *height)
 
   while ((c = *string++) != 0)
     {
-      if (c == '\n')
-	saw_nl = true;
-
       if (c == '\1' || c == '\2')
 	{
 	  /* Ignore these, they are readline escape-marking
 	     sequences.  */
+	  continue;
 	}
-      else
-	{
-	  if (c == '\033')
-	    {
-	      size_t bytes_read = apply_ansi_escape (w, string - 1);
-	      if (bytes_read > 0)
-		{
-		  string = string + bytes_read - 1;
-		  continue;
-		}
-	    }
-	  do_tui_putc (w, c);
 
-	  if (height != nullptr)
+      if (c == '\033')
+	{
+	  size_t bytes_read = apply_ansi_escape (w, string - 1);
+	  if (bytes_read > 0)
 	    {
-	      int col = getcurx (w);
-	      if (col <= prev_col)
-		++*height;
-	      prev_col = col;
+	      string = string + bytes_read - 1;
+	      continue;
 	    }
+	}
+
+      if (c == '\n')
+	saw_nl = true;
+
+      do_tui_putc (w, c);
+
+      if (height != nullptr)
+	{
+	  int col = getcurx (w);
+	  if (col <= prev_col)
+	    ++*height;
+	  prev_col = col;
 	}
     }
+
   if (TUI_CMD_WIN != nullptr && w == TUI_CMD_WIN->handle.get ())
     update_cmdwin_start_line ();
   if (saw_nl)
@@ -655,7 +657,8 @@ static void
 tui_prep_terminal (int notused1)
 {
 #ifdef NCURSES_MOUSE_VERSION
-  mousemask (ALL_MOUSE_EVENTS, NULL);
+  if (tui_enable_mouse)
+    mousemask (ALL_MOUSE_EVENTS, NULL);
 #endif
 }
 
@@ -773,14 +776,10 @@ tui_mld_getc (FILE *fp)
 static int
 tui_mld_read_key (const struct match_list_displayer *displayer)
 {
-  rl_getc_func_t *prev = rl_getc_function;
-  int c;
-
   /* We can't use tui_getc as we need NEWLINE to not get emitted.  */
-  rl_getc_function = tui_mld_getc;
-  c = rl_read_key ();
-  rl_getc_function = prev;
-  return c;
+  scoped_restore restore_getc_function
+    = make_scoped_restore (&rl_getc_function, tui_mld_getc);
+  return rl_read_key ();
 }
 
 /* TUI version of rl_completion_display_matches_hook.
@@ -1194,7 +1193,7 @@ tui_getc_1 (FILE *fp)
 #endif
 	}
 
-      /* Keycodes above KEY_MAX are not garanteed to be stable.
+      /* Keycodes above KEY_MAX are not guaranteed to be stable.
 	 Compare keyname instead.  */
       if (ch >= KEY_MAX)
 	{
@@ -1274,6 +1273,14 @@ tui_getc (FILE *fp)
   try
     {
       return tui_getc_1 (fp);
+    }
+  catch (const gdb_exception_forced_quit &ex)
+    {
+      /* As noted below, it's not safe to let an exception escape
+	 to newline, so, for this case, reset the quit flag for
+	 later QUIT checking.  */
+      set_force_quit_flag ();
+      return 0;
     }
   catch (const gdb_exception &ex)
     {

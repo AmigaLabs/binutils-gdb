@@ -57,6 +57,7 @@ struct syscalls_info;
 struct thread_info;
 struct ui_out;
 struct inferior;
+struct x86_xsave_layout;
 
 #include "regcache.h"
 
@@ -201,7 +202,7 @@ gdbarch_tdep (struct gdbarch *gdbarch)
    The more traditional mega-struct containing architecture specific
    data for all the various GDB components was also considered.  Since
    GDB is built from a variable number of (fairly independent)
-   components it was determined that the global aproach was not
+   components it was determined that the global approach was not
    applicable.  */
 
 
@@ -270,10 +271,12 @@ struct gdbarch_info
 
 typedef struct gdbarch *(gdbarch_init_ftype) (struct gdbarch_info info, struct gdbarch_list *arches);
 typedef void (gdbarch_dump_tdep_ftype) (struct gdbarch *gdbarch, struct ui_file *file);
+typedef bool (gdbarch_supports_arch_info_ftype) (const struct bfd_arch_info *);
 
 extern void gdbarch_register (enum bfd_architecture architecture,
 			      gdbarch_init_ftype *init,
-			      gdbarch_dump_tdep_ftype *dump_tdep = nullptr);
+			      gdbarch_dump_tdep_ftype *dump_tdep = nullptr,
+			      gdbarch_supports_arch_info_ftype *supports_arch_info = nullptr);
 
 
 /* Return a vector of the valid architecture names.  Since architectures are
@@ -299,10 +302,18 @@ extern struct gdbarch *gdbarch_alloc (const struct gdbarch_info *info,
 
 
 /* Helper function.  Free a partially-constructed ``struct gdbarch''.
-   It is assumed that the caller freeds the ``struct
+   It is assumed that the caller frees the ``struct
    gdbarch_tdep''.  */
 
 extern void gdbarch_free (struct gdbarch *);
+
+struct gdbarch_deleter
+{
+  void operator() (gdbarch *arch) const
+  { gdbarch_free (arch); }
+};
+
+using gdbarch_up = std::unique_ptr<gdbarch, gdbarch_deleter>;
 
 /* Get the obstack owned by ARCH.  */
 

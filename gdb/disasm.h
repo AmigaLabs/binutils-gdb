@@ -123,11 +123,11 @@ struct gdb_printing_disassembler : public gdb_disassemble_info
 {
   DISABLE_COPY_AND_ASSIGN (gdb_printing_disassembler);
 
-protected:
-
   /* The stream that disassembler output is being written too.  */
   struct ui_file *stream ()
   { return m_stream; }
+
+protected:
 
   /* Constructor.  All the arguments are just passed to the parent class.
      We also add the two print functions to the arguments passed to the
@@ -150,7 +150,7 @@ protected:
      DIS_INFO pointer is a pointer to a gdb_printing_disassembler object.
      Content is written to the m_stream extracted from DIS_INFO.  */
   static int fprintf_func (void *dis_info, const char *format, ...) noexcept
-    ATTRIBUTE_PRINTF(2,3);
+    ATTRIBUTE_PRINTF (2, 3);
 
   /* Callback used as the disassemble_info's fprintf_styled_func callback.
      The DIS_INFO pointer is a pointer to a gdb_printing_disassembler
@@ -248,7 +248,7 @@ struct gdb_non_printing_memory_disassembler
   { /* Nothing.  */ }
 };
 
-/* A dissassembler class that provides 'print_insn', a method for
+/* A disassembler class that provides 'print_insn', a method for
    disassembling a single instruction to the output stream.  */
 
 struct gdb_disassembler : public gdb_printing_disassembler,

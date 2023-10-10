@@ -199,7 +199,7 @@ then
 # Scripts compiled in.
 
 # sed commands to quote an ld script as a C string.
-sc="-f stringify.sed"
+sc="-f ${srcdir}/emultempl/stringify.sed"
 
 fragment <<EOF
 {
@@ -807,6 +807,10 @@ fragment <<EOF
 		     "must be default, internal, hidden, or protected"),
 		   optarg);
 	}
+      else if (strcmp (optarg, "sectionheader") == 0)
+	config.no_section_header = false;
+      else if (strcmp (optarg, "nosectionheader") == 0)
+	config.no_section_header = true;
 EOF
 
 if test x"$GENERATE_SHLIB_SCRIPT" = xyes; then

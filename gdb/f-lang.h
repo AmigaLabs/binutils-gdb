@@ -23,6 +23,7 @@
 #ifndef F_LANG_H
 #define F_LANG_H
 
+#include "language.h"
 #include "valprint.h"
 
 struct type_print_options;
@@ -199,6 +200,11 @@ public:
 	    || (type->code () == TYPE_CODE_ARRAY
 		&& type->target_type ()->code () == TYPE_CODE_CHAR));
   }
+
+  /* See language.h.  */
+
+  struct value *value_string (struct gdbarch *gdbarch,
+			      const char *ptr, ssize_t len) const override;
 
   /* See language.h.  */
 

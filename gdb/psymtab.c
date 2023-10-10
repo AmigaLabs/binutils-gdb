@@ -20,7 +20,7 @@
 #include "defs.h"
 #include "symtab.h"
 #include "objfiles.h"
-#include "psympriv.h"
+#include "psymtab.h"
 #include "block.h"
 #include "filenames.h"
 #include "source.h"
@@ -76,7 +76,7 @@ psymtab_storage::install_psymtab (partial_symtab *pst)
 
 
 
-/* See psympriv.h.  */
+/* See psymtab.h.  */
 
 psymtab_storage::partial_symtab_range
 psymbol_functions::partial_symbols (struct objfile *objfile)
@@ -102,8 +102,7 @@ find_pc_sect_psymtab_closer (struct objfile *objfile,
      many partial symbol tables containing the PC, but
      we want the partial symbol table that contains the
      function containing the PC.  */
-  if (!(objfile->flags & OBJF_REORDERED)
-      && section == NULL)  /* Can't validate section this way.  */
+  if (section == nullptr)
     return pst;
 
   if (msymbol.minsym == NULL)
@@ -161,7 +160,7 @@ find_pc_sect_psymtab_closer (struct objfile *objfile,
   return best_pst;
 }
 
-/* See psympriv.h.  */
+/* See psymtab.h.  */
 
 struct partial_symtab *
 psymbol_functions::find_pc_sect_psymtab (struct objfile *objfile,
@@ -676,7 +675,8 @@ print_partial_symbols (struct gdbarch *gdbarch, struct objfile *objfile,
 	  break;
 	}
       gdb_puts (", ", outfile);
-      gdb_puts (paddress (gdbarch, p->unrelocated_address ()), outfile);
+      gdb_puts (paddress (gdbarch, CORE_ADDR (p->unrelocated_address ())),
+		outfile);
       gdb_printf (outfile, "\n");
     }
 }
@@ -1111,11 +1111,11 @@ psymbol_functions::has_unexpanded_symtabs (struct objfile *objfile)
 partial_symtab::partial_symtab (const char *filename,
 				psymtab_storage *partial_symtabs,
 				objfile_per_bfd_storage *objfile_per_bfd,
-				CORE_ADDR textlow)
+				unrelocated_addr textlow)
   : partial_symtab (filename, partial_symtabs, objfile_per_bfd)
 {
   set_text_low (textlow);
-  set_text_high (raw_text_low ()); /* default */
+  set_text_high (unrelocated_text_low ()); /* default */
 }
 
 /* Perform "finishing up" operations of a partial symtab.  */
@@ -1177,7 +1177,7 @@ psymbol_bcache::compare (const void *addr1, const void *addr2, int length)
 	  && sym1->ginfo.linkage_name () == sym2->ginfo.linkage_name ());
 }
 
-/* See psympriv.h.  */
+/* See psymtab.h.  */
 
 void
 partial_symtab::add_psymbol (const partial_symbol &psymbol,
@@ -1205,7 +1205,7 @@ partial_symtab::add_psymbol (const partial_symbol &psymbol,
   list.push_back (psym);
 }
 
-/* See psympriv.h.  */
+/* See psymtab.h.  */
 
 void
 partial_symtab::add_psymbol (gdb::string_view name, bool copy_name,
@@ -1213,7 +1213,7 @@ partial_symtab::add_psymbol (gdb::string_view name, bool copy_name,
 			     enum address_class theclass,
 			     short section,
 			     psymbol_placement where,
-			     CORE_ADDR coreaddr,
+			     unrelocated_addr coreaddr,
 			     enum language language,
 			     psymtab_storage *partial_symtabs,
 			     struct objfile *objfile)
@@ -1231,7 +1231,7 @@ partial_symtab::add_psymbol (gdb::string_view name, bool copy_name,
   add_psymbol (psymbol, where, partial_symtabs, objfile);
 }
 
-/* See psympriv.h.  */
+/* See psymtab.h.  */
 
 partial_symtab::partial_symtab (const char *filename_,
 				psymtab_storage *partial_symtabs,
@@ -1265,7 +1265,7 @@ partial_symtab::partial_symtab (const char *filename_,
     }
 }
 
-/* See psympriv.h.  */
+/* See psymtab.h.  */
 
 void
 partial_symtab::expand_dependencies (struct objfile *objfile)
@@ -1654,7 +1654,7 @@ maintenance_check_psymtabs (const char *ignore, int from_tty)
 		      gdb_printf (" psymtab\n");
 		    }
 		}
-	      if (ps->raw_text_high () != 0
+	      if (ps->unrelocated_text_high () != unrelocated_addr (0)
 		  && (ps->text_low (objfile) < b->start ()
 		      || ps->text_high (objfile) > b->end ()))
 		{
@@ -1685,9 +1685,9 @@ Usage: mt print psymbols [-objfile OBJFILE] [-pc ADDRESS] [--] [OUTFILE]\n\
        mt print psymbols [-objfile OBJFILE] [-source SOURCE] [--] [OUTFILE]\n\
 Entries in the partial symbol table are dumped to file OUTFILE,\n\
 or the terminal if OUTFILE is unspecified.\n\
-If ADDRESS is provided, dump only the file for that address.\n\
+If ADDRESS is provided, dump only the symbols for the file with code at that address.\n\
 If SOURCE is provided, dump only that file's symbols.\n\
-If OBJFILE is provided, dump only that file's minimal symbols."),
+If OBJFILE is provided, dump only that object file's symbols."),
 	   &maintenanceprintlist);
 
   add_cmd ("psymtabs", class_maintenance, maintenance_info_psymtabs, _("\

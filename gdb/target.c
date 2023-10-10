@@ -44,7 +44,7 @@
 #include "gdbsupport/agent.h"
 #include "auxv.h"
 #include "target-debug.h"
-#include "top.h"
+#include "ui.h"
 #include "event-top.h"
 #include <algorithm>
 #include "gdbsupport/byte-vector.h"
@@ -116,10 +116,9 @@ static struct target_ops *the_debug_target;
 
 static struct cmd_list_element *targetlist = NULL;
 
-/* True if we should trust readonly sections from the
-   executable when reading memory.  */
+/* See target.h.  */
 
-static bool trust_readonly = false;
+bool trust_readonly = false;
 
 /* Nonzero if we should show true memory content including
    memory breakpoint inserted by gdb.  */
@@ -668,7 +667,7 @@ target_get_trace_status (trace_status *ts)
 }
 
 void
-target_get_tracepoint_status (breakpoint *tp, uploaded_tp *utp)
+target_get_tracepoint_status (tracepoint *tp, uploaded_tp *utp)
 {
   return current_inferior ()->top_target ()->get_tracepoint_status (tp, utp);
 }
@@ -830,6 +829,12 @@ target_store_memtags (CORE_ADDR address, size_t len,
 		      const gdb::byte_vector &tags, int type)
 {
   return current_inferior ()->top_target ()->store_memtags (address, len, tags, type);
+}
+
+x86_xsave_layout
+target_fetch_x86_xsave_layout ()
+{
+  return current_inferior ()->top_target ()->fetch_x86_xsave_layout ();
 }
 
 void
@@ -1173,7 +1178,16 @@ target_ops_ref_policy::decref (target_ops *t)
     {
       if (t->stratum () == process_stratum)
 	connection_list_remove (as_process_stratum_target (t));
-      target_close (t);
+
+      for (inferior *inf : all_inferiors ())
+	gdb_assert (!inf->target_is_pushed (t));
+
+      fileio_handles_invalidate_target (t);
+
+      t->close ();
+
+      if (targetdebug)
+	gdb_printf (gdb_stdlog, "closing target\n");
     }
 }
 
@@ -2469,6 +2483,8 @@ target_pre_inferior (int from_tty)
 
   current_inferior ()->highest_thread_num = 0;
 
+  update_previous_thread ();
+
   agent_capability_invalidate ();
 }
 
@@ -2496,6 +2512,9 @@ target_preopen (int from_tty)
       else
 	error (_("Program not killed."));
     }
+
+  /* Release reference to old previous thread.  */
+  update_previous_thread ();
 
   /* Calling target_kill may remove the target from the stack.  But if
      it doesn't (which seems like a win for UDI), remove it now.  */
@@ -2527,6 +2546,8 @@ target_detach (inferior *inf, int from_tty)
   gdb_assert (inf == current_inferior ());
 
   prepare_for_detach ();
+
+  gdb::observers::inferior_pre_detach.notify (inf);
 
   /* Hold a strong reference because detaching may unpush the
      target.  */
@@ -2624,7 +2645,7 @@ target_thread_handle_to_thread_info (const gdb_byte *thread_handle,
 
 /* See target.h.  */
 
-gdb::byte_vector
+gdb::array_view<const gdb_byte>
 target_thread_info_to_thread_handle (struct thread_info *tip)
 {
   target_ops *target = current_inferior ()->top_target ();
@@ -3745,20 +3766,6 @@ debug_target::info () const
 
 
 
-void
-target_close (struct target_ops *targ)
-{
-  for (inferior *inf : all_inferiors ())
-    gdb_assert (!inf->target_is_pushed (targ));
-
-  fileio_handles_invalidate_target (targ);
-
-  targ->close ();
-
-  if (targetdebug)
-    gdb_printf (gdb_stdlog, "target_close ()\n");
-}
-
 int
 target_thread_alive (ptid_t ptid)
 {
@@ -4487,7 +4494,6 @@ set_target_permissions (const char *args, int from_tty,
     }
 
   /* Make the real values match the user-changed values.  */
-  may_write_registers = may_write_registers_1;
   may_insert_breakpoints = may_insert_breakpoints_1;
   may_insert_tracepoints = may_insert_tracepoints_1;
   may_insert_fast_tracepoints = may_insert_fast_tracepoints_1;
@@ -4495,14 +4501,15 @@ set_target_permissions (const char *args, int from_tty,
   update_observer_mode ();
 }
 
-/* Set memory write permission independently of observer mode.  */
+/* Set some permissions independently of observer mode.  */
 
 static void
-set_write_memory_permission (const char *args, int from_tty,
-			struct cmd_list_element *c)
+set_write_memory_registers_permission (const char *args, int from_tty,
+				       struct cmd_list_element *c)
 {
   /* Make the real values match the user-changed values.  */
   may_write_memory = may_write_memory_1;
+  may_write_registers = may_write_registers_1;
   update_observer_mode ();
 }
 
@@ -4571,7 +4578,7 @@ Set permission to write into registers."), _("\
 Show permission to write into registers."), _("\
 When this permission is on, GDB may write into the target's registers.\n\
 Otherwise, any sort of write attempt will result in an error."),
-			   set_target_permissions, NULL,
+			   set_write_memory_registers_permission, NULL,
 			   &setlist, &showlist);
 
   add_setshow_boolean_cmd ("may-write-memory", class_support,
@@ -4580,7 +4587,7 @@ Set permission to write into target memory."), _("\
 Show permission to write into target memory."), _("\
 When this permission is on, GDB may write into the target's memory.\n\
 Otherwise, any sort of write attempt will result in an error."),
-			   set_write_memory_permission, NULL,
+			   set_write_memory_registers_permission, NULL,
 			   &setlist, &showlist);
 
   add_setshow_boolean_cmd ("may-insert-breakpoints", class_support,

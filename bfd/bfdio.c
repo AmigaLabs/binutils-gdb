@@ -225,14 +225,25 @@ DESCRIPTION
 .};
 
 .extern const struct bfd_iovec _bfd_memory_iovec;
-
+.
 */
 
 
-/* Return value is amount read.  */
+/*
+FUNCTION
+	bfd_read
+
+SYNOPSIS
+	bfd_size_type bfd_read (void *, bfd_size_type, bfd *)
+				ATTRIBUTE_WARN_UNUSED_RESULT;
+
+DESCRIPTION
+	Attempt to read SIZE bytes from ABFD's iostream to PTR.
+	Return the amount read.
+*/
 
 bfd_size_type
-bfd_bread (void *ptr, bfd_size_type size, bfd *abfd)
+bfd_read (void *ptr, bfd_size_type size, bfd *abfd)
 {
   file_ptr nread;
   bfd *element_bfd = abfd;
@@ -269,6 +280,14 @@ bfd_bread (void *ptr, bfd_size_type size, bfd *abfd)
       return -1;
     }
 
+  if (abfd->last_io == bfd_io_write)
+    {
+      abfd->last_io = bfd_io_force;
+      if (bfd_seek (abfd, 0, SEEK_CUR) != 0)
+	return -1;
+    }
+  abfd->last_io = bfd_io_read;
+
   nread = abfd->iovec->bread (abfd, ptr, size);
   if (nread != -1)
     abfd->where += nread;
@@ -276,8 +295,21 @@ bfd_bread (void *ptr, bfd_size_type size, bfd *abfd)
   return nread;
 }
 
+/*
+FUNCTION
+	bfd_write
+
+SYNOPSIS
+	bfd_size_type bfd_write (const void *, bfd_size_type, bfd *)
+				ATTRIBUTE_WARN_UNUSED_RESULT;
+
+DESCRIPTION
+	Attempt to write SIZE bytes to ABFD's iostream from PTR.
+	Return the amount written.
+*/
+
 bfd_size_type
-bfd_bwrite (const void *ptr, bfd_size_type size, bfd *abfd)
+bfd_write (const void *ptr, bfd_size_type size, bfd *abfd)
 {
   file_ptr nwrote;
 
@@ -291,6 +323,14 @@ bfd_bwrite (const void *ptr, bfd_size_type size, bfd *abfd)
       return -1;
     }
 
+  if (abfd->last_io == bfd_io_read)
+    {
+      abfd->last_io = bfd_io_force;
+      if (bfd_seek (abfd, 0, SEEK_CUR) != 0)
+	return -1;
+    }
+  abfd->last_io = bfd_io_write;
+
   nwrote = abfd->iovec->bwrite (abfd, ptr, size);
   if (nwrote != -1)
     abfd->where += nwrote;
@@ -303,6 +343,17 @@ bfd_bwrite (const void *ptr, bfd_size_type size, bfd *abfd)
     }
   return nwrote;
 }
+
+/*
+FUNCTION
+	bfd_tell
+
+SYNOPSIS
+	file_ptr bfd_tell (bfd *) ATTRIBUTE_WARN_UNUSED_RESULT;
+
+DESCRIPTION
+	Return ABFD's iostream file position.
+*/
 
 file_ptr
 bfd_tell (bfd *abfd)
@@ -326,6 +377,17 @@ bfd_tell (bfd *abfd)
   return ptr - offset;
 }
 
+/*
+FUNCTION
+	bfd_flush
+
+SYNOPSIS
+	int bfd_flush (bfd *);
+
+DESCRIPTION
+	Flush ABFD's iostream pending IO.
+*/
+
 int
 bfd_flush (bfd *abfd)
 {
@@ -339,8 +401,18 @@ bfd_flush (bfd *abfd)
   return abfd->iovec->bflush (abfd);
 }
 
-/* Returns 0 for success, negative value for failure (in which case
-   bfd_get_error can retrieve the error code).  */
+/*
+FUNCTION
+	bfd_stat
+
+SYNOPSIS
+	int bfd_stat (bfd *, struct stat *) ATTRIBUTE_WARN_UNUSED_RESULT;
+
+DESCRIPTION
+	Call fstat on ABFD's iostream.  Return 0 on success, and a
+	negative value on failure.
+*/
+
 int
 bfd_stat (bfd *abfd, struct stat *statbuf)
 {
@@ -362,8 +434,17 @@ bfd_stat (bfd *abfd, struct stat *statbuf)
   return result;
 }
 
-/* Returns 0 for success, nonzero for failure (in which case bfd_get_error
-   can retrieve the error code).  */
+/*
+FUNCTION
+	bfd_seek
+
+SYNOPSIS
+	int bfd_seek (bfd *, file_ptr, int) ATTRIBUTE_WARN_UNUSED_RESULT;
+
+DESCRIPTION
+	Call fseek on ABFD's iostream.  Return 0 on success, and a
+	negative value on failure.
+*/
 
 int
 bfd_seek (bfd *abfd, file_ptr position, int direction)
@@ -393,9 +474,12 @@ bfd_seek (bfd *abfd, file_ptr position, int direction)
   if (direction != SEEK_CUR)
     position += offset;
 
-  if ((direction == SEEK_CUR && position == 0)
-      || (direction == SEEK_SET && (ufile_ptr) position == abfd->where))
+  if (((direction == SEEK_CUR && position == 0)
+       || (direction == SEEK_SET && (ufile_ptr) position == abfd->where))
+      && abfd->last_io != bfd_io_force)
     return 0;
+
+  abfd->last_io = bfd_io_seek;
 
   result = abfd->iovec->bseek (abfd, position, direction);
   if (result != 0)
@@ -524,6 +608,7 @@ ufile_ptr
 bfd_get_file_size (bfd *abfd)
 {
   ufile_ptr file_size, archive_size = (ufile_ptr) -1;
+  unsigned int compression_p2 = 0;
 
   if (abfd->my_archive != NULL
       && !bfd_is_thin_archive (abfd->my_archive))
@@ -532,17 +617,17 @@ bfd_get_file_size (bfd *abfd)
       if (adata != NULL)
 	{
 	  archive_size = adata->parsed_size;
-	  /* If the archive is compressed we can't compare against
-	     file size.  */
+	  /* If the archive is compressed, assume an element won't
+	     expand more than eight times file size.  */
 	  if (adata->arch_header != NULL
 	      && memcmp (((struct ar_hdr *) adata->arch_header)->ar_fmag,
 			 "Z\012", 2) == 0)
-	    return archive_size;
+	    compression_p2 = 3;
 	  abfd = abfd->my_archive;
 	}
     }
 
-  file_size = bfd_get_size (abfd);
+  file_size = bfd_get_size (abfd) << compression_p2;
   if (archive_size < file_size)
     return archive_size;
   return file_size;
@@ -555,7 +640,8 @@ FUNCTION
 SYNOPSIS
 	void *bfd_mmap (bfd *abfd, void *addr, bfd_size_type len,
 			int prot, int flags, file_ptr offset,
-			void **map_addr, bfd_size_type *map_len);
+			void **map_addr, bfd_size_type *map_len)
+			ATTRIBUTE_WARN_UNUSED_RESULT;
 
 DESCRIPTION
 	Return mmap()ed region of the file, if possible and implemented.
@@ -742,3 +828,47 @@ const struct bfd_iovec _bfd_memory_iovec =
   &memory_bread, &memory_bwrite, &memory_btell, &memory_bseek,
   &memory_bclose, &memory_bflush, &memory_bstat, &memory_bmmap
 };
+
+/*
+FUNCTION
+	bfd_get_current_time
+
+SYNOPSIS
+	time_t bfd_get_current_time (time_t now);
+
+DESCRIPTION
+	Returns the current time.
+
+	If the environment variable SOURCE_DATE_EPOCH is defined
+	then this is parsed and its value is returned.  Otherwise
+	if the paramter NOW is non-zero, then that is returned.
+	Otherwise the result of the system call "time(NULL)" is
+	returned.
+*/
+
+time_t
+bfd_get_current_time (time_t now)
+{
+  char *source_date_epoch;
+  unsigned long long epoch;
+
+  /* FIXME: We could probably cache this lookup,
+     and the parsing of its value below.  */
+  source_date_epoch = getenv ("SOURCE_DATE_EPOCH");
+
+  if (source_date_epoch == NULL)
+    {
+      if (now)
+	return now;
+      return time (NULL);
+    }
+
+  epoch = strtoull (source_date_epoch, NULL, 0);
+
+  /* If epoch == 0 then something is wrong with SOURCE_DATE_EPOCH,
+     but we do not have an easy way to report it.  Since the presence
+     of the environment variable implies that the user wants
+     deterministic behaviour we just accept the 0 value.  */
+
+  return (time_t) epoch;
+}

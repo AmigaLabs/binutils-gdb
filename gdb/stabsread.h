@@ -168,6 +168,8 @@ extern void end_stabs (void);
 
 extern void finish_global_stabs (struct objfile *objfile);
 
+class psymtab_storage;
+
 /* Functions exported by dbxread.c.  These are not in stabsread.c because
    they are only used by some stabs readers.  */
 
@@ -175,7 +177,7 @@ extern legacy_psymtab *dbx_end_psymtab
   (struct objfile *objfile, psymtab_storage *partial_symtabs,
    legacy_psymtab *pst,
    const char **include_list, int num_includes,
-   int capping_symbol_offset, CORE_ADDR capping_text,
+   int capping_symbol_offset, unrelocated_addr capping_text,
    legacy_psymtab **dependency_list, int number_dependencies,
    int textlow_not_set);
 

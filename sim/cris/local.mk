@@ -16,6 +16,44 @@
 ## You should have received a copy of the GNU General Public License
 ## along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+nodist_%C%_libsim_a_SOURCES = \
+	%D%/modules.c
+%C%_libsim_a_SOURCES = \
+	$(common_libcommon_a_SOURCES)
+%C%_libsim_a_LIBADD = \
+	$(patsubst %,%D%/%,$(SIM_NEW_COMMON_OBJS)) \
+	$(patsubst %,%D%/dv-%.o,$(SIM_HW_DEVICES)) \
+	$(patsubst %,%D%/dv-%.o,$(%C%_SIM_EXTRA_HW_DEVICES)) \
+	\
+	%D%/cgen-run.o \
+	%D%/cgen-scache.o \
+	%D%/cgen-trace.o \
+	%D%/cgen-utils.o \
+	\
+	%D%/arch.o \
+	%D%/crisv10f.o \
+	%D%/cpuv10.o \
+	%D%/decodev10.o \
+	%D%/modelv10.o \
+	%D%/mloopv10f.o \
+	%D%/crisv32f.o \
+	%D%/cpuv32.o \
+	%D%/decodev32.o \
+	%D%/modelv32.o \
+	%D%/mloopv32f.o \
+	\
+	%D%/sim-if.o \
+	%D%/traps.o
+$(%C%_libsim_a_OBJECTS) $(%C%_libsim_a_LIBADD): %D%/hw-config.h
+
+noinst_LIBRARIES += %D%/libsim.a
+
+## Override wildcards that trigger common/modules.c to be (incorrectly) used.
+%D%/modules.o: %D%/modules.c
+
+%D%/%.o: common/%.c ; $(SIM_COMPILE)
+-@am__include@ %D%/$(DEPDIR)/*.Po
+
 %C%_run_SOURCES =
 %C%_run_LDADD = \
 	%D%/nrun.o \
@@ -25,7 +63,6 @@
 noinst_PROGRAMS += %D%/run
 
 %C%_SIM_EXTRA_HW_DEVICES = rv cris cris_900000xx
-AM_MAKEFLAGS += %C%_SIM_EXTRA_HW_DEVICES="$(%C%_SIM_EXTRA_HW_DEVICES)"
 
 ## rvdummy is just used for testing -- it runs on the same host as `run`.
 ## It does nothing if --enable-sim-hardware isn't active.
@@ -44,8 +81,8 @@ BUILT_SOURCES += \
 	%D%/mloopv32f.c \
 	%D%/stamp-mloop-v32f
 
-## This makes sure build tools are available before building the arch-subdirs.
-SIM_ALL_RECURSIVE_DEPS += $(%C%_BUILD_OUTPUTS)
+## Generating modules.c requires all sources to scan.
+%D%/modules.c: | $(%C%_BUILD_OUTPUTS)
 
 ## FIXME: What is mono and what does "Use of `mono' is wip" mean (other
 ## than the apparent; some "mono" feature is work in progress)?
@@ -78,14 +115,14 @@ MOSTLYCLEANFILES += $(%C%_BUILD_OUTPUTS)
 
 %D%/cgen-arch:
 	$(AM_V_GEN)mach=crisv10,crisv32 FLAGS="with-scache with-profile=fn"; $(CGEN_GEN_ARCH)
-%D%/arch.h %D%/arch.c %D%/cpuall.h: @CGEN_MAINT@ %D%/cgen-arch
+$(srcdir)/%D%/arch.h $(srcdir)/%D%/arch.c $(srcdir)/%D%/cpuall.h: @CGEN_MAINT@ %D%/cgen-arch
 
 %D%/cgen-cpu-decode-v10f:
 	$(AM_V_GEN)cpu=crisv10f mach=crisv10 SUFFIX=v10 FLAGS="with-scache with-profile=fn" EXTRAFILES="$(CGEN_CPU_SEMSW)"; $(CGEN_GEN_CPU_DECODE)
 	$(AM_V_at)$(SHELL) $(srcroot)/move-if-change $(srcdir)/%D%/semv10-switch.c $(srcdir)/%D%/semcrisv10f-switch.c
-%D%/cpuv10.h %D%/cpuv10.c %D%/semcrisv10f-switch.c %D%/modelv10.c %D%/decodev10.c %D%/decodev10.h: @CGEN_MAINT@ %D%/cgen-cpu-decode-v10f
+$(srcdir)/%D%/cpuv10.h $(srcdir)/%D%/cpuv10.c $(srcdir)/%D%/semcrisv10f-switch.c $(srcdir)/%D%/modelv10.c $(srcdir)/%D%/decodev10.c $(srcdir)/%D%/decodev10.h: @CGEN_MAINT@ %D%/cgen-cpu-decode-v10f
 
 %D%/cgen-cpu-decode-v32f:
 	$(AM_V_GEN)cpu=crisv32f mach=crisv32 SUFFIX=v32 FLAGS="with-scache with-profile=fn" EXTRAFILES="$(CGEN_CPU_SEMSW)"; $(CGEN_GEN_CPU_DECODE)
 	$(AM_V_at)$(SHELL) $(srcroot)/move-if-change $(srcdir)/%D%/semv32-switch.c $(srcdir)/%D%/semcrisv32f-switch.c
-%D%/cpuv32.h %D%/cpuv32.c %D%/semcrisv32f-switch.c %D%/modelv32.c %D%/decodev32.c %D%/decodev32.h: @CGEN_MAINT@ %D%/cgen-cpu-decode-v32f
+$(srcdir)/%D%/cpuv32.h $(srcdir)/%D%/cpuv32.c $(srcdir)/%D%/semcrisv32f-switch.c $(srcdir)/%D%/modelv32.c $(srcdir)/%D%/decodev32.c $(srcdir)/%D%/decodev32.h: @CGEN_MAINT@ %D%/cgen-cpu-decode-v32f

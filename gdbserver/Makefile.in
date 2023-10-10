@@ -218,7 +218,7 @@ SFILES = \
 	$(srcdir)/../gdb/arch/ppc-linux-common.c \
 	$(srcdir)/../gdb/arch/riscv.c \
 	$(srcdir)/../gdb/nat/aarch64-mte-linux-ptrace.c \
-	$(srcdir)/../gdb/nat/aarch64-sve-linux-ptrace.c \
+	$(srcdir)/../gdb/nat/aarch64-scalable-linux-ptrace.c \
 	$(srcdir)/../gdb/nat/linux-btrace.c \
 	$(srcdir)/../gdb/nat/linux-namespaces.c \
 	$(srcdir)/../gdb/nat/linux-osdata.c \
@@ -235,7 +235,7 @@ DEPFILES = @GDBSERVER_DEPFILES@
 LIBOBJS = @LIBOBJS@
 
 SOURCES = $(SFILES)
-TAGFILES = $(SOURCES) ${HFILES} ${ALLPARAM} ${POSSLIBS}
+TAGFILES = $(SOURCES)
 
 OBS = \
 	alloc.o \
@@ -398,8 +398,9 @@ TAGS:	${TAGFILES}
 	etags \
 	  `for i in yzzy ${DEPFILES}; do \
 	     if [ x$$i != xyzzy ]; then \
-	       echo ${srcdir}/$$i | sed -e 's/\.o$$/\.cc/' \
-		 -e 's,/\(arch\|nat\|target\)/,/../\1/,' \
+	       echo ${srcdir}/$$i | \
+		 sed -e 's,/\(\(arch\|nat\|target\)/.*\)\.o$$,/../gdb/\1.c,' \
+		     -e 's/\.o$$/\.cc/'; \
 	     fi; \
 	   done` \
 	  ${TAGFILES}

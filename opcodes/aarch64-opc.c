@@ -99,6 +99,24 @@ const char *const aarch64_sve_prfop_array[16] = {
   0
 };
 
+/* The enumeration strings associated with each value of a 6-bit RPRFM
+   operation.  */
+const char *const aarch64_rprfmop_array[64] = {
+  "pldkeep",
+  "pstkeep",
+  0,
+  0,
+  "pldstrm",
+  "pststrm"
+};
+
+/* Vector length multiples for a predicate-as-counter operand.  Used in things
+   like AARCH64_OPND_SME_VLxN_10.  */
+const char *const aarch64_sme_vlxn_array[2] = {
+  "vlx2",
+  "vlx4"
+};
+
 /* Helper functions to determine which operand to be used to encode/decode
    the size:Q fields for AdvSIMD instructions.  */
 
@@ -202,74 +220,53 @@ aarch64_select_operand_for_sizeq_field_coding (const aarch64_opcode *opcode)
 const aarch64_field fields[] =
 {
     {  0,  0 },	/* NIL.  */
-    {  0,  4 },	/* cond2: condition in truly conditional-executed inst.  */
-    {  0,  4 },	/* nzcv: flag bit specifier, encoded in the "nzcv" field.  */
-    {  5,  5 },	/* defgh: d:e:f:g:h bits in AdvSIMD modified immediate.  */
-    { 16,  3 },	/* abc: a:b:c bits in AdvSIMD modified immediate.  */
-    {  5, 19 },	/* imm19: e.g. in CBZ.  */
-    {  5, 19 },	/* immhi: e.g. in ADRP.  */
-    { 29,  2 },	/* immlo: e.g. in ADRP.  */
-    { 22,  2 },	/* size: in most AdvSIMD and floating-point instructions.  */
-    { 10,  2 },	/* vldst_size: size field in the AdvSIMD load/store inst.  */
-    { 29,  1 },	/* op: in AdvSIMD modified immediate instructions.  */
-    { 30,  1 },	/* Q: in most AdvSIMD instructions.  */
-    {  0,  5 },	/* Rt: in load/store instructions.  */
-    {  0,  5 },	/* Rd: in many integer instructions.  */
-    {  5,  5 },	/* Rn: in many integer instructions.  */
-    { 10,  5 },	/* Rt2: in load/store pair instructions.  */
-    { 10,  5 },	/* Ra: in fp instructions.  */
-    {  5,  3 },	/* op2: in the system instructions.  */
     {  8,  4 },	/* CRm: in the system instructions.  */
+    { 10,  2 }, /* CRm_dsb_nxs: 2-bit imm. encoded in CRm<3:2>.  */
     { 12,  4 },	/* CRn: in the system instructions.  */
-    { 16,  3 },	/* op1: in the system instructions.  */
-    { 19,  2 },	/* op0: in the system instructions.  */
-    { 10,  3 },	/* imm3: in add/sub extended reg instructions.  */
-    { 12,  4 },	/* cond: condition flags as a source operand.  */
-    { 12,  4 },	/* opcode: in advsimd load/store instructions.  */
-    { 12,  4 },	/* cmode: in advsimd modified immediate instructions.  */
-    { 13,  3 },	/* asisdlso_opcode: opcode in advsimd ld/st single element.  */
-    { 13,  2 },	/* len: in advsimd tbl/tbx instructions.  */
-    { 16,  5 },	/* Rm: in ld/st reg offset and some integer inst.  */
-    { 16,  5 },	/* Rs: in load/store exclusive instructions.  */
-    { 13,  3 },	/* option: in ld/st reg offset + add/sub extended reg inst.  */
-    { 12,  1 },	/* S: in load/store reg offset instructions.  */
-    { 21,  2 },	/* hw: in move wide constant instructions.  */
-    { 22,  2 },	/* opc: in load/store reg offset instructions.  */
-    { 23,  1 },	/* opc1: in load/store reg offset instructions.  */
-    { 22,  2 },	/* shift: in add/sub reg/imm shifted instructions.  */
-    { 22,  2 },	/* type: floating point type field in fp data inst.  */
-    { 30,  2 },	/* ldst_size: size field in ld/st reg offset inst.  */
-    { 10,  6 },	/* imm6: in add/sub reg shifted instructions.  */
-    { 15,  6 },	/* imm6_2: in rmif instructions.  */
-    { 11,  4 },	/* imm4: in advsimd ext and advsimd ins instructions.  */
-    {  0,  4 },	/* imm4_2: in rmif instructions.  */
-    { 10,  4 },	/* imm4_3: in adddg/subg instructions.  */
-    {  5,  4 }, /* imm4_5: in SME instructions.  */
-    { 16,  5 },	/* imm5: in conditional compare (immediate) instructions.  */
-    { 15,  7 },	/* imm7: in load/store pair pre/post index instructions.  */
-    { 13,  8 },	/* imm8: in floating-point scalar move immediate inst.  */
-    { 12,  9 },	/* imm9: in load/store pre/post index instructions.  */
-    { 10, 12 },	/* imm12: in ld/st unsigned imm or add/sub shifted inst.  */
-    {  5, 14 },	/* imm14: in test bit and branch instructions.  */
-    {  5, 16 },	/* imm16: in exception instructions.  */
-    {  0, 16 },	/* imm16_2: in udf instruction. */
-    {  0, 26 },	/* imm26: in unconditional branch instructions.  */
-    { 10,  6 },	/* imms: in bitfield and logical immediate instructions.  */
-    { 16,  6 },	/* immr: in bitfield and logical immediate instructions.  */
-    { 16,  3 },	/* immb: in advsimd shift by immediate instructions.  */
-    { 19,  4 },	/* immh: in advsimd shift by immediate instructions.  */
-    { 22,  1 },	/* S: in LDRAA and LDRAB instructions.  */
-    { 22,  1 },	/* N: in logical (immediate) instructions.  */
-    { 11,  1 },	/* index: in ld/st inst deciding the pre/post-index.  */
-    { 24,  1 },	/* index2: in ld/st pair inst deciding the pre/post-index.  */
-    { 31,  1 },	/* sf: in integer data processing instructions.  */
-    { 30,  1 },	/* lse_size: in LSE extension atomic instructions.  */
+    { 10,  8 }, /* CSSC_imm8.  */
     { 11,  1 },	/* H: in advsimd scalar x indexed element instructions.  */
     { 21,  1 },	/* L: in advsimd scalar x indexed element instructions.  */
     { 20,  1 },	/* M: in advsimd scalar x indexed element instructions.  */
-    { 31,  1 },	/* b5: in the test bit and branch instructions.  */
-    { 19,  5 },	/* b40: in the test bit and branch instructions.  */
-    { 10,  6 },	/* scale: in the fixed-point scalar to fp converting inst.  */
+    { 22,  1 },	/* N: in logical (immediate) instructions.  */
+    { 30,  1 },	/* Q: in most AdvSIMD instructions.  */
+    { 10,  5 },	/* Ra: in fp instructions.  */
+    {  0,  5 },	/* Rd: in many integer instructions.  */
+    { 16,  5 },	/* Rm: in ld/st reg offset and some integer inst.  */
+    {  5,  5 },	/* Rn: in many integer instructions.  */
+    { 16,  5 },	/* Rs: in load/store exclusive instructions.  */
+    {  0,  5 },	/* Rt: in load/store instructions.  */
+    { 10,  5 },	/* Rt2: in load/store pair instructions.  */
+    { 12,  1 },	/* S: in load/store reg offset instructions.  */
+    { 12,  2 }, /* SM3_imm2: Indexed element SM3 2 bits index immediate.  */
+    {  1,  3 }, /* SME_Pdx2: predicate register, multiple of 2, [3:1].  */
+    { 13,  3 }, /* SME_Pm: second source scalable predicate register P0-P7.  */
+    {  0,  3 }, /* SME_PNd3: PN0-PN7, bits [2:0].  */
+    {  5,  3 }, /* SME_PNn3: PN0-PN7, bits [7:5].  */
+    { 16,  1 }, /* SME_Q: Q class bit, bit 16.  */
+    { 16,  2 }, /* SME_Rm: index base register W12-W15 [17:16].  */
+    { 13,  2 }, /* SME_Rv: vector select register W12-W15, bits [14:13].  */
+    { 15,  1 }, /* SME_V: (horizontal / vertical tiles), bit 15.  */
+    { 10,  1 }, /* SME_VL_10: VLx2 or VLx4, bit [10].  */
+    { 13,  1 }, /* SME_VL_13: VLx2 or VLx4, bit [13].  */
+    {  0,  2 }, /* SME_ZAda_2b: tile ZA0-ZA3.  */
+    {  0,  3 }, /* SME_ZAda_3b: tile ZA0-ZA7.  */
+    {  1,  4 }, /* SME_Zdn2: Z0-Z31, multiple of 2, bits [4:1].  */
+    {  2,  3 }, /* SME_Zdn4: Z0-Z31, multiple of 4, bits [4:2].  */
+    { 16,  4 }, /* SME_Zm: Z0-Z15, bits [19:16].  */
+    { 17,  4 }, /* SME_Zm2: Z0-Z31, multiple of 2, bits [20:17].  */
+    { 18,  3 }, /* SME_Zm4: Z0-Z31, multiple of 4, bits [20:18].  */
+    {  6,  4 }, /* SME_Zn2: Z0-Z31, multiple of 2, bits [9:6].  */
+    {  7,  3 }, /* SME_Zn4: Z0-Z31, multiple of 4, bits [9:7].  */
+    {  4,  1 }, /* SME_ZtT: upper bit of Zt, bit [4].  */
+    {  0,  3 }, /* SME_Zt3: lower 3 bits of Zt, bits [2:0].  */
+    {  0,  2 }, /* SME_Zt2: lower 2 bits of Zt, bits [1:0].  */
+    { 23,  1 }, /* SME_i1: immediate field, bit 23.  */
+    { 12,  2 }, /* SME_size_12: bits [13:12].  */
+    { 22,  2 }, /* SME_size_22: size<1>, size<0> class field, [23:22].  */
+    { 23,  1 }, /* SME_sz_23: bit [23].  */
+    { 22,  1 }, /* SME_tszh: immediate and qualifier field, bit 22.  */
+    { 18,  3 }, /* SME_tszl: immediate and qualifier field, bits [20:18].  */
+    { 0,   8 }, /* SME_zero_mask: list of up to 8 tile names separated by commas [7:0].  */
     {  4,  1 }, /* SVE_M_4: Merge/zero select, bit 4.  */
     { 14,  1 }, /* SVE_M_14: Merge/zero select, bit 14.  */
     { 16,  1 }, /* SVE_M_16: Merge/zero select, bit 16.  */
@@ -295,10 +292,10 @@ const aarch64_field fields[] =
     {  5,  5 }, /* SVE_Zn: SVE vector register, bits [9,5].  */
     {  0,  5 }, /* SVE_Zt: SVE vector register, bits [4,0].  */
     {  5,  1 }, /* SVE_i1: single-bit immediate.  */
-    { 22,  1 }, /* SVE_i3h: high bit of 3-bit immediate.  */
-    { 11,  1 }, /* SVE_i3l: low bit of 3-bit immediate.  */
-    { 19,  2 }, /* SVE_i3h2: two high bits of 3bit immediate, bits [20,19].  */
     { 20,  1 }, /* SVE_i2h: high bit of 2bit immediate, bits.  */
+    { 22,  1 }, /* SVE_i3h: high bit of 3-bit immediate.  */
+    { 19,  2 }, /* SVE_i3h2: two high bits of 3bit immediate, bits [20,19].  */
+    { 11,  1 }, /* SVE_i3l: low bit of 3-bit immediate.  */
     { 16,  3 }, /* SVE_imm3: 3-bit immediate field.  */
     { 16,  4 }, /* SVE_imm4: 4-bit immediate field.  */
     {  5,  5 }, /* SVE_imm5: 5-bit immediate field.  */
@@ -315,8 +312,8 @@ const aarch64_field fields[] =
     { 16,  1 }, /* SVE_rot1: 1-bit rotation amount.  */
     { 10,  2 }, /* SVE_rot2: 2-bit rotation amount.  */
     { 10,  1 }, /* SVE_rot3: 1-bit rotation amount at bit 10.  */
-    { 22,  1 }, /* SVE_sz: 1-bit element size select.  */
     { 17,  2 }, /* SVE_size: 2-bit element size, bits [18,17].  */
+    { 22,  1 }, /* SVE_sz: 1-bit element size select.  */
     { 30,  1 }, /* SVE_sz2: 1-bit element size select.  */
     { 16,  4 }, /* SVE_tsz: triangular size select.  */
     { 22,  2 }, /* SVE_tszh: triangular size select high, bits [23,22].  */
@@ -324,25 +321,83 @@ const aarch64_field fields[] =
     { 19,  2 }, /* SVE_tszl_19: triangular size select low, bits [20,19].  */
     { 14,  1 }, /* SVE_xs_14: UXTW/SXTW select (bit 14).  */
     { 22,  1 }, /* SVE_xs_22: UXTW/SXTW select (bit 22).  */
-    {  0,  2 }, /* SME ZAda tile ZA0-ZA3.  */
-    {  0,  3 }, /* SME ZAda tile ZA0-ZA7.  */
-    { 22,  2 }, /* SME_size_10: size<1>, size<0> class field, [23:22].  */
-    { 16,  1 }, /* SME_Q: Q class bit, bit 16.  */
-    { 15,  1 }, /* SME_V: (horizontal / vertical tiles), bit 15.  */
-    { 13,  2 }, /* SME_Rv: vector select register W12-W15, bits [14:13].  */
-    { 13,  3 }, /* SME Pm second source scalable predicate register P0-P7.  */
-    { 0,   8 }, /* SME_zero_mask: list of up to 8 tile names separated by commas [7:0].  */
-    { 16,  2 }, /* SME_Rm: index base register W12-W15 [17:16].  */
-    { 23,  1 }, /* SME_i1: immediate field, bit 23.  */
-    { 22,  1 }, /* SME_tszh: immediate and qualifier field, bit 22.  */
-    { 18,  3 }, /* SME_tshl: immediate and qualifier field, bits [20:18].  */
+    { 22,  1 },	/* S_imm10: in LDRAA and LDRAB instructions.  */
+    { 16,  3 },	/* abc: a:b:c bits in AdvSIMD modified immediate.  */
+    { 13,  3 },	/* asisdlso_opcode: opcode in advsimd ld/st single element.  */
+    { 19,  5 },	/* b40: in the test bit and branch instructions.  */
+    { 31,  1 },	/* b5: in the test bit and branch instructions.  */
+    { 12,  4 },	/* cmode: in advsimd modified immediate instructions.  */
+    { 12,  4 },	/* cond: condition flags as a source operand.  */
+    {  0,  4 },	/* cond2: condition in truly conditional-executed inst.  */
+    {  5,  5 },	/* defgh: d:e:f:g:h bits in AdvSIMD modified immediate.  */
+    { 21,  2 },	/* hw: in move wide constant instructions.  */
+    {  0,  1 },	/* imm1_0: general immediate in bits [0].  */
+    {  2,  1 },	/* imm1_2: general immediate in bits [2].  */
+    {  8,  1 },	/* imm1_8: general immediate in bits [8].  */
+    { 10,  1 },	/* imm1_10: general immediate in bits [10].  */
+    { 15,  1 },	/* imm1_15: general immediate in bits [15].  */
+    { 16,  1 },	/* imm1_16: general immediate in bits [16].  */
+    {  0,  2 },	/* imm2_0: general immediate in bits [1:0].  */
+    {  1,  2 },	/* imm2_1: general immediate in bits [2:1].  */
+    {  8,  2 },	/* imm2_8: general immediate in bits [9:8].  */
+    { 10,  2 }, /* imm2_10: 2-bit immediate, bits [11:10] */
+    { 12,  2 }, /* imm2_12: 2-bit immediate, bits [13:12] */
+    { 15,  2 }, /* imm2_15: 2-bit immediate, bits [16:15] */
+    { 16,  2 }, /* imm2_16: 2-bit immediate, bits [17:16] */
+    { 19,  2 }, /* imm2_19: 2-bit immediate, bits [20:19] */
+    {  0,  3 },	/* imm3_0: general immediate in bits [2:0].  */
+    {  5,  3 },	/* imm3_5: general immediate in bits [7:5].  */
+    { 10,  3 },	/* imm3_10: in add/sub extended reg instructions.  */
+    { 12,  3 },	/* imm3_12: general immediate in bits [14:12].  */
+    { 14,  3 },	/* imm3_14: general immediate in bits [16:14].  */
+    { 15,  3 },	/* imm3_15: general immediate in bits [17:15].  */
+    {  0,  4 },	/* imm4_0: in rmif instructions.  */
+    {  5,  4 }, /* imm4_5: in SME instructions.  */
+    { 10,  4 },	/* imm4_10: in adddg/subg instructions.  */
+    { 11,  4 },	/* imm4_11: in advsimd ext and advsimd ins instructions.  */
+    { 14,  4 },	/* imm4_14: general immediate in bits [17:14].  */
+    { 16,  5 },	/* imm5: in conditional compare (immediate) instructions.  */
+    { 10,  6 },	/* imm6_10: in add/sub reg shifted instructions.  */
+    { 15,  6 },	/* imm6_15: in rmif instructions.  */
+    { 15,  7 },	/* imm7: in load/store pair pre/post index instructions.  */
+    { 13,  8 },	/* imm8: in floating-point scalar move immediate inst.  */
+    { 12,  9 },	/* imm9: in load/store pre/post index instructions.  */
+    { 10, 12 },	/* imm12: in ld/st unsigned imm or add/sub shifted inst.  */
+    {  5, 14 },	/* imm14: in test bit and branch instructions.  */
+    {  0, 16 },	/* imm16_0: in udf instruction. */
+    {  5, 16 },	/* imm16_5: in exception instructions.  */
+    {  5, 19 },	/* imm19: e.g. in CBZ.  */
+    {  0, 26 },	/* imm26: in unconditional branch instructions.  */
+    { 16,  3 },	/* immb: in advsimd shift by immediate instructions.  */
+    { 19,  4 },	/* immh: in advsimd shift by immediate instructions.  */
+    {  5, 19 },	/* immhi: e.g. in ADRP.  */
+    { 29,  2 },	/* immlo: e.g. in ADRP.  */
+    { 16,  6 },	/* immr: in bitfield and logical immediate instructions.  */
+    { 10,  6 },	/* imms: in bitfield and logical immediate instructions.  */
+    { 11,  1 },	/* index: in ld/st inst deciding the pre/post-index.  */
+    { 24,  1 },	/* index2: in ld/st pair inst deciding the pre/post-index.  */
+    { 30,  2 },	/* ldst_size: size field in ld/st reg offset inst.  */
+    { 13,  2 },	/* len: in advsimd tbl/tbx instructions.  */
+    { 30,  1 },	/* lse_sz: in LSE extension atomic instructions.  */
+    {  0,  4 },	/* nzcv: flag bit specifier, encoded in the "nzcv" field.  */
+    { 29,  1 },	/* op: in AdvSIMD modified immediate instructions.  */
+    { 19,  2 },	/* op0: in the system instructions.  */
+    { 16,  3 },	/* op1: in the system instructions.  */
+    {  5,  3 },	/* op2: in the system instructions.  */
+    { 22,  2 },	/* opc: in load/store reg offset instructions.  */
+    { 23,  1 },	/* opc1: in load/store reg offset instructions.  */
+    { 12,  4 },	/* opcode: in advsimd load/store instructions.  */
+    { 13,  3 },	/* option: in ld/st reg offset + add/sub extended reg inst.  */
     { 11,  2 }, /* rotate1: FCMLA immediate rotate.  */
     { 13,  2 }, /* rotate2: Indexed element FCMLA immediate rotate.  */
     { 12,  1 }, /* rotate3: FCADD immediate rotate.  */
-    { 12,  2 }, /* SM3: Indexed element SM3 2 bits index immediate.  */
+    { 10,  6 },	/* scale: in the fixed-point scalar to fp converting inst.  */
+    { 31,  1 },	/* sf: in integer data processing instructions.  */
+    { 22,  2 },	/* shift: in add/sub reg/imm shifted instructions.  */
+    { 22,  2 },	/* size: in most AdvSIMD and floating-point instructions.  */
     { 22,  1 }, /* sz: 1-bit element size select.  */
-    { 10,  2 }, /* CRm_dsb_nxs: 2-bit imm. encoded in CRm<3:2>.  */
-    { 10,  8 }, /* CSSC_imm8.  */
+    { 22,  2 },	/* type: floating point type field in fp data inst.  */
+    { 10,  2 },	/* vldst_size: size field in the AdvSIMD load/store inst.  */
 };
 
 enum aarch64_operand_class
@@ -906,6 +961,9 @@ aarch64_num_of_operands (const aarch64_opcode *opcode)
 /* Find the best matched qualifier sequence in *QUALIFIERS_LIST for INST.
    If succeeds, fill the found sequence in *RET, return 1; otherwise return 0.
 
+   Store the smallest number of non-matching qualifiers in *INVALID_COUNT.
+   This is always 0 if the function succeeds.
+
    N.B. on the entry, it is very likely that only some operands in *INST
    have had their qualifiers been established.
 
@@ -928,16 +986,17 @@ aarch64_num_of_operands (const aarch64_opcode *opcode)
 int
 aarch64_find_best_match (const aarch64_inst *inst,
 			 const aarch64_opnd_qualifier_seq_t *qualifiers_list,
-			 int stop_at, aarch64_opnd_qualifier_t *ret)
+			 int stop_at, aarch64_opnd_qualifier_t *ret,
+			 int *invalid_count)
 {
-  int found = 0;
-  int i, num_opnds;
+  int i, num_opnds, invalid, min_invalid;
   const aarch64_opnd_qualifier_t *qualifiers;
 
   num_opnds = aarch64_num_of_operands (inst->opcode);
   if (num_opnds == 0)
     {
       DEBUG_TRACE ("SUCCEED: no operand");
+      *invalid_count = 0;
       return 1;
     }
 
@@ -945,13 +1004,14 @@ aarch64_find_best_match (const aarch64_inst *inst,
     stop_at = num_opnds - 1;
 
   /* For each pattern.  */
+  min_invalid = num_opnds;
   for (i = 0; i < AARCH64_MAX_QLF_SEQ_NUM; ++i, ++qualifiers_list)
     {
       int j;
       qualifiers = *qualifiers_list;
 
       /* Start as positive.  */
-      found = 1;
+      invalid = 0;
 
       DEBUG_TRACE ("%d", i);
 #ifdef DEBUG_AARCH64
@@ -963,10 +1023,7 @@ aarch64_find_best_match (const aarch64_inst *inst,
 	 qualifier sequence.  (This matters for strict testing.)  In other
 	 positions an empty sequence acts as a terminator.  */
       if (i > 0 && empty_qualifier_sequence_p (qualifiers))
-	{
-	  found = 0;
-	  break;
-	}
+	break;
 
       for (j = 0; j < num_opnds && j <= stop_at; ++j, ++qualifiers)
 	{
@@ -989,21 +1046,22 @@ aarch64_find_best_match (const aarch64_inst *inst,
 	      if (operand_also_qualified_p (inst->operands + j, *qualifiers))
 		continue;
 	      else
-		{
-		  found = 0;
-		  break;
-		}
+		invalid += 1;
 	    }
 	  else
 	    continue;	/* Equal qualifiers are certainly matched.  */
 	}
 
+      if (min_invalid > invalid)
+	min_invalid = invalid;
+
       /* Qualifiers established.  */
-      if (found == 1)
+      if (min_invalid == 0)
 	break;
     }
 
-  if (found == 1)
+  *invalid_count = min_invalid;
+  if (min_invalid == 0)
     {
       /* Fill the result in *RET.  */
       int j;
@@ -1033,17 +1091,21 @@ aarch64_find_best_match (const aarch64_inst *inst,
    Return 1 if the operand qualifier(s) in *INST match one of the qualifier
    sequences in INST->OPCODE->qualifiers_list; otherwise return 0.
 
+   Store the smallest number of non-matching qualifiers in *INVALID_COUNT.
+   This is always 0 if the function succeeds.
+
    if UPDATE_P, update the qualifier(s) in *INST after the matching
    succeeds.  */
 
 static int
-match_operands_qualifier (aarch64_inst *inst, bool update_p)
+match_operands_qualifier (aarch64_inst *inst, bool update_p,
+			  int *invalid_count)
 {
   int i;
   aarch64_opnd_qualifier_seq_t qualifiers;
 
   if (!aarch64_find_best_match (inst, inst->opcode->qualifiers_list, -1,
-			       qualifiers))
+				qualifiers, invalid_count))
     {
       DEBUG_TRACE ("matching FAIL");
       return 0;
@@ -1336,6 +1398,18 @@ set_syntax_error (aarch64_operand_error *mismatch_detail, int idx,
 }
 
 static inline void
+set_invalid_regno_error (aarch64_operand_error *mismatch_detail, int idx,
+			 const char *prefix, int lower_bound, int upper_bound)
+{
+  if (mismatch_detail == NULL)
+    return;
+  set_error (mismatch_detail, AARCH64_OPDE_INVALID_REGNO, idx, NULL);
+  mismatch_detail->data[0].s = prefix;
+  mismatch_detail->data[1].i = lower_bound;
+  mismatch_detail->data[2].i = upper_bound;
+}
+
+static inline void
 set_out_of_range_error (aarch64_operand_error *mismatch_detail,
 			int idx, int lower_bound, int upper_bound,
 			const char* error)
@@ -1420,13 +1494,33 @@ set_unaligned_error (aarch64_operand_error *mismatch_detail, int idx,
 }
 
 static inline void
-set_reg_list_error (aarch64_operand_error *mismatch_detail, int idx,
-		    int expected_num)
+set_reg_list_length_error (aarch64_operand_error *mismatch_detail, int idx,
+			   int expected_num)
 {
   if (mismatch_detail == NULL)
     return;
-  set_error (mismatch_detail, AARCH64_OPDE_REG_LIST, idx, NULL);
-  mismatch_detail->data[0].i = expected_num;
+  set_error (mismatch_detail, AARCH64_OPDE_REG_LIST_LENGTH, idx, NULL);
+  mismatch_detail->data[0].i = 1 << expected_num;
+}
+
+static inline void
+set_reg_list_stride_error (aarch64_operand_error *mismatch_detail, int idx,
+			   int expected_num)
+{
+  if (mismatch_detail == NULL)
+    return;
+  set_error (mismatch_detail, AARCH64_OPDE_REG_LIST_STRIDE, idx, NULL);
+  mismatch_detail->data[0].i = 1 << expected_num;
+}
+
+static inline void
+set_invalid_vg_size (aarch64_operand_error *mismatch_detail,
+		     int idx, int expected)
+{
+  if (mismatch_detail == NULL)
+    return;
+  set_error (mismatch_detail, AARCH64_OPDE_INVALID_VG_SIZE, idx, NULL);
+  mismatch_detail->data[0].i = expected;
 }
 
 static inline void
@@ -1436,6 +1530,129 @@ set_other_error (aarch64_operand_error *mismatch_detail, int idx,
   if (mismatch_detail == NULL)
     return;
   set_error (mismatch_detail, AARCH64_OPDE_OTHER_ERROR, idx, error);
+}
+
+/* Check that indexed register operand OPND has a register in the range
+   [MIN_REGNO, MAX_REGNO] and an index in the range [MIN_INDEX, MAX_INDEX].
+   PREFIX is the register prefix, such as "z" for SVE vector registers.  */
+
+static bool
+check_reglane (const aarch64_opnd_info *opnd,
+	       aarch64_operand_error *mismatch_detail, int idx,
+	       const char *prefix, int min_regno, int max_regno,
+	       int min_index, int max_index)
+{
+  if (!value_in_range_p (opnd->reglane.regno, min_regno, max_regno))
+    {
+      set_invalid_regno_error (mismatch_detail, idx, prefix, min_regno,
+			       max_regno);
+      return false;
+    }
+  if (!value_in_range_p (opnd->reglane.index, min_index, max_index))
+    {
+      set_elem_idx_out_of_range_error (mismatch_detail, idx, min_index,
+				       max_index);
+      return false;
+    }
+  return true;
+}
+
+/* Check that register list operand OPND has NUM_REGS registers and a
+   register stride of STRIDE.  */
+
+static bool
+check_reglist (const aarch64_opnd_info *opnd,
+	       aarch64_operand_error *mismatch_detail, int idx,
+	       int num_regs, int stride)
+{
+  if (opnd->reglist.num_regs != num_regs)
+    {
+      set_reg_list_length_error (mismatch_detail, idx, num_regs);
+      return false;
+    }
+  if (opnd->reglist.stride != stride)
+    {
+      set_reg_list_stride_error (mismatch_detail, idx, stride);
+      return false;
+    }
+  return true;
+}
+
+/* Check that indexed ZA operand OPND has:
+
+   - a selection register in the range [MIN_WREG, MIN_WREG + 3]
+
+   - RANGE_SIZE consecutive immediate offsets.
+
+   - an initial immediate offset that is a multiple of RANGE_SIZE
+     in the range [0, MAX_VALUE * RANGE_SIZE]
+
+   - a vector group size of GROUP_SIZE.  */
+
+static bool
+check_za_access (const aarch64_opnd_info *opnd,
+		 aarch64_operand_error *mismatch_detail, int idx,
+		 int min_wreg, int max_value, unsigned int range_size,
+		 int group_size)
+{
+  if (!value_in_range_p (opnd->indexed_za.index.regno, min_wreg, min_wreg + 3))
+    {
+      if (min_wreg == 12)
+	set_other_error (mismatch_detail, idx,
+			 _("expected a selection register in the"
+			   " range w12-w15"));
+      else if (min_wreg == 8)
+	set_other_error (mismatch_detail, idx,
+			 _("expected a selection register in the"
+			   " range w8-w11"));
+      else
+	abort ();
+      return false;
+    }
+
+  int max_index = max_value * range_size;
+  if (!value_in_range_p (opnd->indexed_za.index.imm, 0, max_index))
+    {
+      set_offset_out_of_range_error (mismatch_detail, idx, 0, max_index);
+      return false;
+    }
+
+  if ((opnd->indexed_za.index.imm % range_size) != 0)
+    {
+      assert (range_size == 2 || range_size == 4);
+      set_other_error (mismatch_detail, idx,
+		       range_size == 2
+		       ? _("starting offset is not a multiple of 2")
+		       : _("starting offset is not a multiple of 4"));
+      return false;
+    }
+
+  if (opnd->indexed_za.index.countm1 != range_size - 1)
+    {
+      if (range_size == 1)
+	set_other_error (mismatch_detail, idx,
+			 _("expected a single offset rather than"
+			   " a range"));
+      else if (range_size == 2)
+	set_other_error (mismatch_detail, idx,
+			 _("expected a range of two offsets"));
+      else if (range_size == 4)
+	set_other_error (mismatch_detail, idx,
+			 _("expected a range of four offsets"));
+      else
+	abort ();
+      return false;
+    }
+
+  /* The vector group specifier is optional in assembly code.  */
+  if (opnd->indexed_za.group_size != 0
+      && opnd->indexed_za.group_size != group_size)
+    {
+      set_invalid_vg_size (mismatch_detail, idx, group_size);
+      return false;
+    }
+
+  return true;
 }
 
 /* General constraint checking based on operand code.
@@ -1531,47 +1748,72 @@ operand_general_constraint_met_p (const aarch64_opnd_info *opnds, int idx,
 	{
 	case AARCH64_OPND_SVE_Zm3_INDEX:
 	case AARCH64_OPND_SVE_Zm3_22_INDEX:
+	case AARCH64_OPND_SVE_Zm3_19_INDEX:
 	case AARCH64_OPND_SVE_Zm3_11_INDEX:
 	case AARCH64_OPND_SVE_Zm4_11_INDEX:
 	case AARCH64_OPND_SVE_Zm4_INDEX:
 	  size = get_operand_fields_width (get_operand_from_code (type));
 	  shift = get_operand_specific_data (&aarch64_operands[type]);
-	  mask = (1 << shift) - 1;
-	  if (opnd->reg.regno > mask)
-	    {
-	      assert (mask == 7 || mask == 15);
-	      set_other_error (mismatch_detail, idx,
-			       mask == 15
-			       ? _("z0-z15 expected")
-			       : _("z0-z7 expected"));
-	      return 0;
-	    }
-	  mask = (1u << (size - shift)) - 1;
-	  if (!value_in_range_p (opnd->reglane.index, 0, mask))
-	    {
-	      set_elem_idx_out_of_range_error (mismatch_detail, idx, 0, mask);
-	      return 0;
-	    }
+	  if (!check_reglane (opnd, mismatch_detail, idx,
+			      "z", 0, (1 << shift) - 1,
+			      0, (1u << (size - shift)) - 1))
+	    return 0;
 	  break;
 
 	case AARCH64_OPND_SVE_Zn_INDEX:
 	  size = aarch64_get_qualifier_esize (opnd->qualifier);
-	  if (!value_in_range_p (opnd->reglane.index, 0, 64 / size - 1))
+	  if (!check_reglane (opnd, mismatch_detail, idx, "z", 0, 31,
+			      0, 64 / size - 1))
+	    return 0;
+	  break;
+
+	case AARCH64_OPND_SME_PNn3_INDEX1:
+	case AARCH64_OPND_SME_PNn3_INDEX2:
+	  size = get_operand_field_width (get_operand_from_code (type), 1);
+	  if (!check_reglane (opnd, mismatch_detail, idx, "pn", 8, 15,
+			      0, (1 << size) - 1))
+	    return 0;
+	  break;
+
+	case AARCH64_OPND_SME_Zn_INDEX1_16:
+	case AARCH64_OPND_SME_Zn_INDEX2_15:
+	case AARCH64_OPND_SME_Zn_INDEX2_16:
+	case AARCH64_OPND_SME_Zn_INDEX3_14:
+	case AARCH64_OPND_SME_Zn_INDEX3_15:
+	case AARCH64_OPND_SME_Zn_INDEX4_14:
+	  size = get_operand_fields_width (get_operand_from_code (type)) - 5;
+	  if (!check_reglane (opnd, mismatch_detail, idx, "z", 0, 31,
+			      0, (1 << size) - 1))
+	    return 0;
+	  break;
+
+	case AARCH64_OPND_SME_Zm_INDEX1:
+	case AARCH64_OPND_SME_Zm_INDEX2:
+	case AARCH64_OPND_SME_Zm_INDEX3_1:
+	case AARCH64_OPND_SME_Zm_INDEX3_2:
+	case AARCH64_OPND_SME_Zm_INDEX3_10:
+	case AARCH64_OPND_SME_Zm_INDEX4_1:
+	case AARCH64_OPND_SME_Zm_INDEX4_10:
+	  size = get_operand_fields_width (get_operand_from_code (type)) - 4;
+	  if (!check_reglane (opnd, mismatch_detail, idx, "z", 0, 15,
+			      0, (1 << size) - 1))
+	    return 0;
+	  break;
+
+	case AARCH64_OPND_SME_Zm:
+	  if (opnd->reg.regno > 15)
 	    {
-	      set_elem_idx_out_of_range_error (mismatch_detail, idx,
-					       0, 64 / size - 1);
+	      set_invalid_regno_error (mismatch_detail, idx, "z", 0, 15);
 	      return 0;
 	    }
 	  break;
 
-	case AARCH64_OPND_SVE_ZnxN:
-	case AARCH64_OPND_SVE_ZtxN:
-	  if (opnd->reglist.num_regs != get_opcode_dependent_value (opcode))
-	    {
-	      set_other_error (mismatch_detail, idx,
-			       _("invalid register list"));
-	      return 0;
-	    }
+	case AARCH64_OPND_SME_PnT_Wm_imm:
+	  size = aarch64_get_qualifier_esize (opnd->qualifier);
+	  max_value = 16 / size - 1;
+	  if (!check_za_access (opnd, mismatch_detail, idx,
+				12, max_value, 1, 0))
+	    return 0;
 	  break;
 
 	default:
@@ -1579,12 +1821,143 @@ operand_general_constraint_met_p (const aarch64_opnd_info *opnds, int idx,
 	}
       break;
 
-    case AARCH64_OPND_CLASS_PRED_REG:
-      if (opnd->reg.regno >= 8
-	  && get_operand_fields_width (get_operand_from_code (type)) == 3)
+    case AARCH64_OPND_CLASS_SVE_REGLIST:
+      switch (type)
 	{
-	  set_other_error (mismatch_detail, idx, _("p0-p7 expected"));
-	  return 0;
+	case AARCH64_OPND_SME_Pdx2:
+	case AARCH64_OPND_SME_Zdnx2:
+	case AARCH64_OPND_SME_Zdnx4:
+	case AARCH64_OPND_SME_Zmx2:
+	case AARCH64_OPND_SME_Zmx4:
+	case AARCH64_OPND_SME_Znx2:
+	case AARCH64_OPND_SME_Znx4:
+	  num = get_operand_specific_data (&aarch64_operands[type]);
+	  if (!check_reglist (opnd, mismatch_detail, idx, num, 1))
+	    return 0;
+	  if ((opnd->reglist.first_regno % num) != 0)
+	    {
+	      set_other_error (mismatch_detail, idx,
+			       _("start register out of range"));
+	      return 0;
+	    }
+	  break;
+
+	case AARCH64_OPND_SME_Ztx2_STRIDED:
+	case AARCH64_OPND_SME_Ztx4_STRIDED:
+	  /* 2-register lists have a stride of 8 and 4-register lists
+	     have a stride of 4.  */
+	  num = get_operand_specific_data (&aarch64_operands[type]);
+	  if (!check_reglist (opnd, mismatch_detail, idx, num, 16 / num))
+	    return 0;
+	  num = 16 | (opnd->reglist.stride - 1);
+	  if ((opnd->reglist.first_regno & ~num) != 0)
+	    {
+	      set_other_error (mismatch_detail, idx,
+			       _("start register out of range"));
+	      return 0;
+	    }
+	  break;
+
+	case AARCH64_OPND_SME_PdxN:
+	case AARCH64_OPND_SVE_ZnxN:
+	case AARCH64_OPND_SVE_ZtxN:
+	  num = get_opcode_dependent_value (opcode);
+	  if (!check_reglist (opnd, mismatch_detail, idx, num, 1))
+	    return 0;
+	  break;
+
+	default:
+	  abort ();
+	}
+      break;
+
+    case AARCH64_OPND_CLASS_ZA_ACCESS:
+      switch (type)
+	{
+	case AARCH64_OPND_SME_ZA_HV_idx_src:
+	case AARCH64_OPND_SME_ZA_HV_idx_dest:
+	case AARCH64_OPND_SME_ZA_HV_idx_ldstr:
+	  size = aarch64_get_qualifier_esize (opnd->qualifier);
+	  max_value = 16 / size - 1;
+	  if (!check_za_access (opnd, mismatch_detail, idx, 12, max_value, 1,
+				get_opcode_dependent_value (opcode)))
+	    return 0;
+	  break;
+
+	case AARCH64_OPND_SME_ZA_array_off4:
+	  if (!check_za_access (opnd, mismatch_detail, idx, 12, 15, 1,
+				get_opcode_dependent_value (opcode)))
+	    return 0;
+	  break;
+
+	case AARCH64_OPND_SME_ZA_array_off3_0:
+	case AARCH64_OPND_SME_ZA_array_off3_5:
+	  if (!check_za_access (opnd, mismatch_detail, idx, 8, 7, 1,
+				get_opcode_dependent_value (opcode)))
+	    return 0;
+	  break;
+
+	case AARCH64_OPND_SME_ZA_array_off1x4:
+	  if (!check_za_access (opnd, mismatch_detail, idx, 8, 1, 4,
+				get_opcode_dependent_value (opcode)))
+	    return 0;
+	  break;
+
+	case AARCH64_OPND_SME_ZA_array_off2x2:
+	  if (!check_za_access (opnd, mismatch_detail, idx, 8, 3, 2,
+				get_opcode_dependent_value (opcode)))
+	    return 0;
+	  break;
+
+	case AARCH64_OPND_SME_ZA_array_off2x4:
+	  if (!check_za_access (opnd, mismatch_detail, idx, 8, 3, 4,
+				get_opcode_dependent_value (opcode)))
+	    return 0;
+	  break;
+
+	case AARCH64_OPND_SME_ZA_array_off3x2:
+	  if (!check_za_access (opnd, mismatch_detail, idx, 8, 7, 2,
+				get_opcode_dependent_value (opcode)))
+	    return 0;
+	  break;
+
+	case AARCH64_OPND_SME_ZA_HV_idx_srcxN:
+	case AARCH64_OPND_SME_ZA_HV_idx_destxN:
+	  size = aarch64_get_qualifier_esize (opnd->qualifier);
+	  num = get_opcode_dependent_value (opcode);
+	  max_value = 16 / num / size;
+	  if (max_value > 0)
+	    max_value -= 1;
+	  if (!check_za_access (opnd, mismatch_detail, idx,
+				12, max_value, num, 0))
+	    return 0;
+	  break;
+
+	default:
+	  abort ();
+	}
+      break;
+
+    case AARCH64_OPND_CLASS_PRED_REG:
+      switch (type)
+	{
+	case AARCH64_OPND_SME_PNd3:
+	case AARCH64_OPND_SME_PNg3:
+	  if (opnd->reg.regno < 8)
+	    {
+	      set_invalid_regno_error (mismatch_detail, idx, "pn", 8, 15);
+	      return 0;
+	    }
+	  break;
+
+	default:
+	  if (opnd->reg.regno >= 8
+	      && get_operand_fields_width (get_operand_from_code (type)) == 3)
+	    {
+	      set_invalid_regno_error (mismatch_detail, idx, "p", 0, 7);
+	      return 0;
+	    }
+	  break;
 	}
       break;
 
@@ -2036,25 +2409,24 @@ operand_general_constraint_met_p (const aarch64_opnd_info *opnds, int idx,
 	  assert (num >= 1 && num <= 4);
 	  /* Unless LD1/ST1, the number of registers should be equal to that
 	     of the structure elements.  */
-	  if (num != 1 && opnd->reglist.num_regs != num)
-	    {
-	      set_reg_list_error (mismatch_detail, idx, num);
-	      return 0;
-	    }
+	  if (num != 1 && !check_reglist (opnd, mismatch_detail, idx, num, 1))
+	    return 0;
 	  break;
 	case AARCH64_OPND_LVt_AL:
 	case AARCH64_OPND_LEt:
 	  assert (num >= 1 && num <= 4);
 	  /* The number of registers should be equal to that of the structure
 	     elements.  */
-	  if (opnd->reglist.num_regs != num)
-	    {
-	      set_reg_list_error (mismatch_detail, idx, num);
-	      return 0;
-	    }
+	  if (!check_reglist (opnd, mismatch_detail, idx, num, 1))
+	    return 0;
 	  break;
 	default:
 	  break;
+	}
+      if (opnd->reglist.stride != 1)
+	{
+	  set_reg_list_stride_error (mismatch_detail, idx, 1);
+	  return 0;
 	}
       break;
 
@@ -2566,6 +2938,16 @@ operand_general_constraint_met_p (const aarch64_opnd_info *opnds, int idx,
 	    }
 	  break;
 
+	case AARCH64_OPND_SME_SHRIMM4:
+	  size = 1 << get_operand_fields_width (get_operand_from_code (type));
+	  if (!value_in_range_p (opnd->imm.value, 1, size))
+	    {
+	      set_imm_out_of_range_error (mismatch_detail, idx, 1, size);
+	      return 0;
+	    }
+	  break;
+
+	case AARCH64_OPND_SME_SHRIMM5:
 	case AARCH64_OPND_SVE_SHRIMM_PRED:
 	case AARCH64_OPND_SVE_SHRIMM_UNPRED:
 	case AARCH64_OPND_SVE_SHRIMM_UNPRED_22:
@@ -2574,6 +2956,20 @@ operand_general_constraint_met_p (const aarch64_opnd_info *opnds, int idx,
 	  if (!value_in_range_p (opnd->imm.value, 1, 8 * size))
 	    {
 	      set_imm_out_of_range_error (mismatch_detail, idx, 1, 8*size);
+	      return 0;
+	    }
+	  break;
+
+	case AARCH64_OPND_SME_ZT0_INDEX:
+	  if (!value_in_range_p (opnd->imm.value, 0, 56))
+	    {
+	      set_elem_idx_out_of_range_error (mismatch_detail, idx, 0, 56);
+	      return 0;
+	    }
+	  if (opnd->imm.value % 8 != 0)
+	    {
+	      set_other_error (mismatch_detail, idx,
+			       _("byte index must be a multiple of 8"));
 	      return 0;
 	    }
 	  break;
@@ -2596,6 +2992,15 @@ operand_general_constraint_met_p (const aarch64_opnd_info *opnds, int idx,
 	  if (opnds[1].imm.value < 0 || opnds[1].imm.value > max_value)
 	    {
 	      set_imm_out_of_range_error (mismatch_detail, 1, 0, max_value);
+	      return 0;
+	    }
+	  break;
+	case AARCH64_OPND_PRFOP:
+	  if (opcode->iclass == ldst_regoff && opnd->prfop->value >= 24)
+	    {
+	      set_other_error (mismatch_detail, idx,
+			       _("the register-index form of PRFM does"
+				 " not accept opcodes in the range 24-31"));
 	      return 0;
 	    }
 	  break;
@@ -2759,9 +3164,9 @@ aarch64_match_operands_constraint (aarch64_inst *inst,
         */
         case sme_ldr:
         case sme_str:
-          assert (inst->operands[0].type == AARCH64_OPND_SME_ZA_array);
+          assert (inst->operands[0].type == AARCH64_OPND_SME_ZA_array_off4);
           assert (inst->operands[1].type == AARCH64_OPND_SME_ADDR_RI_U4xVL);
-          if (inst->operands[0].za_tile_vector.index.imm
+          if (inst->operands[0].indexed_za.index.imm
               != inst->operands[1].addr.offset.imm)
             {
               if (mismatch_detail)
@@ -2774,23 +3179,38 @@ aarch64_match_operands_constraint (aarch64_inst *inst,
           break;
 
         default:
-          /* Check for cases where a source register needs to be the same as the
-             destination register.  Do this before matching qualifiers since if
-             an instruction has both invalid tying and invalid qualifiers,
-             the error about qualifiers would suggest several alternative
-             instructions that also have invalid tying.  */
-          if (inst->operands[0].reg.regno
-              != inst->operands[i].reg.regno)
-            {
-              if (mismatch_detail)
-                {
-                  mismatch_detail->kind = AARCH64_OPDE_UNTIED_OPERAND;
-                  mismatch_detail->index = i;
-                  mismatch_detail->error = NULL;
-                }
-              return 0;
-            }
-          break;
+	  {
+	    /* Check for cases where a source register needs to be the
+	       same as the destination register.  Do this before
+	       matching qualifiers since if an instruction has both
+	       invalid tying and invalid qualifiers, the error about
+	       qualifiers would suggest several alternative instructions
+	       that also have invalid tying.  */
+	    enum aarch64_operand_class op_class1
+	       = aarch64_get_operand_class (inst->operands[0].type);
+	    enum aarch64_operand_class op_class2
+	       = aarch64_get_operand_class (inst->operands[i].type);
+	    assert (op_class1 == op_class2);
+	    if (op_class1 == AARCH64_OPND_CLASS_SVE_REGLIST
+		? ((inst->operands[0].reglist.first_regno
+		    != inst->operands[i].reglist.first_regno)
+		   || (inst->operands[0].reglist.num_regs
+		       != inst->operands[i].reglist.num_regs)
+		   || (inst->operands[0].reglist.stride
+		       != inst->operands[i].reglist.stride))
+		: (inst->operands[0].reg.regno
+		   != inst->operands[i].reg.regno))
+	      {
+		if (mismatch_detail)
+		  {
+		    mismatch_detail->kind = AARCH64_OPDE_UNTIED_OPERAND;
+		    mismatch_detail->index = i;
+		    mismatch_detail->error = NULL;
+		  }
+		return 0;
+	      }
+	    break;
+	  }
         }
     }
 
@@ -2804,7 +3224,9 @@ aarch64_match_operands_constraint (aarch64_inst *inst,
      constraint checking will carried out by operand_general_constraint_met_p,
      which has be to called after this in order to get all of the operands'
      qualifiers established.  */
-  if (match_operands_qualifier (inst, true /* update_p */) == 0)
+  int invalid_count;
+  if (match_operands_qualifier (inst, true /* update_p */,
+				&invalid_count) == 0)
     {
       DEBUG_TRACE ("FAIL on operand qualifier matching");
       if (mismatch_detail)
@@ -2815,6 +3237,7 @@ aarch64_match_operands_constraint (aarch64_inst *inst,
 	  mismatch_detail->kind = AARCH64_OPDE_INVALID_VARIANT;
 	  mismatch_detail->index = -1;
 	  mismatch_detail->error = NULL;
+	  mismatch_detail->data[0].i = invalid_count;
 	}
       return 0;
     }
@@ -3099,9 +3522,11 @@ static void
 print_register_list (char *buf, size_t size, const aarch64_opnd_info *opnd,
 		     const char *prefix, struct aarch64_styler *styler)
 {
+  const int mask = (prefix[0] == 'p' ? 15 : 31);
   const int num_regs = opnd->reglist.num_regs;
+  const int stride = opnd->reglist.stride;
   const int first_reg = opnd->reglist.first_regno;
-  const int last_reg = (first_reg + num_regs - 1) & 0x1f;
+  const int last_reg = (first_reg + (num_regs - 1) * stride) & mask;
   const char *qlf_name = aarch64_get_qualifier_name (opnd->qualifier);
   char tb[16];	/* Temporary buffer.  */
 
@@ -3119,16 +3544,16 @@ print_register_list (char *buf, size_t size, const aarch64_opnd_info *opnd,
   /* The hyphenated form is preferred for disassembly if there are
      more than two registers in the list, and the register numbers
      are monotonically increasing in increments of one.  */
-  if (num_regs > 2 && last_reg > first_reg)
+  if (stride == 1 && num_regs > 1)
     snprintf (buf, size, "{%s-%s}%s",
 	      style_reg (styler, "%s%d.%s", prefix, first_reg, qlf_name),
 	      style_reg (styler, "%s%d.%s", prefix, last_reg, qlf_name), tb);
   else
     {
       const int reg0 = first_reg;
-      const int reg1 = (first_reg + 1) & 0x1f;
-      const int reg2 = (first_reg + 2) & 0x1f;
-      const int reg3 = (first_reg + 3) & 0x1f;
+      const int reg1 = (first_reg + stride) & mask;
+      const int reg2 = (first_reg + stride * 2) & mask;
+      const int reg3 = (first_reg + stride * 3) & mask;
 
       switch (num_regs)
 	{
@@ -3502,6 +3927,39 @@ aarch64_print_operand (char *buf, size_t size, bfd_vma pc,
 			     aarch64_get_qualifier_name (opnd->qualifier)));
       break;
 
+    case AARCH64_OPND_SVE_PNd:
+    case AARCH64_OPND_SVE_PNg4_10:
+    case AARCH64_OPND_SVE_PNn:
+    case AARCH64_OPND_SVE_PNt:
+    case AARCH64_OPND_SME_PNd3:
+    case AARCH64_OPND_SME_PNg3:
+    case AARCH64_OPND_SME_PNn:
+      if (opnd->qualifier == AARCH64_OPND_QLF_NIL)
+	snprintf (buf, size, "%s",
+		  style_reg (styler, "pn%d", opnd->reg.regno));
+      else if (opnd->qualifier == AARCH64_OPND_QLF_P_Z
+	       || opnd->qualifier == AARCH64_OPND_QLF_P_M)
+	snprintf (buf, size, "%s",
+		  style_reg (styler, "pn%d/%s", opnd->reg.regno,
+			     aarch64_get_qualifier_name (opnd->qualifier)));
+      else
+	snprintf (buf, size, "%s",
+		  style_reg (styler, "pn%d.%s", opnd->reg.regno,
+			     aarch64_get_qualifier_name (opnd->qualifier)));
+      break;
+
+    case AARCH64_OPND_SME_Pdx2:
+    case AARCH64_OPND_SME_PdxN:
+      print_register_list (buf, size, opnd, "p", styler);
+      break;
+
+    case AARCH64_OPND_SME_PNn3_INDEX1:
+    case AARCH64_OPND_SME_PNn3_INDEX2:
+      snprintf (buf, size, "%s[%s]",
+		style_reg (styler, "pn%d", opnd->reglane.regno),
+		style_imm (styler, "%" PRIi64, opnd->reglane.index));
+      break;
+
     case AARCH64_OPND_SVE_Za_5:
     case AARCH64_OPND_SVE_Za_16:
     case AARCH64_OPND_SVE_Zd:
@@ -3509,6 +3967,7 @@ aarch64_print_operand (char *buf, size_t size, bfd_vma pc,
     case AARCH64_OPND_SVE_Zm_16:
     case AARCH64_OPND_SVE_Zn:
     case AARCH64_OPND_SVE_Zt:
+    case AARCH64_OPND_SME_Zm:
       if (opnd->qualifier == AARCH64_OPND_QLF_NIL)
 	snprintf (buf, size, "%s", style_reg (styler, "z%d", opnd->reg.regno));
       else
@@ -3519,18 +3978,42 @@ aarch64_print_operand (char *buf, size_t size, bfd_vma pc,
 
     case AARCH64_OPND_SVE_ZnxN:
     case AARCH64_OPND_SVE_ZtxN:
+    case AARCH64_OPND_SME_Zdnx2:
+    case AARCH64_OPND_SME_Zdnx4:
+    case AARCH64_OPND_SME_Zmx2:
+    case AARCH64_OPND_SME_Zmx4:
+    case AARCH64_OPND_SME_Znx2:
+    case AARCH64_OPND_SME_Znx4:
+    case AARCH64_OPND_SME_Ztx2_STRIDED:
+    case AARCH64_OPND_SME_Ztx4_STRIDED:
       print_register_list (buf, size, opnd, "z", styler);
       break;
 
     case AARCH64_OPND_SVE_Zm3_INDEX:
     case AARCH64_OPND_SVE_Zm3_22_INDEX:
+    case AARCH64_OPND_SVE_Zm3_19_INDEX:
     case AARCH64_OPND_SVE_Zm3_11_INDEX:
     case AARCH64_OPND_SVE_Zm4_11_INDEX:
     case AARCH64_OPND_SVE_Zm4_INDEX:
     case AARCH64_OPND_SVE_Zn_INDEX:
+    case AARCH64_OPND_SME_Zm_INDEX1:
+    case AARCH64_OPND_SME_Zm_INDEX2:
+    case AARCH64_OPND_SME_Zm_INDEX3_1:
+    case AARCH64_OPND_SME_Zm_INDEX3_2:
+    case AARCH64_OPND_SME_Zm_INDEX3_10:
+    case AARCH64_OPND_SME_Zm_INDEX4_1:
+    case AARCH64_OPND_SME_Zm_INDEX4_10:
+    case AARCH64_OPND_SME_Zn_INDEX1_16:
+    case AARCH64_OPND_SME_Zn_INDEX2_15:
+    case AARCH64_OPND_SME_Zn_INDEX2_16:
+    case AARCH64_OPND_SME_Zn_INDEX3_14:
+    case AARCH64_OPND_SME_Zn_INDEX3_15:
+    case AARCH64_OPND_SME_Zn_INDEX4_14:
       snprintf (buf, size, "%s[%s]",
-		style_reg (styler, "z%d.%s", opnd->reglane.regno,
-			   aarch64_get_qualifier_name (opnd->qualifier)),
+		(opnd->qualifier == AARCH64_OPND_QLF_NIL
+		 ? style_reg (styler, "z%d", opnd->reglane.regno)
+		 : style_reg (styler, "z%d.%s", opnd->reglane.regno,
+			      aarch64_get_qualifier_name (opnd->qualifier))),
 		style_imm (styler, "%" PRIi64, opnd->reglane.index));
       break;
 
@@ -3542,16 +4025,29 @@ aarch64_print_operand (char *buf, size_t size, bfd_vma pc,
       break;
 
     case AARCH64_OPND_SME_ZA_HV_idx_src:
+    case AARCH64_OPND_SME_ZA_HV_idx_srcxN:
     case AARCH64_OPND_SME_ZA_HV_idx_dest:
+    case AARCH64_OPND_SME_ZA_HV_idx_destxN:
     case AARCH64_OPND_SME_ZA_HV_idx_ldstr:
-      snprintf (buf, size, "%s%s[%s, %s]%s",
+      snprintf (buf, size, "%s%s[%s, %s%s%s%s%s]%s",
 		opnd->type == AARCH64_OPND_SME_ZA_HV_idx_ldstr ? "{" : "",
 		style_reg (styler, "za%d%c.%s",
-			   opnd->za_tile_vector.regno,
-			   opnd->za_tile_vector.v == 1 ? 'v' : 'h',
+			   opnd->indexed_za.regno,
+			   opnd->indexed_za.v == 1 ? 'v' : 'h',
 			   aarch64_get_qualifier_name (opnd->qualifier)),
-		style_reg (styler, "w%d", opnd->za_tile_vector.index.regno),
-		style_imm (styler, "%d", opnd->za_tile_vector.index.imm),
+		style_reg (styler, "w%d", opnd->indexed_za.index.regno),
+		style_imm (styler, "%" PRIi64, opnd->indexed_za.index.imm),
+		opnd->indexed_za.index.countm1 ? ":" : "",
+		(opnd->indexed_za.index.countm1
+		 ? style_imm (styler, "%d",
+			      opnd->indexed_za.index.imm
+			      + opnd->indexed_za.index.countm1)
+		 : ""),
+		opnd->indexed_za.group_size ? ", " : "",
+		opnd->indexed_za.group_size == 2
+		? style_sub_mnem (styler, "vgx2")
+		: opnd->indexed_za.group_size == 4
+		? style_sub_mnem (styler, "vgx4") : "",
 		opnd->type == AARCH64_OPND_SME_ZA_HV_idx_ldstr ? "}" : "");
       break;
 
@@ -3559,11 +4055,32 @@ aarch64_print_operand (char *buf, size_t size, bfd_vma pc,
       print_sme_za_list (buf, size, opnd->reg.regno, styler);
       break;
 
-    case AARCH64_OPND_SME_ZA_array:
-      snprintf (buf, size, "%s[%s, %s]",
-		style_reg (styler, "za"),
-		style_reg (styler, "w%d", opnd->za_tile_vector.index.regno),
-		style_imm (styler, "%d", opnd->za_tile_vector.index.imm));
+    case AARCH64_OPND_SME_ZA_array_off1x4:
+    case AARCH64_OPND_SME_ZA_array_off2x2:
+    case AARCH64_OPND_SME_ZA_array_off2x4:
+    case AARCH64_OPND_SME_ZA_array_off3_0:
+    case AARCH64_OPND_SME_ZA_array_off3_5:
+    case AARCH64_OPND_SME_ZA_array_off3x2:
+    case AARCH64_OPND_SME_ZA_array_off4:
+      snprintf (buf, size, "%s[%s, %s%s%s%s%s]",
+		style_reg (styler, "za%s%s",
+			   opnd->qualifier == AARCH64_OPND_QLF_NIL ? "" : ".",
+			   (opnd->qualifier == AARCH64_OPND_QLF_NIL
+			    ? ""
+			    : aarch64_get_qualifier_name (opnd->qualifier))),
+		style_reg (styler, "w%d", opnd->indexed_za.index.regno),
+		style_imm (styler, "%" PRIi64, opnd->indexed_za.index.imm),
+		opnd->indexed_za.index.countm1 ? ":" : "",
+		(opnd->indexed_za.index.countm1
+		 ? style_imm (styler, "%d",
+			      opnd->indexed_za.index.imm
+			      + opnd->indexed_za.index.countm1)
+		 : ""),
+		opnd->indexed_za.group_size ? ", " : "",
+		opnd->indexed_za.group_size == 2
+		? style_sub_mnem (styler, "vgx2")
+		: opnd->indexed_za.group_size == 4
+		? style_sub_mnem (styler, "vgx4") : "");
       break;
 
     case AARCH64_OPND_SME_SM_ZA:
@@ -3573,10 +4090,18 @@ aarch64_print_operand (char *buf, size_t size, bfd_vma pc,
 
     case AARCH64_OPND_SME_PnT_Wm_imm:
       snprintf (buf, size, "%s[%s, %s]",
-		style_reg (styler, "p%d.%s", opnd->za_tile_vector.regno,
+		style_reg (styler, "p%d.%s", opnd->indexed_za.regno,
 			   aarch64_get_qualifier_name (opnd->qualifier)),
-                style_reg (styler, "w%d", opnd->za_tile_vector.index.regno),
-                style_imm (styler, "%d", opnd->za_tile_vector.index.imm));
+		style_reg (styler, "w%d", opnd->indexed_za.index.regno),
+		style_imm (styler, "%" PRIi64, opnd->indexed_za.index.imm));
+      break;
+
+    case AARCH64_OPND_SME_VLxN_10:
+    case AARCH64_OPND_SME_VLxN_13:
+      enum_value = opnd->imm.value;
+      assert (enum_value < ARRAY_SIZE (aarch64_sme_vlxn_array));
+      snprintf (buf, size, "%s",
+		style_sub_mnem (styler, aarch64_sme_vlxn_array[enum_value]));
       break;
 
     case AARCH64_OPND_CRn:
@@ -3603,6 +4128,8 @@ aarch64_print_operand (char *buf, size_t size, bfd_vma pc,
     case AARCH64_OPND_FBITS:
     case AARCH64_OPND_TME_UIMM16:
     case AARCH64_OPND_SIMM5:
+    case AARCH64_OPND_SME_SHRIMM4:
+    case AARCH64_OPND_SME_SHRIMM5:
     case AARCH64_OPND_SVE_SHLIMM_PRED:
     case AARCH64_OPND_SVE_SHLIMM_UNPRED:
     case AARCH64_OPND_SVE_SHLIMM_UNPRED_22:
@@ -3974,12 +4501,13 @@ aarch64_print_operand (char *buf, size_t size, bfd_vma pc,
 	  bool exact_match
 	    = (!(sr->flags & (F_REG_READ | F_REG_WRITE))
 	    || (sr->flags & opnd->sysreg.flags) == opnd->sysreg.flags)
-	    && AARCH64_CPU_HAS_FEATURE (features, sr->features);
+	    && AARCH64_CPU_HAS_ALL_FEATURES (features, sr->features);
 
 	  /* Try and find an exact match, But if that fails, return the first
 	     partial match that was found.  */
 	  if (aarch64_sys_regs[i].value == opnd->sysreg.value
 	      && ! aarch64_sys_reg_deprecated_p (aarch64_sys_regs[i].flags)
+	      && ! aarch64_sys_reg_alias_p (aarch64_sys_regs[i].flags)
 	      && (name == NULL || exact_match))
 	    {
 	      name = aarch64_sys_regs[i].name;
@@ -4069,8 +4597,32 @@ aarch64_print_operand (char *buf, size_t size, bfd_vma pc,
 					      opnd->prfop->value));
       break;
 
+    case AARCH64_OPND_RPRFMOP:
+      enum_value = opnd->imm.value;
+      if (enum_value < ARRAY_SIZE (aarch64_rprfmop_array)
+	  && aarch64_rprfmop_array[enum_value])
+	snprintf (buf, size, "%s",
+		  style_reg (styler, aarch64_rprfmop_array[enum_value]));
+      else
+	snprintf (buf, size, "%s",
+		  style_imm (styler, "#%" PRIi64, opnd->imm.value));
+      break;
+
     case AARCH64_OPND_BARRIER_PSB:
       snprintf (buf, size, "%s", style_sub_mnem (styler, "csync"));
+      break;
+
+    case AARCH64_OPND_SME_ZT0:
+      snprintf (buf, size, "%s", style_reg (styler, "zt0"));
+      break;
+
+    case AARCH64_OPND_SME_ZT0_INDEX:
+      snprintf (buf, size, "%s[%s]", style_reg (styler, "zt0"),
+		style_imm (styler, "%d", (int) opnd->imm.value));
+      break;
+
+    case AARCH64_OPND_SME_ZT0_LIST:
+      snprintf (buf, size, "{%s}", style_reg (styler, "zt0"));
       break;
 
     case AARCH64_OPND_BTI_TARGET:
@@ -4123,67 +4675,6 @@ aarch64_print_operand (char *buf, size_t size, bfd_vma pc,
 #define C14 14
 #define C15 15
 
-#define SYSREG(name, encoding, flags, features) \
-  { name, encoding, flags, features }
-
-#define SR_CORE(n,e,f) SYSREG (n,e,f,0)
-
-#define SR_FEAT(n,e,f,feat) \
-  SYSREG ((n), (e), (f) | F_ARCHEXT, AARCH64_FEATURE_##feat)
-
-#define SR_FEAT2(n,e,f,fe1,fe2) \
-  SYSREG ((n), (e), (f) | F_ARCHEXT, \
-	  AARCH64_FEATURE_##fe1 | AARCH64_FEATURE_##fe2)
-
-#define SR_V8_1_A(n,e,f) SR_FEAT2(n,e,f,V8_A,V8_1)
-#define SR_V8_4_A(n,e,f) SR_FEAT2(n,e,f,V8_A,V8_4)
-
-#define SR_V8_A(n,e,f)	  SR_FEAT (n,e,f,V8_A)
-#define SR_V8_R(n,e,f)	  SR_FEAT (n,e,f,V8_R)
-#define SR_V8_1(n,e,f)	  SR_FEAT (n,e,f,V8_1)
-#define SR_V8_2(n,e,f)	  SR_FEAT (n,e,f,V8_2)
-#define SR_V8_3(n,e,f)	  SR_FEAT (n,e,f,V8_3)
-#define SR_V8_4(n,e,f)	  SR_FEAT (n,e,f,V8_4)
-#define SR_V8_6(n,e,f)	  SR_FEAT (n,e,f,V8_6)
-#define SR_V8_7(n,e,f)	  SR_FEAT (n,e,f,V8_7)
-#define SR_V8_8(n,e,f)	  SR_FEAT (n,e,f,V8_8)
-/* Has no separate libopcodes feature flag, but separated out for clarity.  */
-#define SR_GIC(n,e,f)	  SR_CORE (n,e,f)
-/* Has no separate libopcodes feature flag, but separated out for clarity.  */
-#define SR_AMU(n,e,f)	  SR_FEAT (n,e,f,V8_4)
-#define SR_LOR(n,e,f)	  SR_FEAT (n,e,f,LOR)
-#define SR_PAN(n,e,f)	  SR_FEAT (n,e,f,PAN)
-#define SR_RAS(n,e,f)	  SR_FEAT (n,e,f,RAS)
-#define SR_RNG(n,e,f)	  SR_FEAT (n,e,f,RNG)
-#define SR_SME(n,e,f)	  SR_FEAT (n,e,f,SME)
-#define SR_SSBS(n,e,f)	  SR_FEAT (n,e,f,SSBS)
-#define SR_SVE(n,e,f)	  SR_FEAT (n,e,f,SVE)
-#define SR_ID_PFR2(n,e,f) SR_FEAT (n,e,f,ID_PFR2)
-#define SR_PROFILE(n,e,f) SR_FEAT (n,e,f,PROFILE)
-#define SR_MEMTAG(n,e,f)  SR_FEAT (n,e,f,MEMTAG)
-#define SR_SCXTNUM(n,e,f) SR_FEAT (n,e,f,SCXTNUM)
-
-#define SR_EXPAND_ELx(f,x) \
-  f (x, 1),  \
-  f (x, 2),  \
-  f (x, 3),  \
-  f (x, 4),  \
-  f (x, 5),  \
-  f (x, 6),  \
-  f (x, 7),  \
-  f (x, 8),  \
-  f (x, 9),  \
-  f (x, 10), \
-  f (x, 11), \
-  f (x, 12), \
-  f (x, 13), \
-  f (x, 14), \
-  f (x, 15),
-
-#define SR_EXPAND_EL12(f) \
-  SR_EXPAND_ELx (f,1) \
-  SR_EXPAND_ELx (f,2)
-
 /* TODO there is one more issues need to be resolved
    1. handle cpu-implementation-defined system registers.
 
@@ -4191,998 +4682,23 @@ aarch64_print_operand (char *buf, size_t size, bfd_vma pc,
    respectively.  If neither of these are set then the register is read-write.  */
 const aarch64_sys_reg aarch64_sys_regs [] =
 {
-  SR_CORE ("spsr_el1",		CPEN_ (0,C0,0),		0), /* = spsr_svc.  */
-  SR_V8_1 ("spsr_el12",		CPEN_ (5,C0,0),		0),
-  SR_CORE ("elr_el1",		CPEN_ (0,C0,1),		0),
-  SR_V8_1 ("elr_el12",		CPEN_ (5,C0,1),		0),
-  SR_CORE ("sp_el0",		CPEN_ (0,C1,0),		0),
-  SR_CORE ("spsel",		CPEN_ (0,C2,0),		0),
-  SR_CORE ("daif",		CPEN_ (3,C2,1),		0),
-  SR_CORE ("currentel",		CPEN_ (0,C2,2),		F_REG_READ),
-  SR_PAN  ("pan",		CPEN_ (0,C2,3),		0),
-  SR_V8_2 ("uao",		CPEN_ (0,C2,4),		0),
-  SR_CORE ("nzcv",		CPEN_ (3,C2,0),		0),
-  SR_SSBS ("ssbs",		CPEN_ (3,C2,6),		0),
-  SR_CORE ("fpcr",		CPEN_ (3,C4,0),		0),
-  SR_CORE ("fpsr",		CPEN_ (3,C4,1),		0),
-  SR_CORE ("dspsr_el0",		CPEN_ (3,C5,0),		0),
-  SR_CORE ("dlr_el0",		CPEN_ (3,C5,1),		0),
-  SR_CORE ("spsr_el2",		CPEN_ (4,C0,0),		0), /* = spsr_hyp.  */
-  SR_CORE ("elr_el2",		CPEN_ (4,C0,1),		0),
-  SR_CORE ("sp_el1",		CPEN_ (4,C1,0),		0),
-  SR_CORE ("spsr_irq",		CPEN_ (4,C3,0),		0),
-  SR_CORE ("spsr_abt",		CPEN_ (4,C3,1),		0),
-  SR_CORE ("spsr_und",		CPEN_ (4,C3,2),		0),
-  SR_CORE ("spsr_fiq",		CPEN_ (4,C3,3),		0),
-  SR_CORE ("spsr_el3",		CPEN_ (6,C0,0),		0),
-  SR_CORE ("elr_el3",		CPEN_ (6,C0,1),		0),
-  SR_CORE ("sp_el2",		CPEN_ (6,C1,0),		0),
-  SR_CORE ("spsr_svc",		CPEN_ (0,C0,0),		F_DEPRECATED), /* = spsr_el1.  */
-  SR_CORE ("spsr_hyp",		CPEN_ (4,C0,0),		F_DEPRECATED), /* = spsr_el2.  */
-  SR_CORE ("midr_el1",		CPENC (3,0,C0,C0,0),	F_REG_READ),
-  SR_CORE ("ctr_el0",		CPENC (3,3,C0,C0,1),	F_REG_READ),
-  SR_CORE ("mpidr_el1",		CPENC (3,0,C0,C0,5),	F_REG_READ),
-  SR_CORE ("revidr_el1",	CPENC (3,0,C0,C0,6),	F_REG_READ),
-  SR_CORE ("aidr_el1",		CPENC (3,1,C0,C0,7),	F_REG_READ),
-  SR_CORE ("dczid_el0",		CPENC (3,3,C0,C0,7),	F_REG_READ),
-  SR_CORE ("id_dfr0_el1",	CPENC (3,0,C0,C1,2),	F_REG_READ),
-  SR_CORE ("id_dfr1_el1",	CPENC (3,0,C0,C3,5),	F_REG_READ),
-  SR_CORE ("id_pfr0_el1",	CPENC (3,0,C0,C1,0),	F_REG_READ),
-  SR_CORE ("id_pfr1_el1",	CPENC (3,0,C0,C1,1),	F_REG_READ),
-  SR_ID_PFR2 ("id_pfr2_el1",	CPENC (3,0,C0,C3,4),	F_REG_READ),
-  SR_CORE ("id_afr0_el1",	CPENC (3,0,C0,C1,3),	F_REG_READ),
-  SR_CORE ("id_mmfr0_el1",	CPENC (3,0,C0,C1,4),	F_REG_READ),
-  SR_CORE ("id_mmfr1_el1",	CPENC (3,0,C0,C1,5),	F_REG_READ),
-  SR_CORE ("id_mmfr2_el1",	CPENC (3,0,C0,C1,6),	F_REG_READ),
-  SR_CORE ("id_mmfr3_el1",	CPENC (3,0,C0,C1,7),	F_REG_READ),
-  SR_CORE ("id_mmfr4_el1",	CPENC (3,0,C0,C2,6),	F_REG_READ),
-  SR_CORE ("id_mmfr5_el1",	CPENC (3,0,C0,C3,6),	F_REG_READ),
-  SR_CORE ("id_isar0_el1",	CPENC (3,0,C0,C2,0),	F_REG_READ),
-  SR_CORE ("id_isar1_el1",	CPENC (3,0,C0,C2,1),	F_REG_READ),
-  SR_CORE ("id_isar2_el1",	CPENC (3,0,C0,C2,2),	F_REG_READ),
-  SR_CORE ("id_isar3_el1",	CPENC (3,0,C0,C2,3),	F_REG_READ),
-  SR_CORE ("id_isar4_el1",	CPENC (3,0,C0,C2,4),	F_REG_READ),
-  SR_CORE ("id_isar5_el1",	CPENC (3,0,C0,C2,5),	F_REG_READ),
-  SR_CORE ("id_isar6_el1",	CPENC (3,0,C0,C2,7),	F_REG_READ),
-  SR_CORE ("mvfr0_el1",		CPENC (3,0,C0,C3,0),	F_REG_READ),
-  SR_CORE ("mvfr1_el1",		CPENC (3,0,C0,C3,1),	F_REG_READ),
-  SR_CORE ("mvfr2_el1",		CPENC (3,0,C0,C3,2),	F_REG_READ),
-  SR_CORE ("ccsidr_el1",	CPENC (3,1,C0,C0,0),	F_REG_READ),
-  SR_V8_3 ("ccsidr2_el1",       CPENC (3,1,C0,C0,2),    F_REG_READ),
-  SR_CORE ("id_aa64pfr0_el1",	CPENC (3,0,C0,C4,0),	F_REG_READ),
-  SR_CORE ("id_aa64pfr1_el1",	CPENC (3,0,C0,C4,1),	F_REG_READ),
-  SR_CORE ("id_aa64dfr0_el1",	CPENC (3,0,C0,C5,0),	F_REG_READ),
-  SR_CORE ("id_aa64dfr1_el1",	CPENC (3,0,C0,C5,1),	F_REG_READ),
-  SR_CORE ("id_aa64isar0_el1",	CPENC (3,0,C0,C6,0),	F_REG_READ),
-  SR_CORE ("id_aa64isar1_el1",	CPENC (3,0,C0,C6,1),	F_REG_READ),
-  SR_CORE ("id_aa64isar2_el1",	CPENC (3,0,C0,C6,2),	F_REG_READ),
-  SR_CORE ("id_aa64mmfr0_el1",	CPENC (3,0,C0,C7,0),	F_REG_READ),
-  SR_CORE ("id_aa64mmfr1_el1",	CPENC (3,0,C0,C7,1),	F_REG_READ),
-  SR_CORE ("id_aa64mmfr2_el1",	CPENC (3,0,C0,C7,2),	F_REG_READ),
-  SR_CORE ("id_aa64afr0_el1",	CPENC (3,0,C0,C5,4),	F_REG_READ),
-  SR_CORE ("id_aa64afr1_el1",	CPENC (3,0,C0,C5,5),	F_REG_READ),
-  SR_SVE  ("id_aa64zfr0_el1",	CPENC (3,0,C0,C4,4),	F_REG_READ),
-  SR_CORE ("clidr_el1",		CPENC (3,1,C0,C0,1),	F_REG_READ),
-  SR_CORE ("csselr_el1",	CPENC (3,2,C0,C0,0),	0),
-  SR_CORE ("vpidr_el2",		CPENC (3,4,C0,C0,0),	0),
-  SR_CORE ("vmpidr_el2",	CPENC (3,4,C0,C0,5),	0),
-  SR_CORE ("sctlr_el1",		CPENC (3,0,C1,C0,0),	0),
-  SR_CORE ("sctlr_el2",		CPENC (3,4,C1,C0,0),	0),
-  SR_CORE ("sctlr_el3",		CPENC (3,6,C1,C0,0),	0),
-  SR_V8_1 ("sctlr_el12",	CPENC (3,5,C1,C0,0),	0),
-  SR_CORE ("actlr_el1",		CPENC (3,0,C1,C0,1),	0),
-  SR_CORE ("actlr_el2",		CPENC (3,4,C1,C0,1),	0),
-  SR_CORE ("actlr_el3",		CPENC (3,6,C1,C0,1),	0),
-  SR_CORE ("cpacr_el1",		CPENC (3,0,C1,C0,2),	0),
-  SR_V8_1 ("cpacr_el12",	CPENC (3,5,C1,C0,2),	0),
-  SR_CORE ("cptr_el2",		CPENC (3,4,C1,C1,2),	0),
-  SR_CORE ("cptr_el3",		CPENC (3,6,C1,C1,2),	0),
-  SR_CORE ("scr_el3",		CPENC (3,6,C1,C1,0),	0),
-  SR_CORE ("hcr_el2",		CPENC (3,4,C1,C1,0),	0),
-  SR_CORE ("mdcr_el2",		CPENC (3,4,C1,C1,1),	0),
-  SR_CORE ("mdcr_el3",		CPENC (3,6,C1,C3,1),	0),
-  SR_CORE ("hstr_el2",		CPENC (3,4,C1,C1,3),	0),
-  SR_CORE ("hacr_el2",		CPENC (3,4,C1,C1,7),	0),
-  SR_SVE  ("zcr_el1",		CPENC (3,0,C1,C2,0),	0),
-  SR_SVE  ("zcr_el12",		CPENC (3,5,C1,C2,0),	0),
-  SR_SVE  ("zcr_el2",		CPENC (3,4,C1,C2,0),	0),
-  SR_SVE  ("zcr_el3",		CPENC (3,6,C1,C2,0),	0),
-  SR_CORE ("ttbr0_el1",		CPENC (3,0,C2,C0,0),	0),
-  SR_CORE ("ttbr1_el1",		CPENC (3,0,C2,C0,1),	0),
-  SR_V8_A ("ttbr0_el2",		CPENC (3,4,C2,C0,0),	0),
-  SR_V8_1_A ("ttbr1_el2",	CPENC (3,4,C2,C0,1),	0),
-  SR_CORE ("ttbr0_el3",		CPENC (3,6,C2,C0,0),	0),
-  SR_V8_1 ("ttbr0_el12",	CPENC (3,5,C2,C0,0),	0),
-  SR_V8_1 ("ttbr1_el12",	CPENC (3,5,C2,C0,1),	0),
-  SR_V8_A ("vttbr_el2",		CPENC (3,4,C2,C1,0),	0),
-  SR_CORE ("tcr_el1",		CPENC (3,0,C2,C0,2),	0),
-  SR_CORE ("tcr_el2",		CPENC (3,4,C2,C0,2),	0),
-  SR_CORE ("tcr_el3",		CPENC (3,6,C2,C0,2),	0),
-  SR_V8_1 ("tcr_el12",		CPENC (3,5,C2,C0,2),	0),
-  SR_CORE ("vtcr_el2",		CPENC (3,4,C2,C1,2),	0),
-  SR_V8_3 ("apiakeylo_el1",	CPENC (3,0,C2,C1,0),	0),
-  SR_V8_3 ("apiakeyhi_el1",	CPENC (3,0,C2,C1,1),	0),
-  SR_V8_3 ("apibkeylo_el1",	CPENC (3,0,C2,C1,2),	0),
-  SR_V8_3 ("apibkeyhi_el1",	CPENC (3,0,C2,C1,3),	0),
-  SR_V8_3 ("apdakeylo_el1",	CPENC (3,0,C2,C2,0),	0),
-  SR_V8_3 ("apdakeyhi_el1",	CPENC (3,0,C2,C2,1),	0),
-  SR_V8_3 ("apdbkeylo_el1",	CPENC (3,0,C2,C2,2),	0),
-  SR_V8_3 ("apdbkeyhi_el1",	CPENC (3,0,C2,C2,3),	0),
-  SR_V8_3 ("apgakeylo_el1",	CPENC (3,0,C2,C3,0),	0),
-  SR_V8_3 ("apgakeyhi_el1",	CPENC (3,0,C2,C3,1),	0),
-  SR_CORE ("afsr0_el1",		CPENC (3,0,C5,C1,0),	0),
-  SR_CORE ("afsr1_el1",		CPENC (3,0,C5,C1,1),	0),
-  SR_CORE ("afsr0_el2",		CPENC (3,4,C5,C1,0),	0),
-  SR_CORE ("afsr1_el2",		CPENC (3,4,C5,C1,1),	0),
-  SR_CORE ("afsr0_el3",		CPENC (3,6,C5,C1,0),	0),
-  SR_V8_1 ("afsr0_el12",	CPENC (3,5,C5,C1,0),	0),
-  SR_CORE ("afsr1_el3",		CPENC (3,6,C5,C1,1),	0),
-  SR_V8_1 ("afsr1_el12",	CPENC (3,5,C5,C1,1),	0),
-  SR_CORE ("esr_el1",		CPENC (3,0,C5,C2,0),	0),
-  SR_CORE ("esr_el2",		CPENC (3,4,C5,C2,0),	0),
-  SR_CORE ("esr_el3",		CPENC (3,6,C5,C2,0),	0),
-  SR_V8_1 ("esr_el12",		CPENC (3,5,C5,C2,0),	0),
-  SR_RAS  ("vsesr_el2",		CPENC (3,4,C5,C2,3),	0),
-  SR_CORE ("fpexc32_el2",	CPENC (3,4,C5,C3,0),	0),
-  SR_RAS  ("erridr_el1",	CPENC (3,0,C5,C3,0),	F_REG_READ),
-  SR_RAS  ("errselr_el1",	CPENC (3,0,C5,C3,1),	0),
-  SR_RAS  ("erxfr_el1",		CPENC (3,0,C5,C4,0),	F_REG_READ),
-  SR_RAS  ("erxctlr_el1",	CPENC (3,0,C5,C4,1),	0),
-  SR_RAS  ("erxstatus_el1",	CPENC (3,0,C5,C4,2),	0),
-  SR_RAS  ("erxaddr_el1",	CPENC (3,0,C5,C4,3),	0),
-  SR_RAS  ("erxmisc0_el1",	CPENC (3,0,C5,C5,0),	0),
-  SR_RAS  ("erxmisc1_el1",	CPENC (3,0,C5,C5,1),	0),
-  SR_RAS  ("erxmisc2_el1",	CPENC (3,0,C5,C5,2),	0),
-  SR_RAS  ("erxmisc3_el1",	CPENC (3,0,C5,C5,3),	0),
-  SR_RAS  ("erxpfgcdn_el1",	CPENC (3,0,C5,C4,6),	0),
-  SR_RAS  ("erxpfgctl_el1",	CPENC (3,0,C5,C4,5),	0),
-  SR_RAS  ("erxpfgf_el1",	CPENC (3,0,C5,C4,4),	F_REG_READ),
-  SR_CORE ("far_el1",		CPENC (3,0,C6,C0,0),	0),
-  SR_CORE ("far_el2",		CPENC (3,4,C6,C0,0),	0),
-  SR_CORE ("far_el3",		CPENC (3,6,C6,C0,0),	0),
-  SR_V8_1 ("far_el12",		CPENC (3,5,C6,C0,0),	0),
-  SR_CORE ("hpfar_el2",		CPENC (3,4,C6,C0,4),	0),
-  SR_CORE ("par_el1",		CPENC (3,0,C7,C4,0),	0),
-  SR_CORE ("mair_el1",		CPENC (3,0,C10,C2,0),	0),
-  SR_CORE ("mair_el2",		CPENC (3,4,C10,C2,0),	0),
-  SR_CORE ("mair_el3",		CPENC (3,6,C10,C2,0),	0),
-  SR_V8_1 ("mair_el12",		CPENC (3,5,C10,C2,0),	0),
-  SR_CORE ("amair_el1",		CPENC (3,0,C10,C3,0),	0),
-  SR_CORE ("amair_el2",		CPENC (3,4,C10,C3,0),	0),
-  SR_CORE ("amair_el3",		CPENC (3,6,C10,C3,0),	0),
-  SR_V8_1 ("amair_el12",	CPENC (3,5,C10,C3,0),	0),
-  SR_CORE ("vbar_el1",		CPENC (3,0,C12,C0,0),	0),
-  SR_CORE ("vbar_el2",		CPENC (3,4,C12,C0,0),	0),
-  SR_CORE ("vbar_el3",		CPENC (3,6,C12,C0,0),	0),
-  SR_V8_1 ("vbar_el12",		CPENC (3,5,C12,C0,0),	0),
-  SR_CORE ("rvbar_el1",		CPENC (3,0,C12,C0,1),	F_REG_READ),
-  SR_CORE ("rvbar_el2",		CPENC (3,4,C12,C0,1),	F_REG_READ),
-  SR_CORE ("rvbar_el3",		CPENC (3,6,C12,C0,1),	F_REG_READ),
-  SR_CORE ("rmr_el1",		CPENC (3,0,C12,C0,2),	0),
-  SR_CORE ("rmr_el2",		CPENC (3,4,C12,C0,2),	0),
-  SR_CORE ("rmr_el3",		CPENC (3,6,C12,C0,2),	0),
-  SR_CORE ("isr_el1",		CPENC (3,0,C12,C1,0),	F_REG_READ),
-  SR_RAS  ("disr_el1",		CPENC (3,0,C12,C1,1),	0),
-  SR_RAS  ("vdisr_el2",		CPENC (3,4,C12,C1,1),	0),
-  SR_CORE ("contextidr_el1",	CPENC (3,0,C13,C0,1),	0),
-  SR_V8_1 ("contextidr_el2",	CPENC (3,4,C13,C0,1),	0),
-  SR_V8_1 ("contextidr_el12",	CPENC (3,5,C13,C0,1),	0),
-  SR_RNG  ("rndr",		CPENC (3,3,C2,C4,0),	F_REG_READ),
-  SR_RNG  ("rndrrs",		CPENC (3,3,C2,C4,1),	F_REG_READ),
-  SR_MEMTAG ("tco",		CPENC (3,3,C4,C2,7),	0),
-  SR_MEMTAG ("tfsre0_el1",	CPENC (3,0,C5,C6,1),	0),
-  SR_MEMTAG ("tfsr_el1",	CPENC (3,0,C5,C6,0),	0),
-  SR_MEMTAG ("tfsr_el2",	CPENC (3,4,C5,C6,0),	0),
-  SR_MEMTAG ("tfsr_el3",	CPENC (3,6,C5,C6,0),	0),
-  SR_MEMTAG ("tfsr_el12",	CPENC (3,5,C5,C6,0),	0),
-  SR_MEMTAG ("rgsr_el1",	CPENC (3,0,C1,C0,5),	0),
-  SR_MEMTAG ("gcr_el1",		CPENC (3,0,C1,C0,6),	0),
-  SR_MEMTAG ("gmid_el1",	CPENC (3,1,C0,C0,4),	F_REG_READ),
-  SR_CORE ("tpidr_el0",		CPENC (3,3,C13,C0,2),	0),
-  SR_CORE ("tpidrro_el0",       CPENC (3,3,C13,C0,3),	0),
-  SR_CORE ("tpidr_el1",		CPENC (3,0,C13,C0,4),	0),
-  SR_CORE ("tpidr_el2",		CPENC (3,4,C13,C0,2),	0),
-  SR_CORE ("tpidr_el3",		CPENC (3,6,C13,C0,2),	0),
-  SR_SCXTNUM ("scxtnum_el0",	CPENC (3,3,C13,C0,7),	0),
-  SR_SCXTNUM ("scxtnum_el1",	CPENC (3,0,C13,C0,7),	0),
-  SR_SCXTNUM ("scxtnum_el2",	CPENC (3,4,C13,C0,7),	0),
-  SR_SCXTNUM ("scxtnum_el12",   CPENC (3,5,C13,C0,7),	0),
-  SR_SCXTNUM ("scxtnum_el3",    CPENC (3,6,C13,C0,7),	0),
-  SR_CORE ("teecr32_el1",       CPENC (2,2,C0, C0,0),	0), /* See section 3.9.7.1.  */
-  SR_CORE ("cntfrq_el0",	CPENC (3,3,C14,C0,0),	0),
-  SR_CORE ("cntpct_el0",	CPENC (3,3,C14,C0,1),	F_REG_READ),
-  SR_CORE ("cntvct_el0",	CPENC (3,3,C14,C0,2),	F_REG_READ),
-  SR_CORE ("cntvoff_el2",       CPENC (3,4,C14,C0,3),	0),
-  SR_CORE ("cntkctl_el1",       CPENC (3,0,C14,C1,0),	0),
-  SR_V8_1 ("cntkctl_el12",	CPENC (3,5,C14,C1,0),	0),
-  SR_CORE ("cnthctl_el2",	CPENC (3,4,C14,C1,0),	0),
-  SR_CORE ("cntp_tval_el0",	CPENC (3,3,C14,C2,0),	0),
-  SR_V8_1 ("cntp_tval_el02",	CPENC (3,5,C14,C2,0),	0),
-  SR_CORE ("cntp_ctl_el0",      CPENC (3,3,C14,C2,1),	0),
-  SR_V8_1 ("cntp_ctl_el02",	CPENC (3,5,C14,C2,1),	0),
-  SR_CORE ("cntp_cval_el0",     CPENC (3,3,C14,C2,2),	0),
-  SR_V8_1 ("cntp_cval_el02",	CPENC (3,5,C14,C2,2),	0),
-  SR_CORE ("cntv_tval_el0",     CPENC (3,3,C14,C3,0),	0),
-  SR_V8_1 ("cntv_tval_el02",	CPENC (3,5,C14,C3,0),	0),
-  SR_CORE ("cntv_ctl_el0",      CPENC (3,3,C14,C3,1),	0),
-  SR_V8_1 ("cntv_ctl_el02",	CPENC (3,5,C14,C3,1),	0),
-  SR_CORE ("cntv_cval_el0",     CPENC (3,3,C14,C3,2),	0),
-  SR_V8_1 ("cntv_cval_el02",	CPENC (3,5,C14,C3,2),	0),
-  SR_CORE ("cnthp_tval_el2",	CPENC (3,4,C14,C2,0),	0),
-  SR_CORE ("cnthp_ctl_el2",	CPENC (3,4,C14,C2,1),	0),
-  SR_CORE ("cnthp_cval_el2",	CPENC (3,4,C14,C2,2),	0),
-  SR_CORE ("cntps_tval_el1",	CPENC (3,7,C14,C2,0),	0),
-  SR_CORE ("cntps_ctl_el1",	CPENC (3,7,C14,C2,1),	0),
-  SR_CORE ("cntps_cval_el1",	CPENC (3,7,C14,C2,2),	0),
-  SR_V8_1 ("cnthv_tval_el2",	CPENC (3,4,C14,C3,0),	0),
-  SR_V8_1 ("cnthv_ctl_el2",	CPENC (3,4,C14,C3,1),	0),
-  SR_V8_1 ("cnthv_cval_el2",	CPENC (3,4,C14,C3,2),	0),
-  SR_CORE ("dacr32_el2",	CPENC (3,4,C3,C0,0),	0),
-  SR_CORE ("ifsr32_el2",	CPENC (3,4,C5,C0,1),	0),
-  SR_CORE ("teehbr32_el1",	CPENC (2,2,C1,C0,0),	0),
-  SR_CORE ("sder32_el3",	CPENC (3,6,C1,C1,1),	0),
-  SR_CORE ("mdscr_el1",		CPENC (2,0,C0,C2,2),	0),
-  SR_CORE ("mdccsr_el0",	CPENC (2,3,C0,C1,0),	F_REG_READ),
-  SR_CORE ("mdccint_el1",       CPENC (2,0,C0,C2,0),	0),
-  SR_CORE ("dbgdtr_el0",	CPENC (2,3,C0,C4,0),	0),
-  SR_CORE ("dbgdtrrx_el0",	CPENC (2,3,C0,C5,0),	F_REG_READ),
-  SR_CORE ("dbgdtrtx_el0",	CPENC (2,3,C0,C5,0),	F_REG_WRITE),
-  SR_CORE ("osdtrrx_el1",	CPENC (2,0,C0,C0,2),	0),
-  SR_CORE ("osdtrtx_el1",	CPENC (2,0,C0,C3,2),	0),
-  SR_CORE ("oseccr_el1",	CPENC (2,0,C0,C6,2),	0),
-  SR_CORE ("dbgvcr32_el2",      CPENC (2,4,C0,C7,0),	0),
-  SR_CORE ("dbgbvr0_el1",       CPENC (2,0,C0,C0,4),	0),
-  SR_CORE ("dbgbvr1_el1",       CPENC (2,0,C0,C1,4),	0),
-  SR_CORE ("dbgbvr2_el1",       CPENC (2,0,C0,C2,4),	0),
-  SR_CORE ("dbgbvr3_el1",       CPENC (2,0,C0,C3,4),	0),
-  SR_CORE ("dbgbvr4_el1",       CPENC (2,0,C0,C4,4),	0),
-  SR_CORE ("dbgbvr5_el1",       CPENC (2,0,C0,C5,4),	0),
-  SR_CORE ("dbgbvr6_el1",       CPENC (2,0,C0,C6,4),	0),
-  SR_CORE ("dbgbvr7_el1",       CPENC (2,0,C0,C7,4),	0),
-  SR_CORE ("dbgbvr8_el1",       CPENC (2,0,C0,C8,4),	0),
-  SR_CORE ("dbgbvr9_el1",       CPENC (2,0,C0,C9,4),	0),
-  SR_CORE ("dbgbvr10_el1",      CPENC (2,0,C0,C10,4),	0),
-  SR_CORE ("dbgbvr11_el1",      CPENC (2,0,C0,C11,4),	0),
-  SR_CORE ("dbgbvr12_el1",      CPENC (2,0,C0,C12,4),	0),
-  SR_CORE ("dbgbvr13_el1",      CPENC (2,0,C0,C13,4),	0),
-  SR_CORE ("dbgbvr14_el1",      CPENC (2,0,C0,C14,4),	0),
-  SR_CORE ("dbgbvr15_el1",      CPENC (2,0,C0,C15,4),	0),
-  SR_CORE ("dbgbcr0_el1",       CPENC (2,0,C0,C0,5),	0),
-  SR_CORE ("dbgbcr1_el1",       CPENC (2,0,C0,C1,5),	0),
-  SR_CORE ("dbgbcr2_el1",       CPENC (2,0,C0,C2,5),	0),
-  SR_CORE ("dbgbcr3_el1",       CPENC (2,0,C0,C3,5),	0),
-  SR_CORE ("dbgbcr4_el1",       CPENC (2,0,C0,C4,5),	0),
-  SR_CORE ("dbgbcr5_el1",       CPENC (2,0,C0,C5,5),	0),
-  SR_CORE ("dbgbcr6_el1",       CPENC (2,0,C0,C6,5),	0),
-  SR_CORE ("dbgbcr7_el1",       CPENC (2,0,C0,C7,5),	0),
-  SR_CORE ("dbgbcr8_el1",       CPENC (2,0,C0,C8,5),	0),
-  SR_CORE ("dbgbcr9_el1",       CPENC (2,0,C0,C9,5),	0),
-  SR_CORE ("dbgbcr10_el1",      CPENC (2,0,C0,C10,5),	0),
-  SR_CORE ("dbgbcr11_el1",      CPENC (2,0,C0,C11,5),	0),
-  SR_CORE ("dbgbcr12_el1",      CPENC (2,0,C0,C12,5),	0),
-  SR_CORE ("dbgbcr13_el1",      CPENC (2,0,C0,C13,5),	0),
-  SR_CORE ("dbgbcr14_el1",      CPENC (2,0,C0,C14,5),	0),
-  SR_CORE ("dbgbcr15_el1",      CPENC (2,0,C0,C15,5),	0),
-  SR_CORE ("dbgwvr0_el1",       CPENC (2,0,C0,C0,6),	0),
-  SR_CORE ("dbgwvr1_el1",       CPENC (2,0,C0,C1,6),	0),
-  SR_CORE ("dbgwvr2_el1",       CPENC (2,0,C0,C2,6),	0),
-  SR_CORE ("dbgwvr3_el1",       CPENC (2,0,C0,C3,6),	0),
-  SR_CORE ("dbgwvr4_el1",       CPENC (2,0,C0,C4,6),	0),
-  SR_CORE ("dbgwvr5_el1",       CPENC (2,0,C0,C5,6),	0),
-  SR_CORE ("dbgwvr6_el1",       CPENC (2,0,C0,C6,6),	0),
-  SR_CORE ("dbgwvr7_el1",       CPENC (2,0,C0,C7,6),	0),
-  SR_CORE ("dbgwvr8_el1",       CPENC (2,0,C0,C8,6),	0),
-  SR_CORE ("dbgwvr9_el1",       CPENC (2,0,C0,C9,6),	0),
-  SR_CORE ("dbgwvr10_el1",      CPENC (2,0,C0,C10,6),	0),
-  SR_CORE ("dbgwvr11_el1",      CPENC (2,0,C0,C11,6),	0),
-  SR_CORE ("dbgwvr12_el1",      CPENC (2,0,C0,C12,6),	0),
-  SR_CORE ("dbgwvr13_el1",      CPENC (2,0,C0,C13,6),	0),
-  SR_CORE ("dbgwvr14_el1",      CPENC (2,0,C0,C14,6),	0),
-  SR_CORE ("dbgwvr15_el1",      CPENC (2,0,C0,C15,6),	0),
-  SR_CORE ("dbgwcr0_el1",       CPENC (2,0,C0,C0,7),	0),
-  SR_CORE ("dbgwcr1_el1",       CPENC (2,0,C0,C1,7),	0),
-  SR_CORE ("dbgwcr2_el1",       CPENC (2,0,C0,C2,7),	0),
-  SR_CORE ("dbgwcr3_el1",       CPENC (2,0,C0,C3,7),	0),
-  SR_CORE ("dbgwcr4_el1",       CPENC (2,0,C0,C4,7),	0),
-  SR_CORE ("dbgwcr5_el1",       CPENC (2,0,C0,C5,7),	0),
-  SR_CORE ("dbgwcr6_el1",       CPENC (2,0,C0,C6,7),	0),
-  SR_CORE ("dbgwcr7_el1",       CPENC (2,0,C0,C7,7),	0),
-  SR_CORE ("dbgwcr8_el1",       CPENC (2,0,C0,C8,7),	0),
-  SR_CORE ("dbgwcr9_el1",       CPENC (2,0,C0,C9,7),	0),
-  SR_CORE ("dbgwcr10_el1",      CPENC (2,0,C0,C10,7),	0),
-  SR_CORE ("dbgwcr11_el1",      CPENC (2,0,C0,C11,7),	0),
-  SR_CORE ("dbgwcr12_el1",      CPENC (2,0,C0,C12,7),	0),
-  SR_CORE ("dbgwcr13_el1",      CPENC (2,0,C0,C13,7),	0),
-  SR_CORE ("dbgwcr14_el1",      CPENC (2,0,C0,C14,7),	0),
-  SR_CORE ("dbgwcr15_el1",      CPENC (2,0,C0,C15,7),	0),
-  SR_CORE ("mdrar_el1",		CPENC (2,0,C1,C0,0),	F_REG_READ),
-  SR_CORE ("oslar_el1",		CPENC (2,0,C1,C0,4),	F_REG_WRITE),
-  SR_CORE ("oslsr_el1",		CPENC (2,0,C1,C1,4),	F_REG_READ),
-  SR_CORE ("osdlr_el1",		CPENC (2,0,C1,C3,4),	0),
-  SR_CORE ("dbgprcr_el1",       CPENC (2,0,C1,C4,4),	0),
-  SR_CORE ("dbgclaimset_el1",   CPENC (2,0,C7,C8,6),	0),
-  SR_CORE ("dbgclaimclr_el1",   CPENC (2,0,C7,C9,6),	0),
-  SR_CORE ("dbgauthstatus_el1", CPENC (2,0,C7,C14,6),	F_REG_READ),
-  SR_PROFILE ("pmblimitr_el1",	CPENC (3,0,C9,C10,0),	0),
-  SR_PROFILE ("pmbptr_el1",	CPENC (3,0,C9,C10,1),	0),
-  SR_PROFILE ("pmbsr_el1",	CPENC (3,0,C9,C10,3),	0),
-  SR_PROFILE ("pmbidr_el1",	CPENC (3,0,C9,C10,7),	F_REG_READ),
-  SR_PROFILE ("pmscr_el1",	CPENC (3,0,C9,C9,0),	0),
-  SR_PROFILE ("pmsicr_el1",	CPENC (3,0,C9,C9,2),	0),
-  SR_PROFILE ("pmsirr_el1",	CPENC (3,0,C9,C9,3),	0),
-  SR_PROFILE ("pmsfcr_el1",	CPENC (3,0,C9,C9,4),	0),
-  SR_PROFILE ("pmsevfr_el1",	CPENC (3,0,C9,C9,5),	0),
-  SR_PROFILE ("pmslatfr_el1",	CPENC (3,0,C9,C9,6),	0),
-  SR_PROFILE ("pmsidr_el1",	CPENC (3,0,C9,C9,7),	F_REG_READ),
-  SR_PROFILE ("pmscr_el2",	CPENC (3,4,C9,C9,0),	0),
-  SR_PROFILE ("pmscr_el12",	CPENC (3,5,C9,C9,0),	0),
-  SR_CORE ("pmcr_el0",		CPENC (3,3,C9,C12,0),	0),
-  SR_CORE ("pmcntenset_el0",    CPENC (3,3,C9,C12,1),	0),
-  SR_CORE ("pmcntenclr_el0",    CPENC (3,3,C9,C12,2),	0),
-  SR_CORE ("pmovsclr_el0",      CPENC (3,3,C9,C12,3),	0),
-  SR_CORE ("pmswinc_el0",       CPENC (3,3,C9,C12,4),	F_REG_WRITE),
-  SR_CORE ("pmselr_el0",	CPENC (3,3,C9,C12,5),	0),
-  SR_CORE ("pmceid0_el0",       CPENC (3,3,C9,C12,6),	F_REG_READ),
-  SR_CORE ("pmceid1_el0",       CPENC (3,3,C9,C12,7),	F_REG_READ),
-  SR_CORE ("pmccntr_el0",       CPENC (3,3,C9,C13,0),	0),
-  SR_CORE ("pmxevtyper_el0",    CPENC (3,3,C9,C13,1),	0),
-  SR_CORE ("pmxevcntr_el0",     CPENC (3,3,C9,C13,2),	0),
-  SR_CORE ("pmuserenr_el0",     CPENC (3,3,C9,C14,0),	0),
-  SR_CORE ("pmintenset_el1",    CPENC (3,0,C9,C14,1),	0),
-  SR_CORE ("pmintenclr_el1",    CPENC (3,0,C9,C14,2),	0),
-  SR_CORE ("pmovsset_el0",      CPENC (3,3,C9,C14,3),	0),
-  SR_CORE ("pmevcntr0_el0",     CPENC (3,3,C14,C8,0),	0),
-  SR_CORE ("pmevcntr1_el0",     CPENC (3,3,C14,C8,1),	0),
-  SR_CORE ("pmevcntr2_el0",     CPENC (3,3,C14,C8,2),	0),
-  SR_CORE ("pmevcntr3_el0",     CPENC (3,3,C14,C8,3),	0),
-  SR_CORE ("pmevcntr4_el0",     CPENC (3,3,C14,C8,4),	0),
-  SR_CORE ("pmevcntr5_el0",     CPENC (3,3,C14,C8,5),	0),
-  SR_CORE ("pmevcntr6_el0",     CPENC (3,3,C14,C8,6),	0),
-  SR_CORE ("pmevcntr7_el0",     CPENC (3,3,C14,C8,7),	0),
-  SR_CORE ("pmevcntr8_el0",     CPENC (3,3,C14,C9,0),	0),
-  SR_CORE ("pmevcntr9_el0",     CPENC (3,3,C14,C9,1),	0),
-  SR_CORE ("pmevcntr10_el0",    CPENC (3,3,C14,C9,2),	0),
-  SR_CORE ("pmevcntr11_el0",    CPENC (3,3,C14,C9,3),	0),
-  SR_CORE ("pmevcntr12_el0",    CPENC (3,3,C14,C9,4),	0),
-  SR_CORE ("pmevcntr13_el0",    CPENC (3,3,C14,C9,5),	0),
-  SR_CORE ("pmevcntr14_el0",    CPENC (3,3,C14,C9,6),	0),
-  SR_CORE ("pmevcntr15_el0",    CPENC (3,3,C14,C9,7),	0),
-  SR_CORE ("pmevcntr16_el0",    CPENC (3,3,C14,C10,0),	0),
-  SR_CORE ("pmevcntr17_el0",    CPENC (3,3,C14,C10,1),	0),
-  SR_CORE ("pmevcntr18_el0",    CPENC (3,3,C14,C10,2),	0),
-  SR_CORE ("pmevcntr19_el0",    CPENC (3,3,C14,C10,3),	0),
-  SR_CORE ("pmevcntr20_el0",    CPENC (3,3,C14,C10,4),	0),
-  SR_CORE ("pmevcntr21_el0",    CPENC (3,3,C14,C10,5),	0),
-  SR_CORE ("pmevcntr22_el0",    CPENC (3,3,C14,C10,6),	0),
-  SR_CORE ("pmevcntr23_el0",    CPENC (3,3,C14,C10,7),	0),
-  SR_CORE ("pmevcntr24_el0",    CPENC (3,3,C14,C11,0),	0),
-  SR_CORE ("pmevcntr25_el0",    CPENC (3,3,C14,C11,1),	0),
-  SR_CORE ("pmevcntr26_el0",    CPENC (3,3,C14,C11,2),	0),
-  SR_CORE ("pmevcntr27_el0",    CPENC (3,3,C14,C11,3),	0),
-  SR_CORE ("pmevcntr28_el0",    CPENC (3,3,C14,C11,4),	0),
-  SR_CORE ("pmevcntr29_el0",    CPENC (3,3,C14,C11,5),	0),
-  SR_CORE ("pmevcntr30_el0",    CPENC (3,3,C14,C11,6),	0),
-  SR_CORE ("pmevtyper0_el0",    CPENC (3,3,C14,C12,0),	0),
-  SR_CORE ("pmevtyper1_el0",    CPENC (3,3,C14,C12,1),	0),
-  SR_CORE ("pmevtyper2_el0",    CPENC (3,3,C14,C12,2),	0),
-  SR_CORE ("pmevtyper3_el0",    CPENC (3,3,C14,C12,3),	0),
-  SR_CORE ("pmevtyper4_el0",    CPENC (3,3,C14,C12,4),	0),
-  SR_CORE ("pmevtyper5_el0",    CPENC (3,3,C14,C12,5),	0),
-  SR_CORE ("pmevtyper6_el0",    CPENC (3,3,C14,C12,6),	0),
-  SR_CORE ("pmevtyper7_el0",    CPENC (3,3,C14,C12,7),	0),
-  SR_CORE ("pmevtyper8_el0",    CPENC (3,3,C14,C13,0),	0),
-  SR_CORE ("pmevtyper9_el0",    CPENC (3,3,C14,C13,1),	0),
-  SR_CORE ("pmevtyper10_el0",   CPENC (3,3,C14,C13,2),	0),
-  SR_CORE ("pmevtyper11_el0",   CPENC (3,3,C14,C13,3),	0),
-  SR_CORE ("pmevtyper12_el0",   CPENC (3,3,C14,C13,4),	0),
-  SR_CORE ("pmevtyper13_el0",   CPENC (3,3,C14,C13,5),	0),
-  SR_CORE ("pmevtyper14_el0",   CPENC (3,3,C14,C13,6),	0),
-  SR_CORE ("pmevtyper15_el0",   CPENC (3,3,C14,C13,7),	0),
-  SR_CORE ("pmevtyper16_el0",   CPENC (3,3,C14,C14,0),	0),
-  SR_CORE ("pmevtyper17_el0",   CPENC (3,3,C14,C14,1),	0),
-  SR_CORE ("pmevtyper18_el0",   CPENC (3,3,C14,C14,2),	0),
-  SR_CORE ("pmevtyper19_el0",   CPENC (3,3,C14,C14,3),	0),
-  SR_CORE ("pmevtyper20_el0",   CPENC (3,3,C14,C14,4),	0),
-  SR_CORE ("pmevtyper21_el0",   CPENC (3,3,C14,C14,5),	0),
-  SR_CORE ("pmevtyper22_el0",   CPENC (3,3,C14,C14,6),	0),
-  SR_CORE ("pmevtyper23_el0",   CPENC (3,3,C14,C14,7),	0),
-  SR_CORE ("pmevtyper24_el0",   CPENC (3,3,C14,C15,0),	0),
-  SR_CORE ("pmevtyper25_el0",   CPENC (3,3,C14,C15,1),	0),
-  SR_CORE ("pmevtyper26_el0",   CPENC (3,3,C14,C15,2),	0),
-  SR_CORE ("pmevtyper27_el0",   CPENC (3,3,C14,C15,3),	0),
-  SR_CORE ("pmevtyper28_el0",   CPENC (3,3,C14,C15,4),	0),
-  SR_CORE ("pmevtyper29_el0",   CPENC (3,3,C14,C15,5),	0),
-  SR_CORE ("pmevtyper30_el0",   CPENC (3,3,C14,C15,6),	0),
-  SR_CORE ("pmccfiltr_el0",     CPENC (3,3,C14,C15,7),	0),
-
-  SR_V8_4 ("dit",		CPEN_ (3,C2,5),		0),
-  SR_V8_4 ("trfcr_el1",		CPENC (3,0,C1,C2,1),	0),
-  SR_V8_4 ("pmmir_el1",		CPENC (3,0,C9,C14,6),	F_REG_READ),
-  SR_V8_4 ("trfcr_el2",		CPENC (3,4,C1,C2,1),	0),
-  SR_V8_4 ("vstcr_el2",		CPENC (3,4,C2,C6,2),	0),
-  SR_V8_4_A ("vsttbr_el2",	CPENC (3,4,C2,C6,0),	0),
-  SR_V8_4 ("cnthvs_tval_el2",	CPENC (3,4,C14,C4,0),	0),
-  SR_V8_4 ("cnthvs_cval_el2",	CPENC (3,4,C14,C4,2),	0),
-  SR_V8_4 ("cnthvs_ctl_el2",	CPENC (3,4,C14,C4,1),	0),
-  SR_V8_4 ("cnthps_tval_el2",	CPENC (3,4,C14,C5,0),	0),
-  SR_V8_4 ("cnthps_cval_el2",	CPENC (3,4,C14,C5,2),	0),
-  SR_V8_4 ("cnthps_ctl_el2",	CPENC (3,4,C14,C5,1),	0),
-  SR_V8_4 ("sder32_el2",	CPENC (3,4,C1,C3,1),	0),
-  SR_V8_4 ("vncr_el2",		CPENC (3,4,C2,C2,0),	0),
-  SR_V8_4 ("trfcr_el12",	CPENC (3,5,C1,C2,1),	0),
-
-  SR_CORE ("mpam0_el1",		CPENC (3,0,C10,C5,1),	0),
-  SR_CORE ("mpam1_el1",		CPENC (3,0,C10,C5,0),	0),
-  SR_CORE ("mpam1_el12",	CPENC (3,5,C10,C5,0),	0),
-  SR_CORE ("mpam2_el2",		CPENC (3,4,C10,C5,0),	0),
-  SR_CORE ("mpam3_el3",		CPENC (3,6,C10,C5,0),	0),
-  SR_CORE ("mpamhcr_el2",	CPENC (3,4,C10,C4,0),	0),
-  SR_CORE ("mpamidr_el1",	CPENC (3,0,C10,C4,4),	F_REG_READ),
-  SR_CORE ("mpamvpm0_el2",	CPENC (3,4,C10,C6,0),	0),
-  SR_CORE ("mpamvpm1_el2",	CPENC (3,4,C10,C6,1),	0),
-  SR_CORE ("mpamvpm2_el2",	CPENC (3,4,C10,C6,2),	0),
-  SR_CORE ("mpamvpm3_el2",	CPENC (3,4,C10,C6,3),	0),
-  SR_CORE ("mpamvpm4_el2",	CPENC (3,4,C10,C6,4),	0),
-  SR_CORE ("mpamvpm5_el2",	CPENC (3,4,C10,C6,5),	0),
-  SR_CORE ("mpamvpm6_el2",	CPENC (3,4,C10,C6,6),	0),
-  SR_CORE ("mpamvpm7_el2",	CPENC (3,4,C10,C6,7),	0),
-  SR_CORE ("mpamvpmv_el2",	CPENC (3,4,C10,C4,1),	0),
-
-  SR_V8_R ("mpuir_el1",		CPENC (3,0,C0,C0,4),	F_REG_READ),
-  SR_V8_R ("mpuir_el2",		CPENC (3,4,C0,C0,4),	F_REG_READ),
-  SR_V8_R ("prbar_el1",		CPENC (3,0,C6,C8,0),	0),
-  SR_V8_R ("prbar_el2",		CPENC (3,4,C6,C8,0),	0),
-
-#define ENC_BARLAR(x,n,lar) \
-  CPENC (3, (x-1) << 2, C6, 8 | (n >> 1), ((n & 1) << 2) | lar)
-
-#define PRBARn_ELx(x,n) SR_V8_R ("prbar" #n "_el" #x, ENC_BARLAR (x,n,0), 0)
-#define PRLARn_ELx(x,n) SR_V8_R ("prlar" #n "_el" #x, ENC_BARLAR (x,n,1), 0)
-
-  SR_EXPAND_EL12 (PRBARn_ELx)
-  SR_V8_R ("prenr_el1",		CPENC (3,0,C6,C1,1),	0),
-  SR_V8_R ("prenr_el2",		CPENC (3,4,C6,C1,1),	0),
-  SR_V8_R ("prlar_el1",		CPENC (3,0,C6,C8,1),	0),
-  SR_V8_R ("prlar_el2",		CPENC (3,4,C6,C8,1),	0),
-  SR_EXPAND_EL12 (PRLARn_ELx)
-  SR_V8_R ("prselr_el1",	CPENC (3,0,C6,C2,1),	0),
-  SR_V8_R ("prselr_el2",	CPENC (3,4,C6,C2,1),	0),
-  SR_V8_R ("vsctlr_el2",	CPENC (3,4,C2,C0,0),	0),
-
-  SR_CORE("trbbaser_el1", 	CPENC (3,0,C9,C11,2),	0),
-  SR_CORE("trbidr_el1", 	CPENC (3,0,C9,C11,7),	F_REG_READ),
-  SR_CORE("trblimitr_el1", 	CPENC (3,0,C9,C11,0),	0),
-  SR_CORE("trbmar_el1", 	CPENC (3,0,C9,C11,4),	0),
-  SR_CORE("trbptr_el1", 	CPENC (3,0,C9,C11,1),	0),
-  SR_CORE("trbsr_el1",  	CPENC (3,0,C9,C11,3),	0),
-  SR_CORE("trbtrg_el1", 	CPENC (3,0,C9,C11,6),	0),
-
-  SR_CORE ("trcauthstatus", CPENC (2,1,C7,C14,6), F_REG_READ),
-  SR_CORE ("trccidr0",      CPENC (2,1,C7,C12,7), F_REG_READ),
-  SR_CORE ("trccidr1",      CPENC (2,1,C7,C13,7), F_REG_READ),
-  SR_CORE ("trccidr2",      CPENC (2,1,C7,C14,7), F_REG_READ),
-  SR_CORE ("trccidr3",      CPENC (2,1,C7,C15,7), F_REG_READ),
-  SR_CORE ("trcdevaff0",    CPENC (2,1,C7,C10,6), F_REG_READ),
-  SR_CORE ("trcdevaff1",    CPENC (2,1,C7,C11,6), F_REG_READ),
-  SR_CORE ("trcdevarch",    CPENC (2,1,C7,C15,6), F_REG_READ),
-  SR_CORE ("trcdevid",      CPENC (2,1,C7,C2,7),  F_REG_READ),
-  SR_CORE ("trcdevtype",    CPENC (2,1,C7,C3,7),  F_REG_READ),
-  SR_CORE ("trcidr0",       CPENC (2,1,C0,C8,7),  F_REG_READ),
-  SR_CORE ("trcidr1",       CPENC (2,1,C0,C9,7),  F_REG_READ),
-  SR_CORE ("trcidr2",       CPENC (2,1,C0,C10,7), F_REG_READ),
-  SR_CORE ("trcidr3",       CPENC (2,1,C0,C11,7), F_REG_READ),
-  SR_CORE ("trcidr4",       CPENC (2,1,C0,C12,7), F_REG_READ),
-  SR_CORE ("trcidr5",       CPENC (2,1,C0,C13,7), F_REG_READ),
-  SR_CORE ("trcidr6",       CPENC (2,1,C0,C14,7), F_REG_READ),
-  SR_CORE ("trcidr7",       CPENC (2,1,C0,C15,7), F_REG_READ),
-  SR_CORE ("trcidr8",       CPENC (2,1,C0,C0,6),  F_REG_READ),
-  SR_CORE ("trcidr9",       CPENC (2,1,C0,C1,6),  F_REG_READ),
-  SR_CORE ("trcidr10",      CPENC (2,1,C0,C2,6),  F_REG_READ),
-  SR_CORE ("trcidr11",      CPENC (2,1,C0,C3,6),  F_REG_READ),
-  SR_CORE ("trcidr12",      CPENC (2,1,C0,C4,6),  F_REG_READ),
-  SR_CORE ("trcidr13",      CPENC (2,1,C0,C5,6),  F_REG_READ),
-  SR_CORE ("trclsr",        CPENC (2,1,C7,C13,6), F_REG_READ),
-  SR_CORE ("trcoslsr",      CPENC (2,1,C1,C1,4),  F_REG_READ),
-  SR_CORE ("trcpdsr",       CPENC (2,1,C1,C5,4),  F_REG_READ),
-  SR_CORE ("trcpidr0",      CPENC (2,1,C7,C8,7),  F_REG_READ),
-  SR_CORE ("trcpidr1",      CPENC (2,1,C7,C9,7),  F_REG_READ),
-  SR_CORE ("trcpidr2",      CPENC (2,1,C7,C10,7), F_REG_READ),
-  SR_CORE ("trcpidr3",      CPENC (2,1,C7,C11,7), F_REG_READ),
-  SR_CORE ("trcpidr4",      CPENC (2,1,C7,C4,7),  F_REG_READ),
-  SR_CORE ("trcpidr5",      CPENC (2,1,C7,C5,7),  F_REG_READ),
-  SR_CORE ("trcpidr6",      CPENC (2,1,C7,C6,7),  F_REG_READ),
-  SR_CORE ("trcpidr7",      CPENC (2,1,C7,C7,7),  F_REG_READ),
-  SR_CORE ("trcstatr",      CPENC (2,1,C0,C3,0),  F_REG_READ),
-  SR_CORE ("trcacatr0",     CPENC (2,1,C2,C0,2),  0),
-  SR_CORE ("trcacatr1",     CPENC (2,1,C2,C2,2),  0),
-  SR_CORE ("trcacatr2",     CPENC (2,1,C2,C4,2),  0),
-  SR_CORE ("trcacatr3",     CPENC (2,1,C2,C6,2),  0),
-  SR_CORE ("trcacatr4",     CPENC (2,1,C2,C8,2),  0),
-  SR_CORE ("trcacatr5",     CPENC (2,1,C2,C10,2), 0),
-  SR_CORE ("trcacatr6",     CPENC (2,1,C2,C12,2), 0),
-  SR_CORE ("trcacatr7",     CPENC (2,1,C2,C14,2), 0),
-  SR_CORE ("trcacatr8",     CPENC (2,1,C2,C0,3),  0),
-  SR_CORE ("trcacatr9",     CPENC (2,1,C2,C2,3),  0),
-  SR_CORE ("trcacatr10",    CPENC (2,1,C2,C4,3),  0),
-  SR_CORE ("trcacatr11",    CPENC (2,1,C2,C6,3),  0),
-  SR_CORE ("trcacatr12",    CPENC (2,1,C2,C8,3),  0),
-  SR_CORE ("trcacatr13",    CPENC (2,1,C2,C10,3), 0),
-  SR_CORE ("trcacatr14",    CPENC (2,1,C2,C12,3), 0),
-  SR_CORE ("trcacatr15",    CPENC (2,1,C2,C14,3), 0),
-  SR_CORE ("trcacvr0",      CPENC (2,1,C2,C0,0),  0),
-  SR_CORE ("trcacvr1",      CPENC (2,1,C2,C2,0),  0),
-  SR_CORE ("trcacvr2",      CPENC (2,1,C2,C4,0),  0),
-  SR_CORE ("trcacvr3",      CPENC (2,1,C2,C6,0),  0),
-  SR_CORE ("trcacvr4",      CPENC (2,1,C2,C8,0),  0),
-  SR_CORE ("trcacvr5",      CPENC (2,1,C2,C10,0), 0),
-  SR_CORE ("trcacvr6",      CPENC (2,1,C2,C12,0), 0),
-  SR_CORE ("trcacvr7",      CPENC (2,1,C2,C14,0), 0),
-  SR_CORE ("trcacvr8",      CPENC (2,1,C2,C0,1),  0),
-  SR_CORE ("trcacvr9",      CPENC (2,1,C2,C2,1),  0),
-  SR_CORE ("trcacvr10",     CPENC (2,1,C2,C4,1),  0),
-  SR_CORE ("trcacvr11",     CPENC (2,1,C2,C6,1),  0),
-  SR_CORE ("trcacvr12",     CPENC (2,1,C2,C8,1),  0),
-  SR_CORE ("trcacvr13",     CPENC (2,1,C2,C10,1), 0),
-  SR_CORE ("trcacvr14",     CPENC (2,1,C2,C12,1), 0),
-  SR_CORE ("trcacvr15",     CPENC (2,1,C2,C14,1), 0),
-  SR_CORE ("trcauxctlr",    CPENC (2,1,C0,C6,0),  0),
-  SR_CORE ("trcbbctlr",     CPENC (2,1,C0,C15,0), 0),
-  SR_CORE ("trcccctlr",     CPENC (2,1,C0,C14,0), 0),
-  SR_CORE ("trccidcctlr0",  CPENC (2,1,C3,C0,2),  0),
-  SR_CORE ("trccidcctlr1",  CPENC (2,1,C3,C1,2),  0),
-  SR_CORE ("trccidcvr0",    CPENC (2,1,C3,C0,0),  0),
-  SR_CORE ("trccidcvr1",    CPENC (2,1,C3,C2,0),  0),
-  SR_CORE ("trccidcvr2",    CPENC (2,1,C3,C4,0),  0),
-  SR_CORE ("trccidcvr3",    CPENC (2,1,C3,C6,0),  0),
-  SR_CORE ("trccidcvr4",    CPENC (2,1,C3,C8,0),  0),
-  SR_CORE ("trccidcvr5",    CPENC (2,1,C3,C10,0), 0),
-  SR_CORE ("trccidcvr6",    CPENC (2,1,C3,C12,0), 0),
-  SR_CORE ("trccidcvr7",    CPENC (2,1,C3,C14,0), 0),
-  SR_CORE ("trcclaimclr",   CPENC (2,1,C7,C9,6),  0),
-  SR_CORE ("trcclaimset",   CPENC (2,1,C7,C8,6),  0),
-  SR_CORE ("trccntctlr0",   CPENC (2,1,C0,C4,5),  0),
-  SR_CORE ("trccntctlr1",   CPENC (2,1,C0,C5,5),  0),
-  SR_CORE ("trccntctlr2",   CPENC (2,1,C0,C6,5),  0),
-  SR_CORE ("trccntctlr3",   CPENC (2,1,C0,C7,5),  0),
-  SR_CORE ("trccntrldvr0",  CPENC (2,1,C0,C0,5),  0),
-  SR_CORE ("trccntrldvr1",  CPENC (2,1,C0,C1,5),  0),
-  SR_CORE ("trccntrldvr2",  CPENC (2,1,C0,C2,5),  0),
-  SR_CORE ("trccntrldvr3",  CPENC (2,1,C0,C3,5),  0),
-  SR_CORE ("trccntvr0",     CPENC (2,1,C0,C8,5),  0),
-  SR_CORE ("trccntvr1",     CPENC (2,1,C0,C9,5),  0),
-  SR_CORE ("trccntvr2",     CPENC (2,1,C0,C10,5), 0),
-  SR_CORE ("trccntvr3",     CPENC (2,1,C0,C11,5), 0),
-  SR_CORE ("trcconfigr",    CPENC (2,1,C0,C4,0),  0),
-  SR_CORE ("trcdvcmr0",     CPENC (2,1,C2,C0,6),  0),
-  SR_CORE ("trcdvcmr1",     CPENC (2,1,C2,C4,6),  0),
-  SR_CORE ("trcdvcmr2",     CPENC (2,1,C2,C8,6),  0),
-  SR_CORE ("trcdvcmr3",     CPENC (2,1,C2,C12,6), 0),
-  SR_CORE ("trcdvcmr4",     CPENC (2,1,C2,C0,7),  0),
-  SR_CORE ("trcdvcmr5",     CPENC (2,1,C2,C4,7),  0),
-  SR_CORE ("trcdvcmr6",     CPENC (2,1,C2,C8,7),  0),
-  SR_CORE ("trcdvcmr7",     CPENC (2,1,C2,C12,7), 0),
-  SR_CORE ("trcdvcvr0",     CPENC (2,1,C2,C0,4),  0),
-  SR_CORE ("trcdvcvr1",     CPENC (2,1,C2,C4,4),  0),
-  SR_CORE ("trcdvcvr2",     CPENC (2,1,C2,C8,4),  0),
-  SR_CORE ("trcdvcvr3",     CPENC (2,1,C2,C12,4), 0),
-  SR_CORE ("trcdvcvr4",     CPENC (2,1,C2,C0,5),  0),
-  SR_CORE ("trcdvcvr5",     CPENC (2,1,C2,C4,5),  0),
-  SR_CORE ("trcdvcvr6",     CPENC (2,1,C2,C8,5),  0),
-  SR_CORE ("trcdvcvr7",     CPENC (2,1,C2,C12,5), 0),
-  SR_CORE ("trceventctl0r", CPENC (2,1,C0,C8,0),  0),
-  SR_CORE ("trceventctl1r", CPENC (2,1,C0,C9,0),  0),
-  SR_CORE ("trcextinselr0", CPENC (2,1,C0,C8,4),  0),
-  SR_CORE ("trcextinselr",  CPENC (2,1,C0,C8,4),  0),
-  SR_CORE ("trcextinselr1", CPENC (2,1,C0,C9,4),  0),
-  SR_CORE ("trcextinselr2", CPENC (2,1,C0,C10,4), 0),
-  SR_CORE ("trcextinselr3", CPENC (2,1,C0,C11,4), 0),
-  SR_CORE ("trcimspec0",    CPENC (2,1,C0,C0,7),  0),
-  SR_CORE ("trcimspec1",    CPENC (2,1,C0,C1,7),  0),
-  SR_CORE ("trcimspec2",    CPENC (2,1,C0,C2,7),  0),
-  SR_CORE ("trcimspec3",    CPENC (2,1,C0,C3,7),  0),
-  SR_CORE ("trcimspec4",    CPENC (2,1,C0,C4,7),  0),
-  SR_CORE ("trcimspec5",    CPENC (2,1,C0,C5,7),  0),
-  SR_CORE ("trcimspec6",    CPENC (2,1,C0,C6,7),  0),
-  SR_CORE ("trcimspec7",    CPENC (2,1,C0,C7,7),  0),
-  SR_CORE ("trcitctrl",     CPENC (2,1,C7,C0,4),  0),
-  SR_CORE ("trcpdcr",       CPENC (2,1,C1,C4,4),  0),
-  SR_CORE ("trcprgctlr",    CPENC (2,1,C0,C1,0),  0),
-  SR_CORE ("trcprocselr",   CPENC (2,1,C0,C2,0),  0),
-  SR_CORE ("trcqctlr",      CPENC (2,1,C0,C1,1),  0),
-  SR_CORE ("trcrsr",        CPENC (2,1,C0,C10,0), 0),
-  SR_CORE ("trcrsctlr2",    CPENC (2,1,C1,C2,0),  0),
-  SR_CORE ("trcrsctlr3",    CPENC (2,1,C1,C3,0),  0),
-  SR_CORE ("trcrsctlr4",    CPENC (2,1,C1,C4,0),  0),
-  SR_CORE ("trcrsctlr5",    CPENC (2,1,C1,C5,0),  0),
-  SR_CORE ("trcrsctlr6",    CPENC (2,1,C1,C6,0),  0),
-  SR_CORE ("trcrsctlr7",    CPENC (2,1,C1,C7,0),  0),
-  SR_CORE ("trcrsctlr8",    CPENC (2,1,C1,C8,0),  0),
-  SR_CORE ("trcrsctlr9",    CPENC (2,1,C1,C9,0),  0),
-  SR_CORE ("trcrsctlr10",   CPENC (2,1,C1,C10,0), 0),
-  SR_CORE ("trcrsctlr11",   CPENC (2,1,C1,C11,0), 0),
-  SR_CORE ("trcrsctlr12",   CPENC (2,1,C1,C12,0), 0),
-  SR_CORE ("trcrsctlr13",   CPENC (2,1,C1,C13,0), 0),
-  SR_CORE ("trcrsctlr14",   CPENC (2,1,C1,C14,0), 0),
-  SR_CORE ("trcrsctlr15",   CPENC (2,1,C1,C15,0), 0),
-  SR_CORE ("trcrsctlr16",   CPENC (2,1,C1,C0,1),  0),
-  SR_CORE ("trcrsctlr17",   CPENC (2,1,C1,C1,1),  0),
-  SR_CORE ("trcrsctlr18",   CPENC (2,1,C1,C2,1),  0),
-  SR_CORE ("trcrsctlr19",   CPENC (2,1,C1,C3,1),  0),
-  SR_CORE ("trcrsctlr20",   CPENC (2,1,C1,C4,1),  0),
-  SR_CORE ("trcrsctlr21",   CPENC (2,1,C1,C5,1),  0),
-  SR_CORE ("trcrsctlr22",   CPENC (2,1,C1,C6,1),  0),
-  SR_CORE ("trcrsctlr23",   CPENC (2,1,C1,C7,1),  0),
-  SR_CORE ("trcrsctlr24",   CPENC (2,1,C1,C8,1),  0),
-  SR_CORE ("trcrsctlr25",   CPENC (2,1,C1,C9,1),  0),
-  SR_CORE ("trcrsctlr26",   CPENC (2,1,C1,C10,1), 0),
-  SR_CORE ("trcrsctlr27",   CPENC (2,1,C1,C11,1), 0),
-  SR_CORE ("trcrsctlr28",   CPENC (2,1,C1,C12,1), 0),
-  SR_CORE ("trcrsctlr29",   CPENC (2,1,C1,C13,1), 0),
-  SR_CORE ("trcrsctlr30",   CPENC (2,1,C1,C14,1), 0),
-  SR_CORE ("trcrsctlr31",   CPENC (2,1,C1,C15,1), 0),
-  SR_CORE ("trcseqevr0",    CPENC (2,1,C0,C0,4),  0),
-  SR_CORE ("trcseqevr1",    CPENC (2,1,C0,C1,4),  0),
-  SR_CORE ("trcseqevr2",    CPENC (2,1,C0,C2,4),  0),
-  SR_CORE ("trcseqrstevr",  CPENC (2,1,C0,C6,4),  0),
-  SR_CORE ("trcseqstr",     CPENC (2,1,C0,C7,4),  0),
-  SR_CORE ("trcssccr0",     CPENC (2,1,C1,C0,2),  0),
-  SR_CORE ("trcssccr1",     CPENC (2,1,C1,C1,2),  0),
-  SR_CORE ("trcssccr2",     CPENC (2,1,C1,C2,2),  0),
-  SR_CORE ("trcssccr3",     CPENC (2,1,C1,C3,2),  0),
-  SR_CORE ("trcssccr4",     CPENC (2,1,C1,C4,2),  0),
-  SR_CORE ("trcssccr5",     CPENC (2,1,C1,C5,2),  0),
-  SR_CORE ("trcssccr6",     CPENC (2,1,C1,C6,2),  0),
-  SR_CORE ("trcssccr7",     CPENC (2,1,C1,C7,2),  0),
-  SR_CORE ("trcsscsr0",     CPENC (2,1,C1,C8,2),  0),
-  SR_CORE ("trcsscsr1",     CPENC (2,1,C1,C9,2),  0),
-  SR_CORE ("trcsscsr2",     CPENC (2,1,C1,C10,2), 0),
-  SR_CORE ("trcsscsr3",     CPENC (2,1,C1,C11,2), 0),
-  SR_CORE ("trcsscsr4",     CPENC (2,1,C1,C12,2), 0),
-  SR_CORE ("trcsscsr5",     CPENC (2,1,C1,C13,2), 0),
-  SR_CORE ("trcsscsr6",     CPENC (2,1,C1,C14,2), 0),
-  SR_CORE ("trcsscsr7",     CPENC (2,1,C1,C15,2), 0),
-  SR_CORE ("trcsspcicr0",   CPENC (2,1,C1,C0,3),  0),
-  SR_CORE ("trcsspcicr1",   CPENC (2,1,C1,C1,3),  0),
-  SR_CORE ("trcsspcicr2",   CPENC (2,1,C1,C2,3),  0),
-  SR_CORE ("trcsspcicr3",   CPENC (2,1,C1,C3,3),  0),
-  SR_CORE ("trcsspcicr4",   CPENC (2,1,C1,C4,3),  0),
-  SR_CORE ("trcsspcicr5",   CPENC (2,1,C1,C5,3),  0),
-  SR_CORE ("trcsspcicr6",   CPENC (2,1,C1,C6,3),  0),
-  SR_CORE ("trcsspcicr7",   CPENC (2,1,C1,C7,3),  0),
-  SR_CORE ("trcstallctlr",  CPENC (2,1,C0,C11,0), 0),
-  SR_CORE ("trcsyncpr",     CPENC (2,1,C0,C13,0), 0),
-  SR_CORE ("trctraceidr",   CPENC (2,1,C0,C0,1),  0),
-  SR_CORE ("trctsctlr",     CPENC (2,1,C0,C12,0), 0),
-  SR_CORE ("trcvdarcctlr",  CPENC (2,1,C0,C10,2), 0),
-  SR_CORE ("trcvdctlr",     CPENC (2,1,C0,C8,2),  0),
-  SR_CORE ("trcvdsacctlr",  CPENC (2,1,C0,C9,2),  0),
-  SR_CORE ("trcvictlr",     CPENC (2,1,C0,C0,2),  0),
-  SR_CORE ("trcviiectlr",   CPENC (2,1,C0,C1,2),  0),
-  SR_CORE ("trcvipcssctlr", CPENC (2,1,C0,C3,2),  0),
-  SR_CORE ("trcvissctlr",   CPENC (2,1,C0,C2,2),  0),
-  SR_CORE ("trcvmidcctlr0", CPENC (2,1,C3,C2,2),  0),
-  SR_CORE ("trcvmidcctlr1", CPENC (2,1,C3,C3,2),  0),
-  SR_CORE ("trcvmidcvr0",   CPENC (2,1,C3,C0,1),  0),
-  SR_CORE ("trcvmidcvr1",   CPENC (2,1,C3,C2,1),  0),
-  SR_CORE ("trcvmidcvr2",   CPENC (2,1,C3,C4,1),  0),
-  SR_CORE ("trcvmidcvr3",   CPENC (2,1,C3,C6,1),  0),
-  SR_CORE ("trcvmidcvr4",   CPENC (2,1,C3,C8,1),  0),
-  SR_CORE ("trcvmidcvr5",   CPENC (2,1,C3,C10,1), 0),
-  SR_CORE ("trcvmidcvr6",   CPENC (2,1,C3,C12,1), 0),
-  SR_CORE ("trcvmidcvr7",   CPENC (2,1,C3,C14,1), 0),
-  SR_CORE ("trclar",        CPENC (2,1,C7,C12,6), F_REG_WRITE),
-  SR_CORE ("trcoslar",      CPENC (2,1,C1,C0,4),  F_REG_WRITE),
-
-  SR_CORE ("csrcr_el0",     CPENC (2,3,C8,C0,0),  0),
-  SR_CORE ("csrptr_el0",    CPENC (2,3,C8,C0,1),  0),
-  SR_CORE ("csridr_el0",    CPENC (2,3,C8,C0,2),  F_REG_READ),
-  SR_CORE ("csrptridx_el0", CPENC (2,3,C8,C0,3),  F_REG_READ),
-  SR_CORE ("csrcr_el1",     CPENC (2,0,C8,C0,0),  0),
-  SR_CORE ("csrcr_el12",    CPENC (2,5,C8,C0,0),  0),
-  SR_CORE ("csrptr_el1",    CPENC (2,0,C8,C0,1),  0),
-  SR_CORE ("csrptr_el12",   CPENC (2,5,C8,C0,1),  0),
-  SR_CORE ("csrptridx_el1", CPENC (2,0,C8,C0,3),  F_REG_READ),
-  SR_CORE ("csrcr_el2",     CPENC (2,4,C8,C0,0),  0),
-  SR_CORE ("csrptr_el2",    CPENC (2,4,C8,C0,1),  0),
-  SR_CORE ("csrptridx_el2", CPENC (2,4,C8,C0,3),  F_REG_READ),
-
-  SR_LOR ("lorid_el1",      CPENC (3,0,C10,C4,7),  F_REG_READ),
-  SR_LOR ("lorc_el1",       CPENC (3,0,C10,C4,3),  0),
-  SR_LOR ("lorea_el1",      CPENC (3,0,C10,C4,1),  0),
-  SR_LOR ("lorn_el1",       CPENC (3,0,C10,C4,2),  0),
-  SR_LOR ("lorsa_el1",      CPENC (3,0,C10,C4,0),  0),
-
-  SR_CORE ("icc_ctlr_el3",  CPENC (3,6,C12,C12,4), 0),
-  SR_CORE ("icc_sre_el1",   CPENC (3,0,C12,C12,5), 0),
-  SR_CORE ("icc_sre_el2",   CPENC (3,4,C12,C9,5),  0),
-  SR_CORE ("icc_sre_el3",   CPENC (3,6,C12,C12,5), 0),
-  SR_CORE ("ich_vtr_el2",   CPENC (3,4,C12,C11,1), F_REG_READ),
-
-  SR_CORE ("brbcr_el1",     CPENC (2,1,C9,C0,0),  0),
-  SR_CORE ("brbcr_el12",    CPENC (2,5,C9,C0,0),  0),
-  SR_CORE ("brbfcr_el1",    CPENC (2,1,C9,C0,1),  0),
-  SR_CORE ("brbts_el1",     CPENC (2,1,C9,C0,2),  0),
-  SR_CORE ("brbinfinj_el1", CPENC (2,1,C9,C1,0),  0),
-  SR_CORE ("brbsrcinj_el1", CPENC (2,1,C9,C1,1),  0),
-  SR_CORE ("brbtgtinj_el1", CPENC (2,1,C9,C1,2),  0),
-  SR_CORE ("brbidr0_el1",   CPENC (2,1,C9,C2,0),  F_REG_READ),
-  SR_CORE ("brbcr_el2",     CPENC (2,4,C9,C0,0),  0),
-  SR_CORE ("brbsrc0_el1",   CPENC (2,1,C8,C0,1),  F_REG_READ),
-  SR_CORE ("brbsrc1_el1",   CPENC (2,1,C8,C1,1),  F_REG_READ),
-  SR_CORE ("brbsrc2_el1",   CPENC (2,1,C8,C2,1),  F_REG_READ),
-  SR_CORE ("brbsrc3_el1",   CPENC (2,1,C8,C3,1),  F_REG_READ),
-  SR_CORE ("brbsrc4_el1",   CPENC (2,1,C8,C4,1),  F_REG_READ),
-  SR_CORE ("brbsrc5_el1",   CPENC (2,1,C8,C5,1),  F_REG_READ),
-  SR_CORE ("brbsrc6_el1",   CPENC (2,1,C8,C6,1),  F_REG_READ),
-  SR_CORE ("brbsrc7_el1",   CPENC (2,1,C8,C7,1),  F_REG_READ),
-  SR_CORE ("brbsrc8_el1",   CPENC (2,1,C8,C8,1),  F_REG_READ),
-  SR_CORE ("brbsrc9_el1",   CPENC (2,1,C8,C9,1),  F_REG_READ),
-  SR_CORE ("brbsrc10_el1",  CPENC (2,1,C8,C10,1), F_REG_READ),
-  SR_CORE ("brbsrc11_el1",  CPENC (2,1,C8,C11,1), F_REG_READ),
-  SR_CORE ("brbsrc12_el1",  CPENC (2,1,C8,C12,1), F_REG_READ),
-  SR_CORE ("brbsrc13_el1",  CPENC (2,1,C8,C13,1), F_REG_READ),
-  SR_CORE ("brbsrc14_el1",  CPENC (2,1,C8,C14,1), F_REG_READ),
-  SR_CORE ("brbsrc15_el1",  CPENC (2,1,C8,C15,1), F_REG_READ),
-  SR_CORE ("brbsrc16_el1",  CPENC (2,1,C8,C0,5),  F_REG_READ),
-  SR_CORE ("brbsrc17_el1",  CPENC (2,1,C8,C1,5),  F_REG_READ),
-  SR_CORE ("brbsrc18_el1",  CPENC (2,1,C8,C2,5),  F_REG_READ),
-  SR_CORE ("brbsrc19_el1",  CPENC (2,1,C8,C3,5),  F_REG_READ),
-  SR_CORE ("brbsrc20_el1",  CPENC (2,1,C8,C4,5),  F_REG_READ),
-  SR_CORE ("brbsrc21_el1",  CPENC (2,1,C8,C5,5),  F_REG_READ),
-  SR_CORE ("brbsrc22_el1",  CPENC (2,1,C8,C6,5),  F_REG_READ),
-  SR_CORE ("brbsrc23_el1",  CPENC (2,1,C8,C7,5),  F_REG_READ),
-  SR_CORE ("brbsrc24_el1",  CPENC (2,1,C8,C8,5),  F_REG_READ),
-  SR_CORE ("brbsrc25_el1",  CPENC (2,1,C8,C9,5),  F_REG_READ),
-  SR_CORE ("brbsrc26_el1",  CPENC (2,1,C8,C10,5), F_REG_READ),
-  SR_CORE ("brbsrc27_el1",  CPENC (2,1,C8,C11,5), F_REG_READ),
-  SR_CORE ("brbsrc28_el1",  CPENC (2,1,C8,C12,5), F_REG_READ),
-  SR_CORE ("brbsrc29_el1",  CPENC (2,1,C8,C13,5), F_REG_READ),
-  SR_CORE ("brbsrc30_el1",  CPENC (2,1,C8,C14,5), F_REG_READ),
-  SR_CORE ("brbsrc31_el1",  CPENC (2,1,C8,C15,5), F_REG_READ),
-  SR_CORE ("brbtgt0_el1",   CPENC (2,1,C8,C0,2),  F_REG_READ),
-  SR_CORE ("brbtgt1_el1",   CPENC (2,1,C8,C1,2),  F_REG_READ),
-  SR_CORE ("brbtgt2_el1",   CPENC (2,1,C8,C2,2),  F_REG_READ),
-  SR_CORE ("brbtgt3_el1",   CPENC (2,1,C8,C3,2),  F_REG_READ),
-  SR_CORE ("brbtgt4_el1",   CPENC (2,1,C8,C4,2),  F_REG_READ),
-  SR_CORE ("brbtgt5_el1",   CPENC (2,1,C8,C5,2),  F_REG_READ),
-  SR_CORE ("brbtgt6_el1",   CPENC (2,1,C8,C6,2),  F_REG_READ),
-  SR_CORE ("brbtgt7_el1",   CPENC (2,1,C8,C7,2),  F_REG_READ),
-  SR_CORE ("brbtgt8_el1",   CPENC (2,1,C8,C8,2),  F_REG_READ),
-  SR_CORE ("brbtgt9_el1",   CPENC (2,1,C8,C9,2),  F_REG_READ),
-  SR_CORE ("brbtgt10_el1",  CPENC (2,1,C8,C10,2), F_REG_READ),
-  SR_CORE ("brbtgt11_el1",  CPENC (2,1,C8,C11,2), F_REG_READ),
-  SR_CORE ("brbtgt12_el1",  CPENC (2,1,C8,C12,2), F_REG_READ),
-  SR_CORE ("brbtgt13_el1",  CPENC (2,1,C8,C13,2), F_REG_READ),
-  SR_CORE ("brbtgt14_el1",  CPENC (2,1,C8,C14,2), F_REG_READ),
-  SR_CORE ("brbtgt15_el1",  CPENC (2,1,C8,C15,2), F_REG_READ),
-  SR_CORE ("brbtgt16_el1",  CPENC (2,1,C8,C0,6),  F_REG_READ),
-  SR_CORE ("brbtgt17_el1",  CPENC (2,1,C8,C1,6),  F_REG_READ),
-  SR_CORE ("brbtgt18_el1",  CPENC (2,1,C8,C2,6),  F_REG_READ),
-  SR_CORE ("brbtgt19_el1",  CPENC (2,1,C8,C3,6),  F_REG_READ),
-  SR_CORE ("brbtgt20_el1",  CPENC (2,1,C8,C4,6),  F_REG_READ),
-  SR_CORE ("brbtgt21_el1",  CPENC (2,1,C8,C5,6),  F_REG_READ),
-  SR_CORE ("brbtgt22_el1",  CPENC (2,1,C8,C6,6),  F_REG_READ),
-  SR_CORE ("brbtgt23_el1",  CPENC (2,1,C8,C7,6),  F_REG_READ),
-  SR_CORE ("brbtgt24_el1",  CPENC (2,1,C8,C8,6),  F_REG_READ),
-  SR_CORE ("brbtgt25_el1",  CPENC (2,1,C8,C9,6),  F_REG_READ),
-  SR_CORE ("brbtgt26_el1",  CPENC (2,1,C8,C10,6), F_REG_READ),
-  SR_CORE ("brbtgt27_el1",  CPENC (2,1,C8,C11,6), F_REG_READ),
-  SR_CORE ("brbtgt28_el1",  CPENC (2,1,C8,C12,6), F_REG_READ),
-  SR_CORE ("brbtgt29_el1",  CPENC (2,1,C8,C13,6), F_REG_READ),
-  SR_CORE ("brbtgt30_el1",  CPENC (2,1,C8,C14,6), F_REG_READ),
-  SR_CORE ("brbtgt31_el1",  CPENC (2,1,C8,C15,6), F_REG_READ),
-  SR_CORE ("brbinf0_el1",   CPENC (2,1,C8,C0,0),  F_REG_READ),
-  SR_CORE ("brbinf1_el1",   CPENC (2,1,C8,C1,0),  F_REG_READ),
-  SR_CORE ("brbinf2_el1",   CPENC (2,1,C8,C2,0),  F_REG_READ),
-  SR_CORE ("brbinf3_el1",   CPENC (2,1,C8,C3,0),  F_REG_READ),
-  SR_CORE ("brbinf4_el1",   CPENC (2,1,C8,C4,0),  F_REG_READ),
-  SR_CORE ("brbinf5_el1",   CPENC (2,1,C8,C5,0),  F_REG_READ),
-  SR_CORE ("brbinf6_el1",   CPENC (2,1,C8,C6,0),  F_REG_READ),
-  SR_CORE ("brbinf7_el1",   CPENC (2,1,C8,C7,0),  F_REG_READ),
-  SR_CORE ("brbinf8_el1",   CPENC (2,1,C8,C8,0),  F_REG_READ),
-  SR_CORE ("brbinf9_el1",   CPENC (2,1,C8,C9,0),  F_REG_READ),
-  SR_CORE ("brbinf10_el1",  CPENC (2,1,C8,C10,0), F_REG_READ),
-  SR_CORE ("brbinf11_el1",  CPENC (2,1,C8,C11,0), F_REG_READ),
-  SR_CORE ("brbinf12_el1",  CPENC (2,1,C8,C12,0), F_REG_READ),
-  SR_CORE ("brbinf13_el1",  CPENC (2,1,C8,C13,0), F_REG_READ),
-  SR_CORE ("brbinf14_el1",  CPENC (2,1,C8,C14,0), F_REG_READ),
-  SR_CORE ("brbinf15_el1",  CPENC (2,1,C8,C15,0), F_REG_READ),
-  SR_CORE ("brbinf16_el1",  CPENC (2,1,C8,C0,4),  F_REG_READ),
-  SR_CORE ("brbinf17_el1",  CPENC (2,1,C8,C1,4),  F_REG_READ),
-  SR_CORE ("brbinf18_el1",  CPENC (2,1,C8,C2,4),  F_REG_READ),
-  SR_CORE ("brbinf19_el1",  CPENC (2,1,C8,C3,4),  F_REG_READ),
-  SR_CORE ("brbinf20_el1",  CPENC (2,1,C8,C4,4),  F_REG_READ),
-  SR_CORE ("brbinf21_el1",  CPENC (2,1,C8,C5,4),  F_REG_READ),
-  SR_CORE ("brbinf22_el1",  CPENC (2,1,C8,C6,4),  F_REG_READ),
-  SR_CORE ("brbinf23_el1",  CPENC (2,1,C8,C7,4),  F_REG_READ),
-  SR_CORE ("brbinf24_el1",  CPENC (2,1,C8,C8,4),  F_REG_READ),
-  SR_CORE ("brbinf25_el1",  CPENC (2,1,C8,C9,4),  F_REG_READ),
-  SR_CORE ("brbinf26_el1",  CPENC (2,1,C8,C10,4), F_REG_READ),
-  SR_CORE ("brbinf27_el1",  CPENC (2,1,C8,C11,4), F_REG_READ),
-  SR_CORE ("brbinf28_el1",  CPENC (2,1,C8,C12,4), F_REG_READ),
-  SR_CORE ("brbinf29_el1",  CPENC (2,1,C8,C13,4), F_REG_READ),
-  SR_CORE ("brbinf30_el1",  CPENC (2,1,C8,C14,4), F_REG_READ),
-  SR_CORE ("brbinf31_el1",  CPENC (2,1,C8,C15,4), F_REG_READ),
-
-  SR_CORE ("accdata_el1",   CPENC (3,0,C13,C0,5), 0),
-
-  SR_CORE ("mfar_el3",      CPENC (3,6,C6,C0,5), 0),
-  SR_CORE ("gpccr_el3",     CPENC (3,6,C2,C1,6), 0),
-  SR_CORE ("gptbr_el3",     CPENC (3,6,C2,C1,4), 0),
-
-  SR_SME ("svcr",             CPENC (3,3,C4,C2,2),  0),
-  SR_SME ("id_aa64smfr0_el1", CPENC (3,0,C0,C4,5),  F_REG_READ),
-  SR_SME ("smcr_el1",         CPENC (3,0,C1,C2,6),  0),
-  SR_SME ("smcr_el12",        CPENC (3,5,C1,C2,6),  0),
-  SR_SME ("smcr_el2",         CPENC (3,4,C1,C2,6),  0),
-  SR_SME ("smcr_el3",         CPENC (3,6,C1,C2,6),  0),
-  SR_SME ("smpri_el1",        CPENC (3,0,C1,C2,4),  0),
-  SR_SME ("smprimap_el2",     CPENC (3,4,C1,C2,5),  0),
-  SR_SME ("smidr_el1",        CPENC (3,1,C0,C0,6),  F_REG_READ),
-  SR_SME ("tpidr2_el0",       CPENC (3,3,C13,C0,5), 0),
-  SR_SME ("mpamsm_el1",       CPENC (3,0,C10,C5,3), 0),
-
-  SR_AMU ("amcr_el0",           CPENC (3,3,C13,C2,0),   0),
-  SR_AMU ("amcfgr_el0",         CPENC (3,3,C13,C2,1),   F_REG_READ),
-  SR_AMU ("amcgcr_el0",         CPENC (3,3,C13,C2,2),   F_REG_READ),
-  SR_AMU ("amuserenr_el0",      CPENC (3,3,C13,C2,3),   0),
-  SR_AMU ("amcntenclr0_el0",    CPENC (3,3,C13,C2,4),   0),
-  SR_AMU ("amcntenset0_el0",    CPENC (3,3,C13,C2,5),   0),
-  SR_AMU ("amcntenclr1_el0",    CPENC (3,3,C13,C3,0),   0),
-  SR_AMU ("amcntenset1_el0",    CPENC (3,3,C13,C3,1),   0),
-  SR_AMU ("amevcntr00_el0",     CPENC (3,3,C13,C4,0),   0),
-  SR_AMU ("amevcntr01_el0",     CPENC (3,3,C13,C4,1),   0),
-  SR_AMU ("amevcntr02_el0",     CPENC (3,3,C13,C4,2),   0),
-  SR_AMU ("amevcntr03_el0",     CPENC (3,3,C13,C4,3),   0),
-  SR_AMU ("amevtyper00_el0",    CPENC (3,3,C13,C6,0),   F_REG_READ),
-  SR_AMU ("amevtyper01_el0",    CPENC (3,3,C13,C6,1),   F_REG_READ),
-  SR_AMU ("amevtyper02_el0",    CPENC (3,3,C13,C6,2),   F_REG_READ),
-  SR_AMU ("amevtyper03_el0",    CPENC (3,3,C13,C6,3),   F_REG_READ),
-  SR_AMU ("amevcntr10_el0",     CPENC (3,3,C13,C12,0),  0),
-  SR_AMU ("amevcntr11_el0",     CPENC (3,3,C13,C12,1),  0),
-  SR_AMU ("amevcntr12_el0",     CPENC (3,3,C13,C12,2),  0),
-  SR_AMU ("amevcntr13_el0",     CPENC (3,3,C13,C12,3),  0),
-  SR_AMU ("amevcntr14_el0",     CPENC (3,3,C13,C12,4),  0),
-  SR_AMU ("amevcntr15_el0",     CPENC (3,3,C13,C12,5),  0),
-  SR_AMU ("amevcntr16_el0",     CPENC (3,3,C13,C12,6),  0),
-  SR_AMU ("amevcntr17_el0",     CPENC (3,3,C13,C12,7),  0),
-  SR_AMU ("amevcntr18_el0",     CPENC (3,3,C13,C13,0),  0),
-  SR_AMU ("amevcntr19_el0",     CPENC (3,3,C13,C13,1),  0),
-  SR_AMU ("amevcntr110_el0",    CPENC (3,3,C13,C13,2),  0),
-  SR_AMU ("amevcntr111_el0",    CPENC (3,3,C13,C13,3),  0),
-  SR_AMU ("amevcntr112_el0",    CPENC (3,3,C13,C13,4),  0),
-  SR_AMU ("amevcntr113_el0",    CPENC (3,3,C13,C13,5),  0),
-  SR_AMU ("amevcntr114_el0",    CPENC (3,3,C13,C13,6),  0),
-  SR_AMU ("amevcntr115_el0",    CPENC (3,3,C13,C13,7),  0),
-  SR_AMU ("amevtyper10_el0",    CPENC (3,3,C13,C14,0),  0),
-  SR_AMU ("amevtyper11_el0",    CPENC (3,3,C13,C14,1),  0),
-  SR_AMU ("amevtyper12_el0",    CPENC (3,3,C13,C14,2),  0),
-  SR_AMU ("amevtyper13_el0",    CPENC (3,3,C13,C14,3),  0),
-  SR_AMU ("amevtyper14_el0",    CPENC (3,3,C13,C14,4),  0),
-  SR_AMU ("amevtyper15_el0",    CPENC (3,3,C13,C14,5),  0),
-  SR_AMU ("amevtyper16_el0",    CPENC (3,3,C13,C14,6),  0),
-  SR_AMU ("amevtyper17_el0",    CPENC (3,3,C13,C14,7),  0),
-  SR_AMU ("amevtyper18_el0",    CPENC (3,3,C13,C15,0),  0),
-  SR_AMU ("amevtyper19_el0",    CPENC (3,3,C13,C15,1),  0),
-  SR_AMU ("amevtyper110_el0",   CPENC (3,3,C13,C15,2),  0),
-  SR_AMU ("amevtyper111_el0",   CPENC (3,3,C13,C15,3),  0),
-  SR_AMU ("amevtyper112_el0",   CPENC (3,3,C13,C15,4),  0),
-  SR_AMU ("amevtyper113_el0",   CPENC (3,3,C13,C15,5),  0),
-  SR_AMU ("amevtyper114_el0",   CPENC (3,3,C13,C15,6),  0),
-  SR_AMU ("amevtyper115_el0",   CPENC (3,3,C13,C15,7),  0),
-
-  SR_GIC ("icc_pmr_el1",        CPENC (3,0,C4,C6,0),    0),
-  SR_GIC ("icc_iar0_el1",       CPENC (3,0,C12,C8,0),   F_REG_READ),
-  SR_GIC ("icc_eoir0_el1",      CPENC (3,0,C12,C8,1),   F_REG_WRITE),
-  SR_GIC ("icc_hppir0_el1",     CPENC (3,0,C12,C8,2),   F_REG_READ),
-  SR_GIC ("icc_bpr0_el1",       CPENC (3,0,C12,C8,3),   0),
-  SR_GIC ("icc_ap0r0_el1",      CPENC (3,0,C12,C8,4),   0),
-  SR_GIC ("icc_ap0r1_el1",      CPENC (3,0,C12,C8,5),   0),
-  SR_GIC ("icc_ap0r2_el1",      CPENC (3,0,C12,C8,6),   0),
-  SR_GIC ("icc_ap0r3_el1",      CPENC (3,0,C12,C8,7),   0),
-  SR_GIC ("icc_ap1r0_el1",      CPENC (3,0,C12,C9,0),   0),
-  SR_GIC ("icc_ap1r1_el1",      CPENC (3,0,C12,C9,1),   0),
-  SR_GIC ("icc_ap1r2_el1",      CPENC (3,0,C12,C9,2),   0),
-  SR_GIC ("icc_ap1r3_el1",      CPENC (3,0,C12,C9,3),   0),
-  SR_GIC ("icc_dir_el1",        CPENC (3,0,C12,C11,1),  F_REG_WRITE),
-  SR_GIC ("icc_rpr_el1",        CPENC (3,0,C12,C11,3),  F_REG_READ),
-  SR_GIC ("icc_sgi1r_el1",      CPENC (3,0,C12,C11,5),  F_REG_WRITE),
-  SR_GIC ("icc_asgi1r_el1",     CPENC (3,0,C12,C11,6),  F_REG_WRITE),
-  SR_GIC ("icc_sgi0r_el1",      CPENC (3,0,C12,C11,7),  F_REG_WRITE),
-  SR_GIC ("icc_iar1_el1",       CPENC (3,0,C12,C12,0),  F_REG_READ),
-  SR_GIC ("icc_eoir1_el1",      CPENC (3,0,C12,C12,1),  F_REG_WRITE),
-  SR_GIC ("icc_hppir1_el1",     CPENC (3,0,C12,C12,2),  F_REG_READ),
-  SR_GIC ("icc_bpr1_el1",       CPENC (3,0,C12,C12,3),  0),
-  SR_GIC ("icc_ctlr_el1",       CPENC (3,0,C12,C12,4),  0),
-  SR_GIC ("icc_igrpen0_el1",    CPENC (3,0,C12,C12,6),  0),
-  SR_GIC ("icc_igrpen1_el1",    CPENC (3,0,C12,C12,7),  0),
-  SR_GIC ("ich_ap0r0_el2",      CPENC (3,4,C12,C8,0),   0),
-  SR_GIC ("ich_ap0r1_el2",      CPENC (3,4,C12,C8,1),   0),
-  SR_GIC ("ich_ap0r2_el2",      CPENC (3,4,C12,C8,2),   0),
-  SR_GIC ("ich_ap0r3_el2",      CPENC (3,4,C12,C8,3),   0),
-  SR_GIC ("ich_ap1r0_el2",      CPENC (3,4,C12,C9,0),   0),
-  SR_GIC ("ich_ap1r1_el2",      CPENC (3,4,C12,C9,1),   0),
-  SR_GIC ("ich_ap1r2_el2",      CPENC (3,4,C12,C9,2),   0),
-  SR_GIC ("ich_ap1r3_el2",      CPENC (3,4,C12,C9,3),   0),
-  SR_GIC ("ich_hcr_el2",        CPENC (3,4,C12,C11,0),  0),
-  SR_GIC ("ich_misr_el2",       CPENC (3,4,C12,C11,2),  F_REG_READ),
-  SR_GIC ("ich_eisr_el2",       CPENC (3,4,C12,C11,3),  F_REG_READ),
-  SR_GIC ("ich_elrsr_el2",      CPENC (3,4,C12,C11,5),  F_REG_READ),
-  SR_GIC ("ich_vmcr_el2",       CPENC (3,4,C12,C11,7),  0),
-  SR_GIC ("ich_lr0_el2",        CPENC (3,4,C12,C12,0),  0),
-  SR_GIC ("ich_lr1_el2",        CPENC (3,4,C12,C12,1),  0),
-  SR_GIC ("ich_lr2_el2",        CPENC (3,4,C12,C12,2),  0),
-  SR_GIC ("ich_lr3_el2",        CPENC (3,4,C12,C12,3),  0),
-  SR_GIC ("ich_lr4_el2",        CPENC (3,4,C12,C12,4),  0),
-  SR_GIC ("ich_lr5_el2",        CPENC (3,4,C12,C12,5),  0),
-  SR_GIC ("ich_lr6_el2",        CPENC (3,4,C12,C12,6),  0),
-  SR_GIC ("ich_lr7_el2",        CPENC (3,4,C12,C12,7),  0),
-  SR_GIC ("ich_lr8_el2",        CPENC (3,4,C12,C13,0),  0),
-  SR_GIC ("ich_lr9_el2",        CPENC (3,4,C12,C13,1),  0),
-  SR_GIC ("ich_lr10_el2",       CPENC (3,4,C12,C13,2),  0),
-  SR_GIC ("ich_lr11_el2",       CPENC (3,4,C12,C13,3),  0),
-  SR_GIC ("ich_lr12_el2",       CPENC (3,4,C12,C13,4),  0),
-  SR_GIC ("ich_lr13_el2",       CPENC (3,4,C12,C13,5),  0),
-  SR_GIC ("ich_lr14_el2",       CPENC (3,4,C12,C13,6),  0),
-  SR_GIC ("ich_lr15_el2",       CPENC (3,4,C12,C13,7),  0),
-  SR_GIC ("icc_igrpen1_el3",    CPENC (3,6,C12,C12,7),  0),
-
-  SR_V8_6 ("amcg1idr_el0",      CPENC (3,3,C13,C2,6),   F_REG_READ),
-  SR_V8_6 ("cntpctss_el0",      CPENC (3,3,C14,C0,5),   F_REG_READ),
-  SR_V8_6 ("cntvctss_el0",      CPENC (3,3,C14,C0,6),   F_REG_READ),
-  SR_V8_6 ("hfgrtr_el2",        CPENC (3,4,C1,C1,4),    0),
-  SR_V8_6 ("hfgwtr_el2",        CPENC (3,4,C1,C1,5),    0),
-  SR_V8_6 ("hfgitr_el2",        CPENC (3,4,C1,C1,6),    0),
-  SR_V8_6 ("hdfgrtr_el2",       CPENC (3,4,C3,C1,4),    0),
-  SR_V8_6 ("hdfgwtr_el2",       CPENC (3,4,C3,C1,5),    0),
-  SR_V8_6 ("hafgrtr_el2",       CPENC (3,4,C3,C1,6),    0),
-  SR_V8_6 ("amevcntvoff00_el2", CPENC (3,4,C13,C8,0),   0),
-  SR_V8_6 ("amevcntvoff01_el2", CPENC (3,4,C13,C8,1),   0),
-  SR_V8_6 ("amevcntvoff02_el2", CPENC (3,4,C13,C8,2),   0),
-  SR_V8_6 ("amevcntvoff03_el2", CPENC (3,4,C13,C8,3),   0),
-  SR_V8_6 ("amevcntvoff04_el2", CPENC (3,4,C13,C8,4),   0),
-  SR_V8_6 ("amevcntvoff05_el2", CPENC (3,4,C13,C8,5),   0),
-  SR_V8_6 ("amevcntvoff06_el2", CPENC (3,4,C13,C8,6),   0),
-  SR_V8_6 ("amevcntvoff07_el2", CPENC (3,4,C13,C8,7),   0),
-  SR_V8_6 ("amevcntvoff08_el2", CPENC (3,4,C13,C9,0),   0),
-  SR_V8_6 ("amevcntvoff09_el2", CPENC (3,4,C13,C9,1),   0),
-  SR_V8_6 ("amevcntvoff010_el2", CPENC (3,4,C13,C9,2),  0),
-  SR_V8_6 ("amevcntvoff011_el2", CPENC (3,4,C13,C9,3),  0),
-  SR_V8_6 ("amevcntvoff012_el2", CPENC (3,4,C13,C9,4),  0),
-  SR_V8_6 ("amevcntvoff013_el2", CPENC (3,4,C13,C9,5),  0),
-  SR_V8_6 ("amevcntvoff014_el2", CPENC (3,4,C13,C9,6),  0),
-  SR_V8_6 ("amevcntvoff015_el2", CPENC (3,4,C13,C9,7),  0),
-  SR_V8_6 ("amevcntvoff10_el2", CPENC (3,4,C13,C10,0),  0),
-  SR_V8_6 ("amevcntvoff11_el2", CPENC (3,4,C13,C10,1),  0),
-  SR_V8_6 ("amevcntvoff12_el2", CPENC (3,4,C13,C10,2),  0),
-  SR_V8_6 ("amevcntvoff13_el2", CPENC (3,4,C13,C10,3),  0),
-  SR_V8_6 ("amevcntvoff14_el2", CPENC (3,4,C13,C10,4),  0),
-  SR_V8_6 ("amevcntvoff15_el2", CPENC (3,4,C13,C10,5),  0),
-  SR_V8_6 ("amevcntvoff16_el2", CPENC (3,4,C13,C10,6),  0),
-  SR_V8_6 ("amevcntvoff17_el2", CPENC (3,4,C13,C10,7),  0),
-  SR_V8_6 ("amevcntvoff18_el2", CPENC (3,4,C13,C11,0),  0),
-  SR_V8_6 ("amevcntvoff19_el2", CPENC (3,4,C13,C11,1),  0),
-  SR_V8_6 ("amevcntvoff110_el2", CPENC (3,4,C13,C11,2), 0),
-  SR_V8_6 ("amevcntvoff111_el2", CPENC (3,4,C13,C11,3), 0),
-  SR_V8_6 ("amevcntvoff112_el2", CPENC (3,4,C13,C11,4), 0),
-  SR_V8_6 ("amevcntvoff113_el2", CPENC (3,4,C13,C11,5), 0),
-  SR_V8_6 ("amevcntvoff114_el2", CPENC (3,4,C13,C11,6), 0),
-  SR_V8_6 ("amevcntvoff115_el2", CPENC (3,4,C13,C11,7), 0),
-  SR_V8_6 ("cntpoff_el2",       CPENC (3,4,C14,C0,6),   0),
-
-  SR_V8_7 ("pmsnevfr_el1",      CPENC (3,0,C9,C9,1),    0),
-  SR_V8_7 ("hcrx_el2",          CPENC (3,4,C1,C2,2),    0),
-
-  SR_V8_8 ("allint",            CPENC (3,0,C4,C3,0),    0),
-  SR_V8_8 ("icc_nmiar1_el1",    CPENC (3,0,C12,C9,5),   F_REG_READ),
-
-  { 0, CPENC (0,0,0,0,0), 0, 0 }
+  #define SYSREG(name, encoding, flags, features) \
+    { name, encoding, flags, features },
+  #include "aarch64-sys-regs.def"
+  { 0, CPENC (0,0,0,0,0), 0, AARCH64_NO_FEATURES }
+  #undef SYSREG
 };
 
 bool
 aarch64_sys_reg_deprecated_p (const uint32_t reg_flags)
 {
   return (reg_flags & F_DEPRECATED) != 0;
+}
+
+bool
+aarch64_sys_reg_alias_p (const uint32_t reg_flags)
+{
+  return (reg_flags & F_REG_ALIAS) != 0;
 }
 
 /* The CPENC below is fairly misleading, the fields
@@ -5194,22 +4710,22 @@ aarch64_sys_reg_deprecated_p (const uint32_t reg_flags)
    0b011010 (0x1a).  */
 const aarch64_sys_reg aarch64_pstatefields [] =
 {
-  SR_CORE ("spsel",	  0x05,	F_REG_MAX_VALUE (1)),
-  SR_CORE ("daifset",	  0x1e,	F_REG_MAX_VALUE (15)),
-  SR_CORE ("daifclr",	  0x1f,	F_REG_MAX_VALUE (15)),
-  SR_PAN  ("pan",	  0x04, F_REG_MAX_VALUE (1)),
-  SR_V8_2 ("uao",	  0x03, F_REG_MAX_VALUE (1)),
-  SR_SSBS ("ssbs",	  0x19, F_REG_MAX_VALUE (1)),
-  SR_V8_4 ("dit",	  0x1a,	F_REG_MAX_VALUE (1)),
-  SR_MEMTAG ("tco",	  0x1c,	F_REG_MAX_VALUE (1)),
-  SR_SME  ("svcrsm",	  0x1b, PSTATE_ENCODE_CRM_AND_IMM(0x2,0x1)
-				| F_REG_MAX_VALUE (1)),
-  SR_SME  ("svcrza",	  0x1b, PSTATE_ENCODE_CRM_AND_IMM(0x4,0x1)
-				| F_REG_MAX_VALUE (1)),
-  SR_SME  ("svcrsmza",	  0x1b, PSTATE_ENCODE_CRM_AND_IMM(0x6,0x1)
-				| F_REG_MAX_VALUE (1)),
-  SR_V8_8 ("allint",	  0x08,	F_REG_MAX_VALUE (1)),
-  { 0,	  CPENC (0,0,0,0,0), 0, 0 },
+  { "spsel",	0x05, F_REG_MAX_VALUE (1), AARCH64_NO_FEATURES },
+  { "daifset",	0x1e, F_REG_MAX_VALUE (15), AARCH64_NO_FEATURES },
+  { "daifclr",	0x1f, F_REG_MAX_VALUE (15), AARCH64_NO_FEATURES },
+  { "pan",	0x04, F_REG_MAX_VALUE (1) | F_ARCHEXT, AARCH64_FEATURE (PAN) },
+  { "uao",	0x03, F_REG_MAX_VALUE (1) | F_ARCHEXT, AARCH64_FEATURE (V8_2A) },
+  { "ssbs",	0x19, F_REG_MAX_VALUE (1) | F_ARCHEXT, AARCH64_FEATURE (SSBS) },
+  { "dit",	0x1a, F_REG_MAX_VALUE (1) | F_ARCHEXT, AARCH64_FEATURE (V8_4A) },
+  { "tco",	0x1c, F_REG_MAX_VALUE (1) | F_ARCHEXT, AARCH64_FEATURE (MEMTAG) },
+  { "svcrsm",	0x1b, PSTATE_ENCODE_CRM_AND_IMM (0x2,0x1) | F_REG_MAX_VALUE (1)
+		      | F_ARCHEXT, AARCH64_FEATURE (SME) },
+  { "svcrza",	0x1b, PSTATE_ENCODE_CRM_AND_IMM (0x4,0x1) | F_REG_MAX_VALUE (1)
+		      | F_ARCHEXT, AARCH64_FEATURE (SME) },
+  { "svcrsmza",	0x1b, PSTATE_ENCODE_CRM_AND_IMM (0x6,0x1) | F_REG_MAX_VALUE (1)
+		      | F_ARCHEXT, AARCH64_FEATURE (SME) },
+  { "allint",	0x08, F_REG_MAX_VALUE (1) | F_ARCHEXT, AARCH64_FEATURE (V8_8A) },
+  { 0,	CPENC (0,0,0,0,0), 0, AARCH64_NO_FEATURES },
 };
 
 bool
@@ -5394,13 +4910,13 @@ aarch64_sys_ins_reg_has_xt (const aarch64_sys_ins_reg *sys_ins_reg)
 
 extern bool
 aarch64_sys_ins_reg_supported_p (const aarch64_feature_set features,
-		 const char *reg_name,
-                 aarch64_insn reg_value,
-                 uint32_t reg_flags,
-                 aarch64_feature_set reg_features)
+				 const char *reg_name,
+				 aarch64_insn reg_value,
+				 uint32_t reg_flags,
+				 const aarch64_feature_set *reg_features)
 {
   /* Armv8-R has no EL3.  */
-  if (AARCH64_CPU_HAS_FEATURE (features, AARCH64_FEATURE_V8_R))
+  if (AARCH64_CPU_HAS_FEATURE (features, V8R))
     {
       const char *suffix = strrchr (reg_name, '_');
       if (suffix && !strcmp (suffix, "_el3"))
@@ -5411,7 +4927,7 @@ aarch64_sys_ins_reg_supported_p (const aarch64_feature_set features,
     return true;
 
   if (reg_features
-      && AARCH64_CPU_HAS_ALL_FEATURES (features, reg_features))
+      && AARCH64_CPU_HAS_ALL_FEATURES (features, *reg_features))
     return true;
 
   /* ARMv8.4 TLB instructions.  */
@@ -5461,17 +4977,17 @@ aarch64_sys_ins_reg_supported_p (const aarch64_feature_set features,
        || reg_value == CPENS (6, C8, C2, 5)
        || reg_value == CPENS (6, C8, C5, 1)
        || reg_value == CPENS (6, C8, C5, 5))
-      && AARCH64_CPU_HAS_FEATURE (features, AARCH64_FEATURE_V8_4))
+      && AARCH64_CPU_HAS_FEATURE (features, V8_4A))
     return true;
 
   /* DC CVAP.  Values are from aarch64_sys_regs_dc.  */
   if (reg_value == CPENS (3, C7, C12, 1)
-      && AARCH64_CPU_HAS_FEATURE (features, AARCH64_FEATURE_V8_2))
+      && AARCH64_CPU_HAS_FEATURE (features, V8_2A))
     return true;
 
   /* DC CVADP.  Values are from aarch64_sys_regs_dc.  */
   if (reg_value == CPENS (3, C7, C13, 1)
-      && AARCH64_CPU_HAS_FEATURE (features, AARCH64_FEATURE_CVADP))
+      && AARCH64_CPU_HAS_FEATURE (features, CVADP))
     return true;
 
   /* DC <dc_op> for ARMv8.5-A Memory Tagging Extension.  */
@@ -5493,18 +5009,18 @@ aarch64_sys_ins_reg_supported_p (const aarch64_feature_set features,
        || reg_value == CPENS (3, C7, C13, 5)
        || reg_value == CPENS (3, C7, C14, 5)
        || reg_value == CPENS (3, C7, C4, 4))
-      && AARCH64_CPU_HAS_FEATURE (features, AARCH64_FEATURE_MEMTAG))
+      && AARCH64_CPU_HAS_FEATURE (features, MEMTAG))
     return true;
 
   /* AT S1E1RP, AT S1E1WP.  Values are from aarch64_sys_regs_at.  */
   if ((reg_value == CPENS (0, C7, C9, 0)
        || reg_value == CPENS (0, C7, C9, 1))
-      && AARCH64_CPU_HAS_FEATURE (features, AARCH64_FEATURE_V8_2))
+      && AARCH64_CPU_HAS_FEATURE (features, V8_2A))
     return true;
 
   /* CFP/DVP/CPP RCTX : Value are from aarch64_sys_regs_sr. */
   if (reg_value == CPENS (3, C7, C3, 0)
-      && AARCH64_CPU_HAS_FEATURE (features, AARCH64_FEATURE_PREDRES))
+      && AARCH64_CPU_HAS_FEATURE (features, PREDRES))
     return true;
 
   return false;
@@ -5812,8 +5328,8 @@ verify_constraints (const struct aarch64_inst *inst,
 	  /* Check to see if the MOVPRFX SVE instruction is followed by an SVE
 	     instruction for better error messages.  */
 	  if (!opcode->avariant
-	      || !(*opcode->avariant &
-		   (AARCH64_FEATURE_SVE | AARCH64_FEATURE_SVE2)))
+	      || (!AARCH64_CPU_HAS_FEATURE (*opcode->avariant, SVE)
+		  && !AARCH64_CPU_HAS_FEATURE (*opcode->avariant, SVE2)))
 	    {
 	      mismatch_detail->kind = AARCH64_OPDE_SYNTAX_ERROR;
 	      mismatch_detail->error = _("SVE instruction expected after "
@@ -6048,6 +5564,30 @@ aarch64_sve_dupm_mov_immediate_p (uint64_t uvalue, int esize)
   if ((svalue & 0xff) == 0)
     svalue /= 256;
   return svalue < -128 || svalue >= 128;
+}
+
+/* Return true if a CPU with the AARCH64_FEATURE_* bits in CPU_VARIANT
+   supports the instruction described by INST.  */
+
+bool
+aarch64_cpu_supports_inst_p (aarch64_feature_set cpu_variant,
+			     aarch64_inst *inst)
+{
+  if (!inst->opcode->avariant
+      || !AARCH64_CPU_HAS_ALL_FEATURES (cpu_variant, *inst->opcode->avariant))
+    return false;
+
+  if (inst->opcode->iclass == sme_fp_sd
+      && inst->operands[0].qualifier == AARCH64_OPND_QLF_S_D
+      && !AARCH64_CPU_HAS_FEATURE (cpu_variant, SME_F64F64))
+    return false;
+
+  if (inst->opcode->iclass == sme_int_sd
+      && inst->operands[0].qualifier == AARCH64_OPND_QLF_S_D
+      && !AARCH64_CPU_HAS_FEATURE (cpu_variant, SME_I16I64))
+    return false;
+
+  return true;
 }
 
 /* Include the opcode description table as well as the operand description

@@ -344,17 +344,19 @@ invalidate_auxv_cache_inf (struct inferior *inf)
   auxv_inferior_data.clear (inf);
 }
 
-/* Invalidate current inferior's auxv cache.  */
+/* Invalidate the auxv cache for all inferiors using PSPACE.  */
 
 static void
-invalidate_auxv_cache (void)
+auxv_all_objfiles_removed (program_space *pspace)
 {
-  invalidate_auxv_cache_inf (current_inferior ());
+  for (inferior *inf : all_inferiors ())
+    if (inf->pspace == current_program_space)
+      invalidate_auxv_cache_inf (inf);
 }
 
 /* See auxv.h.  */
 
-gdb::optional<gdb::byte_vector>
+const gdb::optional<gdb::byte_vector> &
 target_read_auxv ()
 {
   inferior *inf = current_inferior ();
@@ -410,7 +412,7 @@ target_auxv_search (const gdb::byte_vector &auxv, target_ops *ops,
 int
 target_auxv_search (CORE_ADDR match, CORE_ADDR *valp)
 {
-  gdb::optional<gdb::byte_vector> auxv = target_read_auxv ();
+  const gdb::optional<gdb::byte_vector> &auxv = target_read_auxv ();
 
   if (!auxv.has_value ())
     return -1;
@@ -493,6 +495,10 @@ default_print_auxv_entry (struct gdbarch *gdbarch, struct ui_file *file,
 	   AUXV_FORMAT_STR);
       TAG (AT_RANDOM, _("Address of 16 random bytes"), AUXV_FORMAT_HEX);
       TAG (AT_HWCAP2, _("Extension of AT_HWCAP"), AUXV_FORMAT_HEX);
+      TAG (AT_RSEQ_FEATURE_SIZE, _("rseq supported feature size"),
+	   AUXV_FORMAT_DEC);
+      TAG (AT_RSEQ_ALIGN, _("rseq allocation alignment"),
+	   AUXV_FORMAT_DEC);
       TAG (AT_EXECFN, _("File name of executable"), AUXV_FORMAT_STR);
       TAG (AT_SECURE, _("Boolean, was exec setuid-like?"), AUXV_FORMAT_DEC);
       TAG (AT_SYSINFO, _("Special system info/entry points"), AUXV_FORMAT_HEX);
@@ -564,7 +570,7 @@ fprint_target_auxv (struct ui_file *file)
   struct gdbarch *gdbarch = target_gdbarch ();
   CORE_ADDR type, val;
   int ents = 0;
-  gdb::optional<gdb::byte_vector> auxv = target_read_auxv ();
+  const gdb::optional<gdb::byte_vector> &auxv = target_read_auxv ();
 
   if (!auxv.has_value ())
     return -1;
@@ -613,5 +619,6 @@ This is information provided by the operating system at program startup."));
   /* Observers used to invalidate the auxv cache when needed.  */
   gdb::observers::inferior_exit.attach (invalidate_auxv_cache_inf, "auxv");
   gdb::observers::inferior_appeared.attach (invalidate_auxv_cache_inf, "auxv");
-  gdb::observers::executable_changed.attach (invalidate_auxv_cache, "auxv");
+  gdb::observers::all_objfiles_removed.attach (auxv_all_objfiles_removed,
+					       "auxv");
 }

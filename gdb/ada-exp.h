@@ -69,7 +69,14 @@ extern struct value *ada_pos_atr (struct type *expect_type,
 				  struct expression *exp,
 				  enum noside noside, enum exp_opcode op,
 				  struct value *arg);
-extern struct value *ada_val_atr (enum noside noside, struct type *type,
+extern struct value *ada_atr_enum_rep (struct expression *exp,
+				       enum noside noside, struct type *type,
+				       struct value *arg);
+extern struct value *ada_atr_enum_val (struct expression *exp,
+				       enum noside noside, struct type *type,
+				       struct value *arg);
+extern struct value *ada_val_atr (struct expression *exp,
+				  enum noside noside, struct type *type,
 				  struct value *arg);
 extern struct value *ada_binop_exp (struct type *expect_type,
 				    struct expression *exp,
@@ -130,6 +137,14 @@ public:
 
   enum exp_opcode opcode () const override
   { return std::get<0> (m_storage)->opcode (); }
+
+protected:
+
+  void do_generate_ax (struct expression *exp,
+		       struct agent_expr *ax,
+		       struct axs_value *value,
+		       struct type *cast_type)
+    override;
 };
 
 /* An Ada string constant.  */
@@ -249,10 +264,22 @@ public:
 		   enum noside noside) override
   {
     value *arg1 = std::get<1> (m_storage)->evaluate (nullptr, exp, noside);
-    value *arg2 = std::get<2> (m_storage)->evaluate (value_type (arg1),
+    value *arg2 = std::get<2> (m_storage)->evaluate (arg1->type (),
 						     exp, noside);
     return ada_equal_binop (expect_type, exp, noside, std::get<0> (m_storage),
 			    arg1, arg2);
+  }
+
+  void do_generate_ax (struct expression *exp,
+		       struct agent_expr *ax,
+		       struct axs_value *value,
+		       struct type *cast_type)
+    override
+  {
+    gen_expr_binop (exp, opcode (),
+		    std::get<1> (this->m_storage).get (),
+		    std::get<2> (this->m_storage).get (),
+		    ax, value);
   }
 
   enum exp_opcode opcode () const override
@@ -275,7 +302,7 @@ public:
     value *lhs = std::get<0> (m_storage)->evaluate (nullptr, exp, noside);
     value *rhs = std::get<1> (m_storage)->evaluate (nullptr, exp, noside);
     value *result = eval_op_binary (expect_type, exp, noside, OP, lhs, rhs);
-    return value_cast (value_type (lhs), result);
+    return value_cast (lhs->type (), result);
   }
 
   enum exp_opcode opcode () const override
@@ -380,7 +407,11 @@ public:
 
 protected:
 
-  using operation::do_generate_ax;
+  void do_generate_ax (struct expression *exp,
+		       struct agent_expr *ax,
+		       struct axs_value *value,
+		       struct type *cast_type)
+    override;
 };
 
 /* Variant of var_msym_value_operation for Ada.  */
@@ -400,8 +431,14 @@ protected:
   using operation::do_generate_ax;
 };
 
-/* Implement the Ada 'val attribute.  */
-class ada_atr_val_operation
+typedef struct value *ada_atr_ftype (struct expression *exp,
+				     enum noside noside,
+				     struct type *type,
+				     struct value *arg);
+
+/* Implement several Ada attributes.  */
+template<ada_atr_ftype FUNC>
+class ada_atr_operation
   : public tuple_holding_operation<struct type *, operation_up>
 {
 public:
@@ -410,11 +447,22 @@ public:
 
   value *evaluate (struct type *expect_type,
 		   struct expression *exp,
-		   enum noside noside) override;
+		   enum noside noside) override
+  {
+    value *arg = std::get<1> (m_storage)->evaluate (nullptr, exp, noside);
+    return FUNC (exp, noside, std::get<0> (m_storage), arg);
+  }
 
   enum exp_opcode opcode () const override
-  { return OP_ATR_VAL; }
+  {
+    /* The value here generally doesn't matter.  */
+    return OP_ATR_VAL;
+  }
 };
+
+using ada_atr_val_operation = ada_atr_operation<ada_val_atr>;
+using ada_atr_enum_rep_operation = ada_atr_operation<ada_atr_enum_rep>;
+using ada_atr_enum_val_operation = ada_atr_operation<ada_atr_enum_val>;
 
 /* The indirection operator for Ada.  */
 class ada_unop_ind_operation
@@ -505,6 +553,66 @@ public:
 
   enum exp_opcode opcode () const override
   { return BINOP_ASSIGN; }
+
+  value *current ()
+  { return m_current; }
+
+  /* A helper function for the parser to evaluate just the LHS of the
+     assignment.  */
+  value *eval_for_resolution (struct expression *exp)
+  {
+    return std::get<0> (m_storage)->evaluate (nullptr, exp,
+					      EVAL_AVOID_SIDE_EFFECTS);
+  }
+
+  /* The parser must construct the assignment node before parsing the
+     RHS, so that '@' can access the assignment, so this helper
+     function is needed to set the RHS after construction.  */
+  void set_rhs (operation_up rhs)
+  {
+    std::get<1> (m_storage) = std::move (rhs);
+  }
+
+private:
+
+  /* Temporary storage for the value of the left-hand-side.  */
+  value *m_current = nullptr;
+};
+
+/* Implement the Ada target name symbol ('@').  This is used to refer
+   to the LHS of an assignment from the RHS.  */
+class ada_target_operation : public operation
+{
+public:
+
+  explicit ada_target_operation (ada_assign_operation *lhs)
+    : m_lhs (lhs)
+  { }
+
+  value *evaluate (struct type *expect_type,
+		   struct expression *exp,
+		   enum noside noside) override
+  {
+    if (noside == EVAL_AVOID_SIDE_EFFECTS)
+      return m_lhs->eval_for_resolution (exp);
+    return m_lhs->current ();
+  }
+
+  enum exp_opcode opcode () const override
+  {
+    /* It doesn't really matter.  */
+    return OP_VAR_VALUE;
+  }
+
+  void dump (struct ui_file *stream, int depth) const override
+  {
+    gdb_printf (stream, _("%*sAda target symbol '@'\n"), depth, "");
+  }
+
+private:
+
+  /* The left hand side of the assignment.  */
+  ada_assign_operation *m_lhs;
 };
 
 /* This abstract class represents a single component in an Ada

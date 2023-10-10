@@ -28,10 +28,10 @@
    one for little-endian machines.   */
 
 #ifndef bfd_elfNN_close_and_cleanup
-#define	bfd_elfNN_close_and_cleanup _bfd_elf_close_and_cleanup
+#define	bfd_elfNN_close_and_cleanup _bfd_generic_close_and_cleanup
 #endif
 #ifndef bfd_elfNN_bfd_free_cached_info
-#define bfd_elfNN_bfd_free_cached_info _bfd_free_cached_info
+#define bfd_elfNN_bfd_free_cached_info _bfd_elf_free_cached_info
 #endif
 #ifndef bfd_elfNN_get_section_contents
 #define bfd_elfNN_get_section_contents _bfd_generic_get_section_contents
@@ -994,7 +994,7 @@ const bfd_target TARGET_BIG_SYM =
   (HAS_RELOC | EXEC_P | HAS_LINENO | HAS_DEBUG | HAS_SYMS | HAS_LOCALS
    | DYNAMIC | WP_TEXT | D_PAGED | BFD_COMPRESS | BFD_DECOMPRESS
    | BFD_COMPRESS_GABI | BFD_COMPRESS_ZSTD | BFD_CONVERT_ELF_COMMON
-   | BFD_USE_ELF_STT_COMMON),
+   | BFD_USE_ELF_STT_COMMON | BFD_NO_SECTION_HEADER),
 
   /* section_flags: mask of all section flags */
   (SEC_HAS_CONTENTS | SEC_ALLOC | SEC_LOAD | SEC_RELOC | SEC_READONLY
@@ -1099,7 +1099,7 @@ const bfd_target TARGET_LITTLE_SYM =
   (HAS_RELOC | EXEC_P | HAS_LINENO | HAS_DEBUG | HAS_SYMS | HAS_LOCALS
    | DYNAMIC | WP_TEXT | D_PAGED | BFD_COMPRESS | BFD_DECOMPRESS
    | BFD_COMPRESS_GABI | BFD_COMPRESS_ZSTD | BFD_CONVERT_ELF_COMMON
-   | BFD_USE_ELF_STT_COMMON),
+   | BFD_USE_ELF_STT_COMMON | BFD_NO_SECTION_HEADER),
 
   /* section_flags: mask of all section flags */
   (SEC_HAS_CONTENTS | SEC_ALLOC | SEC_LOAD | SEC_RELOC | SEC_READONLY

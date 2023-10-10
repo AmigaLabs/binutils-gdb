@@ -387,6 +387,8 @@ symbol_init (symbolS *symbolP, const char *name, asection *sec,
     }
 
   S_SET_VALUE (symbolP, valu);
+  if (sec == reg_section)
+    symbolP->x->value.X_op = O_register;
 
   symbol_clear_list_pointers (symbolP);
 
@@ -2418,14 +2420,13 @@ S_IS_LOCAL (symbolS *s)
   if (s->flags.local_symbol)
     return 1;
 
-  flags = s->bsym->flags;
-
-  /* Sanity check.  */
-  if ((flags & BSF_LOCAL) && (flags & BSF_GLOBAL))
-    abort ();
+  if (S_IS_EXTERNAL (s))
+    return 0;
 
   if (bfd_asymbol_section (s->bsym) == reg_section)
     return 1;
+
+  flags = s->bsym->flags;
 
   if (flag_strip_local_absolute
       /* Keep BSF_FILE symbols in order to allow debuggers to identify
@@ -2463,7 +2464,7 @@ S_CAN_BE_REDEFINED (const symbolS *s)
     return (((struct local_symbol *) s)->frag
 	    == &predefined_address_frag);
   /* Permit register names to be redefined.  */
-  return s->bsym->section == reg_section;
+  return s->x->value.X_op == O_register;
 }
 
 int
@@ -3101,7 +3102,7 @@ symbol_begin (void)
 {
   symbol_lastP = NULL;
   symbol_rootP = NULL;		/* In case we have 0 symbols (!!)  */
-  sy_hash = htab_create_alloc (16, hash_symbol_entry, eq_symbol_entry,
+  sy_hash = htab_create_alloc (1024, hash_symbol_entry, eq_symbol_entry,
 			       NULL, xcalloc, free);
 
 #if defined (EMIT_SECTION_SYMBOLS) || !defined (RELOC_REQUIRES_SYMBOL)

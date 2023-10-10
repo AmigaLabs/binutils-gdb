@@ -23,6 +23,7 @@
 #include "gdbarch.h"
 #include "infrun.h"
 #include "expression.h"
+#include "gdbsupport/x86-xstate.h"
 
 class frame_info_ptr;
 struct gdbarch;
@@ -144,6 +145,9 @@ struct i386_gdbarch_tdep : gdbarch_tdep_base
 
   /* Offset of XCR0 in XSAVE extended state.  */
   int xsave_xcr0_offset = 0;
+
+  /* Layout of the XSAVE area extended region.  */
+  x86_xsave_layout xsave_layout;
 
   /* Register names.  */
   const char * const *register_names = nullptr;
@@ -353,7 +357,7 @@ enum record_i386_regnum
 /* Types for i386-specific registers.  */
 extern struct type *i387_ext_type (struct gdbarch *gdbarch);
 
-/* Checks of different pseudo-registers.  */
+/* Checks of different registers.  */
 extern int i386_byte_regnum_p (struct gdbarch *gdbarch, int regnum);
 extern int i386_word_regnum_p (struct gdbarch *gdbarch, int regnum);
 extern int i386_dword_regnum_p (struct gdbarch *gdbarch, int regnum);
@@ -387,8 +391,8 @@ extern int i386_ax_pseudo_register_collect (struct gdbarch *gdbarch,
 
 /* Segment selectors.  */
 #define I386_SEL_RPL	0x0003  /* Requester's Privilege Level mask.  */
-#define I386_SEL_UPL	0x0003	/* User Privilige Level.  */
-#define I386_SEL_KPL	0x0000	/* Kernel Privilige Level.  */
+#define I386_SEL_UPL	0x0003	/* User Privilege Level.  */
+#define I386_SEL_KPL	0x0000	/* Kernel Privilege Level.  */
 
 /* The length of the longest i386 instruction (according to
    include/asm-i386/kprobes.h in Linux 2.6.  */
@@ -448,7 +452,7 @@ extern displaced_step_copy_insn_closure_up i386_displaced_step_copy_insn
    struct regcache *regs);
 extern void i386_displaced_step_fixup
   (struct gdbarch *gdbarch, displaced_step_copy_insn_closure *closure,
-   CORE_ADDR from, CORE_ADDR to, regcache *regs);
+   CORE_ADDR from, CORE_ADDR to, regcache *regs, bool completed_p);
 
 /* Initialize a basic ELF architecture variant.  */
 extern void i386_elf_init_abi (struct gdbarch_info, struct gdbarch *);

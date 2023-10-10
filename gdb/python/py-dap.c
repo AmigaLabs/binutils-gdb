@@ -21,7 +21,7 @@
 #include "python-internal.h"
 #include "interps.h"
 #include "cli-out.h"
-#include "top.h"
+#include "ui.h"
 
 class dap_interp final : public interp
 {
@@ -45,10 +45,9 @@ public:
   {
   }
 
-  gdb_exception exec (const char *command) override
+  void exec (const char *command) override
   {
     /* Just ignore it.  */
-    return {};
   }
 
   void set_logging (ui_file_up logfile, bool logging_redirect,
@@ -92,8 +91,11 @@ void _initialize_py_interp ();
 void
 _initialize_py_interp ()
 {
+  /* The dap code uses module typing, available starting python 3.5.  */
+#if PY_VERSION_HEX >= 0x03050000
   interp_factory_register ("dap", [] (const char *name) -> interp *
     {
       return new dap_interp (name);
     });
+#endif
 }

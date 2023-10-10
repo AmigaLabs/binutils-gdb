@@ -1,5 +1,5 @@
 #source: opcode.s
-#as: -J
+#as: -J --divide
 #objdump: -dwMintel
 #name: i386 opcodes (Intel disassembly)
 
@@ -102,7 +102,7 @@ Disassembly of section .text:
  *[0-9a-f]+:	60[ 	]+pusha
  *[0-9a-f]+:	61[ 	]+popa
  *[0-9a-f]+:	62 90 90 90 90 90[ 	]+bound[ 	]+edx,(QWORD PTR )?\[eax-0x6f6f6f70\]
- *[0-9a-f]+:	63 90 90 90 90 90[ 	]+arpl[ 	]+(WORD PTR )?\[eax-0x6f6f6f70\],dx
+ *[0-9a-f]+:	63 90 90 90 90 90[ 	]+arpl[ 	]+(WORD PTR )?\[eax-0x6f6f6f70\],edx
  *[0-9a-f]+:	68 90 90 90 90[ 	]+push[ 	]+0x90909090
  *[0-9a-f]+:	69 90 90 90 90 90 90 90 90 90[ 	]+imul[ 	]+edx,(DWORD PTR )?\[eax-0x6f6f6f70\],0x90909090
  *[0-9a-f]+:	6a 90[ 	]+push[ 	]+0xffffff90
@@ -598,7 +598,7 @@ Disassembly of section .text:
 [ 	]*[a-f0-9]+:	df 38                	fistp  QWORD PTR \[eax\]
 [ 	]*[a-f0-9]+:	df 38                	fistp  QWORD PTR \[eax\]
  +[a-f0-9]+:	82 c3 01             	add    bl,0x1
- +[a-f0-9]+:	82 f3 01             	xor    bl,0x1
+ +[a-f0-9]+:	82 cb 01             	or     bl,0x1
  +[a-f0-9]+:	82 d3 01             	adc    bl,0x1
  +[a-f0-9]+:	82 db 01             	sbb    bl,0x1
  +[a-f0-9]+:	82 e3 01             	and    bl,0x1

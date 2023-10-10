@@ -3333,19 +3333,38 @@ Layout::create_gold_note()
 
   std::string desc = std::string("gold ") + gold::get_version_string();
 
-  size_t trailing_padding;
-  Output_section* os = this->create_note("GNU", elfcpp::NT_GNU_GOLD_VERSION,
-					 ".note.gnu.gold-version", desc.size(),
-					 false, &trailing_padding);
-  if (os == NULL)
-    return;
+  Output_section* os;
+  Output_section_data* posd;
 
-  Output_section_data* posd = new Output_data_const(desc, 4);
-  os->add_output_section_data(posd);
-
-  if (trailing_padding > 0)
+  if (!parameters->options().enable_linker_version())
     {
-      posd = new Output_data_zero_fill(trailing_padding, 0);
+      size_t trailing_padding;
+
+      os = this->create_note("GNU", elfcpp::NT_GNU_GOLD_VERSION,
+			     ".note.gnu.gold-version", desc.size(),
+			     false, &trailing_padding);
+      if (os == NULL)
+	return;
+
+      posd = new Output_data_const(desc, 4);
+      os->add_output_section_data(posd);
+
+      if (trailing_padding > 0)
+	{
+	  posd = new Output_data_zero_fill(trailing_padding, 0);
+	  os->add_output_section_data(posd);
+	}
+    }
+  else
+    {
+      os = this->choose_output_section(NULL, ".comment",
+				       elfcpp::SHT_PROGBITS, 0,
+				       false, ORDER_INVALID,
+				       false, false, false);
+      if (os == NULL)
+	return;
+
+      posd = new Output_data_const(desc, 1);
       os->add_output_section_data(posd);
     }
 }
@@ -5119,7 +5138,8 @@ void
 Layout::add_target_dynamic_tags(bool use_rel, const Output_data* plt_got,
 				const Output_data* plt_rel,
 				const Output_data_reloc_generic* dyn_rel,
-				bool add_debug, bool dynrel_includes_plt)
+				bool add_debug, bool dynrel_includes_plt,
+				bool custom_relcount)
 {
   Output_data_dynamic* odyn = this->dynamic_data_;
   if (odyn == NULL)
@@ -5184,11 +5204,15 @@ Layout::add_target_dynamic_tags(bool use_rel, const Output_data* plt_got,
       if (parameters->options().combreloc() && have_dyn_rel)
 	{
 	  size_t c = dyn_rel->relative_reloc_count();
-	  if (c > 0)
-	    odyn->add_constant((use_rel
-				? elfcpp::DT_RELCOUNT
-				: elfcpp::DT_RELACOUNT),
-			       c);
+	  if (c != 0)
+	    {
+	      elfcpp::DT tag
+		= use_rel ? elfcpp::DT_RELCOUNT : elfcpp::DT_RELACOUNT;
+	      if (custom_relcount)
+		odyn->add_custom(tag);
+	      else
+		odyn->add_constant(tag, c);
+	    }
 	}
     }
 

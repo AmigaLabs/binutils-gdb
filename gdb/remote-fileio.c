@@ -33,7 +33,7 @@
 #include <fcntl.h>
 #include "gdbsupport/gdb_sys_time.h"
 #ifdef __CYGWIN__
-#include <sys/cygwin.h>		/* For cygwin_conv_path.  */
+#include <sys/cygwin.h>
 #endif
 #include <signal.h>
 
@@ -1191,12 +1191,17 @@ remote_fileio_request (remote_target *remote, char *buf, int ctrlc_pending_p)
 	{
 	  do_remote_fileio_request (remote, buf);
 	}
+      catch (const gdb_exception_forced_quit &ex)
+	{
+	  throw;
+	}
+      catch (const gdb_exception_quit &ex)
+	{
+	  remote_fileio_reply (remote, -1, FILEIO_EINTR);
+	}
       catch (const gdb_exception &ex)
 	{
-	  if (ex.reason == RETURN_QUIT)
-	    remote_fileio_reply (remote, -1, FILEIO_EINTR);
-	  else
-	    remote_fileio_reply (remote, -1, FILEIO_EIO);
+	  remote_fileio_reply (remote, -1, FILEIO_EIO);
 	}
     }
 

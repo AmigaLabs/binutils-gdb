@@ -79,6 +79,8 @@ set_desired_process ()
   return proc != nullptr;
 }
 
+/* See target.h.  */
+
 int
 read_inferior_memory (CORE_ADDR memaddr, unsigned char *myaddr, int len)
 {
@@ -344,8 +346,8 @@ process_stratum_target::supports_read_auxv ()
 }
 
 int
-process_stratum_target::read_auxv (CORE_ADDR offset, unsigned char *myaddr,
-				   unsigned int len)
+process_stratum_target::read_auxv (int pid, CORE_ADDR offset,
+				   unsigned char *myaddr, unsigned int len)
 {
   gdb_assert_not_reached ("target op read_auxv not supported");
 }
@@ -715,15 +717,15 @@ process_stratum_target::disable_btrace (btrace_target_info *tinfo)
 
 int
 process_stratum_target::read_btrace (btrace_target_info *tinfo,
-			     buffer *buffer,
-			     enum btrace_read_type type)
+				     std::string *buffer,
+				     enum btrace_read_type type)
 {
   error (_("Target does not support branch tracing."));
 }
 
 int
 process_stratum_target::read_btrace_conf (const btrace_target_info *tinfo,
-					  buffer *buffer)
+					  std::string *buffer)
 {
   error (_("Target does not support branch tracing."));
 }

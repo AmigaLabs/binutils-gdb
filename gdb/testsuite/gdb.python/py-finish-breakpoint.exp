@@ -16,10 +16,7 @@
 # This file is part of the GDB testsuite.  It tests the mechanism
 # exposing values to Python.
 
-if {[skip_shlib_tests]} {
-	untested "skipping shared library tests"
-    return 0
-}
+require allow_shlib_tests allow_python_tests
 
 load_lib gdb-python.exp
 
@@ -39,8 +36,6 @@ if { [gdb_compile_shlib $libsrc $lib_sl $lib_opts] != ""
 
 # Start with a fresh gdb.
 clean_restart ${testfile}
-
-if { [skip_python_tests] } { continue }
 
 #
 # Test FinishBreakpoint in normal conditions
@@ -193,7 +188,7 @@ with_test_prefix "finish in normal frame" {
     gdb_test "python TestBreakpoint()" "TestBreakpoint init" "set BP in condition"
 
     gdb_test "continue" \
-	"test don't stop: 1.*test don't stop: 2.*test stop.*Error in testing breakpoint condition.*The program being debugged stopped while in a function called from GDB.*" \
+	"test don't stop: 1.*test don't stop: 2.*test stop.*Error in testing condition for breakpoint ${::decimal}.*The program being debugged stopped while in a function called from GDB.*" \
 	"stop in condition function"
 
     gdb_test "continue" "Continuing.*" "finish condition evaluation"

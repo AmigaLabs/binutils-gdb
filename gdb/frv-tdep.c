@@ -29,7 +29,6 @@
 #include "dis-asm.h"
 #include "sim-regno.h"
 #include "sim/sim-frv.h"
-#include "opcodes/frv-desc.h"	/* for the H_SPR_... enums */
 #include "symtab.h"
 #include "elf-bfd.h"
 #include "elf/frv.h"
@@ -39,6 +38,11 @@
 #include "frv-tdep.h"
 #include "objfiles.h"
 #include "gdbarch.h"
+
+/* Make cgen names unique to prevent ODR conflicts with other targets.  */
+#define GDB_CGEN_REMAP_PREFIX frv
+#include "cgen-remap.h"
+#include "opcodes/frv-desc.h"
 
 struct frv_unwind_cache		/* was struct frame_extra_info */
   {
@@ -1211,7 +1215,7 @@ frv_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
 
   stack_space = 0;
   for (argnum = 0; argnum < nargs; ++argnum)
-    stack_space += align_up (value_type (args[argnum])->length (), 4);
+    stack_space += align_up (args[argnum]->type ()->length (), 4);
 
   stack_space -= (6 * 4);
   if (stack_space > 0)
@@ -1231,14 +1235,14 @@ frv_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
   for (argnum = 0; argnum < nargs; ++argnum)
     {
       arg = args[argnum];
-      arg_type = check_typedef (value_type (arg));
+      arg_type = check_typedef (arg->type ());
       len = arg_type->length ();
       typecode = arg_type->code ();
 
       if (typecode == TYPE_CODE_STRUCT || typecode == TYPE_CODE_UNION)
 	{
 	  store_unsigned_integer (valbuf, 4, byte_order,
-				  value_address (arg));
+				  arg->address ());
 	  typecode = TYPE_CODE_PTR;
 	  len = 4;
 	  val = valbuf;
@@ -1251,7 +1255,7 @@ frv_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
 	  /* The FDPIC ABI requires function descriptors to be passed instead
 	     of entry points.  */
 	  CORE_ADDR addr = extract_unsigned_integer
-			     (value_contents (arg).data (), 4, byte_order);
+	    (arg->contents ().data (), 4, byte_order);
 	  addr = find_func_descr (gdbarch, addr);
 	  store_unsigned_integer (valbuf, 4, byte_order, addr);
 	  typecode = TYPE_CODE_PTR;
@@ -1260,7 +1264,7 @@ frv_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
 	}
       else
 	{
-	  val = value_contents (arg).data ();
+	  val = arg->contents ().data ();
 	}
 
       while (len > 0)

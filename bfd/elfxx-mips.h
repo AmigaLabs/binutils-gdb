@@ -29,9 +29,15 @@ enum reloc_check
   check_shuffle
 };
 
+#ifndef MIPS_DEFAULT_R6
+#define MIPS_DEFAULT_R6 0
+#endif
+
+struct ecoff_debug_info;
+
 extern bool _bfd_mips_elf_mkobject
   (bfd *);
-extern bool _bfd_mips_elf_close_and_cleanup
+extern bool _bfd_mips_elf_free_cached_info
   (bfd *);
 extern bool _bfd_mips_elf_new_section_hook
   (bfd *, asection *);

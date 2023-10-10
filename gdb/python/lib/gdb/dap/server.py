@@ -1,4 +1,4 @@
-# Copyright 2022 Free Software Foundation, Inc.
+# Copyright 2022-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import inspect
 import json
 import queue
 import sys
@@ -25,6 +26,7 @@ from .startup import (
     log_stack,
     send_gdb_with_response,
 )
+from .typecheck import type_check
 
 
 # Map capability names to values.
@@ -100,9 +102,7 @@ class Server:
         log("WROTE: <<<" + json.dumps(obj) + ">>>")
         self.write_queue.put(obj)
 
-    # This must be run in the DAP thread, but we can't use
-    # @in_dap_thread here because the global isn't set until after
-    # this starts running.  FIXME.
+    @in_dap_thread
     def main_loop(self):
         """The main loop of the DAP server."""
         # Before looping, start the thread that writes JSON to the
@@ -116,7 +116,7 @@ class Server:
             self._send_json(result)
             events = self.delayed_events
             self.delayed_events = []
-            for (event, body) in events:
+            for event, body in events:
                 self.send_event(event, body)
         # Got the terminate request.  This is handled by the
         # JSON-writing thread, so that we can ensure that all
@@ -152,7 +152,7 @@ class Server:
         self.done = True
 
 
-def send_event(event, body):
+def send_event(event, body=None):
     """Send an event to the DAP client.
     EVENT is the name of the event, a string.
     BODY is the body of the event, an arbitrary object."""
@@ -166,23 +166,46 @@ def request(name):
 
     def wrap(func):
         global _commands
-        _commands[name] = func
+        code = func.__code__
+        # We don't permit requests to have positional arguments.
+        try:
+            assert code.co_posonlyargcount == 0
+        except AttributeError:
+            # Attribute co_posonlyargcount is supported starting python 3.8.
+            pass
+        assert code.co_argcount == 0
+        # A request must have a **args parameter.
+        assert code.co_flags & inspect.CO_VARKEYWORDS
         # All requests must run in the DAP thread.
-        return in_dap_thread(func)
+        # Also type-check the calls.
+        func = in_dap_thread(type_check(func))
+        _commands[name] = func
+        return func
 
     return wrap
 
 
-def capability(name):
+def capability(name, value=True):
     """A decorator that indicates that the wrapper function implements
     the DAP capability NAME."""
 
     def wrap(func):
         global _capabilities
-        _capabilities[name] = True
+        _capabilities[name] = value
         return func
 
     return wrap
+
+
+def client_bool_capability(name):
+    """Return the value of a boolean client capability.
+
+    If the capability was not specified, or did not have boolean type,
+    False is returned."""
+    global _server
+    if name in _server.config and isinstance(_server.config[name], bool):
+        return _server.config[name]
+    return False
 
 
 @request("initialize")
@@ -203,7 +226,7 @@ def terminate(**args):
 
 @request("disconnect")
 @capability("supportTerminateDebuggee")
-def disconnect(*, terminateDebuggee=False, **args):
+def disconnect(*, terminateDebuggee: bool = False, **args):
     if terminateDebuggee:
         terminate()
     _server.shutdown()

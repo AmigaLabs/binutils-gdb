@@ -3577,8 +3577,11 @@ mips_elf64_gprel32_reloc (bfd *abfd, arelent *reloc_entry, asymbol *symbol,
   else
     relocation = symbol->value;
 
-  relocation += symbol->section->output_section->vma;
-  relocation += symbol->section->output_offset;
+  if (symbol->section->output_section != NULL)
+    {
+      relocation += symbol->section->output_section->vma;
+      relocation += symbol->section->output_offset;
+    }
 
   if (!_bfd_mips_reloc_offset_in_range (abfd, input_section, reloc_entry,
 					check_inplace))
@@ -4815,7 +4818,7 @@ const struct elf_size_info mips_elf64_size_info =
 
 #define bfd_elf64_get_dynamic_reloc_upper_bound mips_elf64_get_dynamic_reloc_upper_bound
 #define bfd_elf64_mkobject		_bfd_mips_elf_mkobject
-#define bfd_elf64_close_and_cleanup	_bfd_mips_elf_close_and_cleanup
+#define bfd_elf64_bfd_free_cached_info	_bfd_mips_elf_free_cached_info
 
 /* The SGI style (n)64 NewABI.  */
 #define TARGET_LITTLE_SYM		mips_elf64_le_vec

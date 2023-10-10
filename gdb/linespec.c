@@ -254,9 +254,9 @@ enum linespec_token_type
 
 /* List of keywords.  This is NULL-terminated so that it can be used
    as enum completer.  */
-const char * const linespec_keywords[] = { "if", "thread", "task", "-force-condition", NULL };
+const char * const linespec_keywords[] = { "if", "thread", "task", "inferior", "-force-condition", NULL };
 #define IF_KEYWORD_INDEX 0
-#define FORCE_KEYWORD_INDEX 3
+#define FORCE_KEYWORD_INDEX 4
 
 /* A token of the linespec lexer  */
 
@@ -403,7 +403,7 @@ static std::vector<symtab_and_line> decode_digits_ordinary
   (struct linespec_state *self,
    linespec *ls,
    int line,
-   linetable_entry **best_entry);
+   const linetable_entry **best_entry);
 
 static std::vector<symtab_and_line> decode_digits_list_mode
   (struct linespec_state *self,
@@ -2079,7 +2079,7 @@ create_sals_line_offset (struct linespec_state *self,
     values = decode_digits_list_mode (self, ls, val);
   else
     {
-      struct linetable_entry *best_entry = NULL;
+      const linetable_entry *best_entry = NULL;
       int i, j;
 
       std::vector<symtab_and_line> intermediate_results
@@ -2128,7 +2128,7 @@ create_sals_line_offset (struct linespec_state *self,
 	if (filter[i])
 	  {
 	    struct symbol *sym = (blocks[i]
-				  ? block_containing_function (blocks[i])
+				  ? blocks[i]->containing_function ()
 				  : NULL);
 
 	    if (self->funfirstline)
@@ -2283,13 +2283,13 @@ convert_linespec_to_sals (struct linespec_state *state, linespec *ls)
 	/* Make sure we have a filename for canonicalization.  */
 	if (ls->explicit_loc.source_filename == NULL)
 	  {
-	    const char *fullname = symtab_to_fullname (state->default_symtab);
+	    const char *filename = state->default_symtab->filename;
 
 	    /* It may be more appropriate to keep DEFAULT_SYMTAB in its symtab
 	       form so that displaying SOURCE_FILENAME can follow the current
 	       FILENAME_DISPLAY_STRING setting.  But as it is used only rarely
 	       it has been kept for code simplicity only in absolute form.  */
-	    ls->explicit_loc.source_filename = xstrdup (fullname);
+	    ls->explicit_loc.source_filename = xstrdup (filename);
 	  }
     }
   else
@@ -3220,7 +3220,8 @@ decode_line_with_current_source (const char *string, int flags)
   location_spec_up locspec = string_to_location_spec (&string,
 						      current_language);
   std::vector<symtab_and_line> sals
-    = decode_line_1 (locspec.get (), flags, NULL, cursal.symtab, cursal.line);
+    = decode_line_1 (locspec.get (), flags, cursal.pspace, cursal.symtab,
+		    cursal.line);
 
   if (*string)
     error (_("Junk at end of line specification: %s"), string);
@@ -3900,17 +3901,14 @@ find_label_symbols_in_block (const struct block *block,
 {
   if (completion_mode)
     {
-      struct block_iterator iter;
-      struct symbol *sym;
       size_t name_len = strlen (name);
 
       int (*cmp) (const char *, const char *, size_t);
       cmp = case_sensitivity == case_sensitive_on ? strncmp : strncasecmp;
 
-      ALL_BLOCK_SYMBOLS (block, iter, sym)
+      for (struct symbol *sym : block_iterator_range (block))
 	{
-	  if (symbol_matches_domain (sym->language (),
-				     sym->domain (), LABEL_DOMAIN)
+	  if (sym->matches (LABEL_DOMAIN)
 	      && cmp (sym->search_name (), name, name_len) == 0)
 	    {
 	      result->push_back ({sym, block});
@@ -4028,7 +4026,7 @@ static std::vector<symtab_and_line>
 decode_digits_ordinary (struct linespec_state *self,
 			linespec *ls,
 			int line,
-			struct linetable_entry **best_entry)
+			const linetable_entry **best_entry)
 {
   std::vector<symtab_and_line> sals;
   for (const auto &elt : ls->file_symtabs)
@@ -4081,7 +4079,7 @@ linespec_parse_variable (struct linespec_state *self, const char *variable)
       sscanf ((variable[1] == '$') ? variable + 2 : variable + 1, "%d", &index);
       val_history
 	= access_value_history ((variable[1] == '$') ? -index : index);
-      if (value_type (val_history)->code () != TYPE_CODE_INT)
+      if (val_history->type ()->code () != TYPE_CODE_INT)
 	error (_("History values used in line "
 		 "specs must have integer values."));
       offset.offset = value_as_long (val_history);
@@ -4129,7 +4127,7 @@ minsym_found (struct linespec_state *self, struct objfile *objfile,
 	      struct minimal_symbol *msymbol,
 	      std::vector<symtab_and_line> *result)
 {
-  bool want_start_sal;
+  bool want_start_sal = false;
 
   CORE_ADDR func_addr;
   bool is_function = msymbol_is_function (objfile, msymbol, &func_addr);

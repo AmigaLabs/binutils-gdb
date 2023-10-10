@@ -465,7 +465,7 @@ gdbscm_register_breakpoint_x (SCM self)
 	    const breakpoint_ops *ops =
 	      breakpoint_ops_for_location_spec (locspec.get (), false);
 	    create_breakpoint (get_current_arch (),
-			       locspec.get (), NULL, -1, NULL, false,
+			       locspec.get (), NULL, -1, -1, NULL, false,
 			       0,
 			       temporary, bp_breakpoint,
 			       0,
@@ -569,8 +569,8 @@ gdbscm_breakpoints (void)
 {
   SCM list = SCM_EOL;
 
-  for (breakpoint *bp : all_breakpoints ())
-    bpscm_build_bp_list (bp, &list);
+  for (breakpoint &bp : all_breakpoints ())
+    bpscm_build_bp_list (&bp, &list);
 
   return scm_reverse_x (list, SCM_EOL);
 }
@@ -773,11 +773,21 @@ gdbscm_set_breakpoint_thread_x (SCM self, SCM newvalue)
 	  gdbscm_out_of_range_error (FUNC_NAME, SCM_ARG2, newvalue,
 				     _("invalid thread id"));
 	}
+
+      if (bp_smob->bp->task != -1)
+	scm_misc_error (FUNC_NAME,
+			_("cannot set both task and thread attributes"),
+			SCM_EOL);
     }
   else if (gdbscm_is_false (newvalue))
     id = -1;
   else
     SCM_ASSERT_TYPE (0, newvalue, SCM_ARG2, FUNC_NAME, _("integer or #f"));
+
+  if (bp_smob->bp->inferior != -1 && id != -1)
+    scm_misc_error (FUNC_NAME,
+		    _("Cannot have both 'thread' and 'inferior' "
+		      "conditions on a breakpoint"), SCM_EOL);
 
   breakpoint_set_thread (bp_smob->bp, id);
 
@@ -792,7 +802,7 @@ gdbscm_breakpoint_task (SCM self)
   breakpoint_smob *bp_smob
     = bpscm_get_valid_breakpoint_smob_arg_unsafe (self, SCM_ARG1, FUNC_NAME);
 
-  if (bp_smob->bp->task == 0)
+  if (bp_smob->bp->task == -1)
     return SCM_BOOL_F;
 
   return scm_from_long (bp_smob->bp->task);
@@ -828,9 +838,14 @@ gdbscm_set_breakpoint_task_x (SCM self, SCM newvalue)
 	  gdbscm_out_of_range_error (FUNC_NAME, SCM_ARG2, newvalue,
 				     _("invalid task id"));
 	}
+
+      if (bp_smob->bp->thread != -1)
+	scm_misc_error (FUNC_NAME,
+			_("cannot set both task and thread attributes"),
+			SCM_EOL);
     }
   else if (gdbscm_is_false (newvalue))
-    id = 0;
+    id = -1;
   else
     SCM_ASSERT_TYPE (0, newvalue, SCM_ARG2, FUNC_NAME, _("integer or #f"));
 
@@ -875,12 +890,11 @@ gdbscm_breakpoint_expression (SCM self)
 {
   breakpoint_smob *bp_smob
     = bpscm_get_valid_breakpoint_smob_arg_unsafe (self, SCM_ARG1, FUNC_NAME);
-  struct watchpoint *wp;
 
   if (!is_watchpoint (bp_smob->bp))
     return SCM_BOOL_F;
 
-  wp = (struct watchpoint *) bp_smob->bp;
+  watchpoint *wp = gdb::checked_static_cast<watchpoint *> (bp_smob->bp);
 
   const char *str = wp->exp_string.get ();
   if (! str)

@@ -18,6 +18,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
+#include "language.h"
 #include "value.h"
 #include "cp-abi.h"
 #include "command.h"
@@ -110,7 +111,7 @@ value_rtti_type (struct value *v, int *full,
   struct type *ret = NULL;
 
   if ((current_cp_abi.rtti_type) == NULL
-      || !HAVE_CPLUS_STRUCT (check_typedef (value_type (v))))
+      || !HAVE_CPLUS_STRUCT (check_typedef (v->type ())))
     return NULL;
   try
     {

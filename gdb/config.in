@@ -3,6 +3,9 @@
 /* Define if building universal (internal helper macro) */
 #undef AC_APPLE_UNIVERSAL_BUILD
 
+/* Additional directories to look for separate debug info. */
+#undef ADDITIONAL_DEBUG_DIRS
+
 /* Directories from which to load auto-loaded scripts. */
 #undef AUTO_LOAD_DIR
 
@@ -83,6 +86,9 @@
 /* Define to 1 if you have <alloca.h> and it should be used (not on Ultrix).
    */
 #undef HAVE_ALLOCA_H
+
+/* Define if amd-dbgapi is being linked in. */
+#undef HAVE_AMD_DBGAPI
 
 /* Define to 1 if you have the `btowc' function. */
 #undef HAVE_BTOWC
@@ -235,8 +241,14 @@
 /* Define if libbacktrace is being used. */
 #undef HAVE_LIBBACKTRACE
 
+/* Define to 1 if curses is enabled. */
+#undef HAVE_LIBCURSES
+
 /* Define to 1 if debuginfod is enabled. */
 #undef HAVE_LIBDEBUGINFOD
+
+/* Define to 1 if debuginfod section downloading is supported. */
+#undef HAVE_LIBDEBUGINFOD_FIND_SECTION
 
 /* Define if you have the expat library. */
 #undef HAVE_LIBEXPAT
@@ -561,9 +573,6 @@
 
 /* Define to 1 if you have the <wait.h> header file. */
 #undef HAVE_WAIT_H
-
-/* Define to 1 if you have the `wborder' function. */
-#undef HAVE_WBORDER
 
 /* Define to 1 if you have the <windows.h> header file. */
 #undef HAVE_WINDOWS_H

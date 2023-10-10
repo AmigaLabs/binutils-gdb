@@ -27,6 +27,7 @@
 #define DONTDECLARE_MALLOC
 
 #include "sysdep.h"
+#include "libiberty.h"
 #include "bfd.h"
 #include "bfdlink.h"
 #include "ctf-api.h"
@@ -58,6 +59,8 @@ static char *error_names[ERROR_NAME_MAX];
 static int error_index;
 #define PUSH_ERROR(x) if (error_index < ERROR_NAME_MAX) error_names[error_index] = x; error_index++;
 #define POP_ERROR()   error_index--;
+
+static void yyerror (const char *);
 %}
 %union {
   bfd_vma integer;
@@ -108,7 +111,7 @@ static int error_index;
 %type <section_phdr> phdr_opt
 %type <integer> opt_nocrossrefs
 
-%right <token> PLUSEQ MINUSEQ MULTEQ DIVEQ  '=' LSHIFTEQ RSHIFTEQ   ANDEQ OREQ
+%right <token> PLUSEQ MINUSEQ MULTEQ DIVEQ  '=' LSHIFTEQ RSHIFTEQ   ANDEQ OREQ XOREQ
 %right <token> '?' ':'
 %left <token> OROR
 %left <token>  ANDAND
@@ -125,8 +128,8 @@ static int error_index;
 %right UNARY
 %token END
 %left <token> '('
-%token <token> ALIGN_K BLOCK BIND QUAD SQUAD LONG SHORT BYTE
-%token SECTIONS PHDRS INSERT_K AFTER BEFORE
+%token <token> ALIGN_K BLOCK BIND QUAD SQUAD LONG SHORT BYTE ASCIZ
+%token SECTIONS PHDRS INSERT_K AFTER BEFORE LINKER_VERSION
 %token DATA_SEGMENT_ALIGN DATA_SEGMENT_RELRO_END DATA_SEGMENT_END
 %token SORT_BY_NAME SORT_BY_ALIGNMENT SORT_NONE
 %token SORT_BY_INIT_PRIORITY
@@ -668,10 +671,17 @@ statement:
 		{
 		  lang_add_data ((int) $1, $3);
 		}
-
+	| ASCIZ NAME
+		{
+		  lang_add_string ($2);
+		}
 	| FILL '(' fill_exp ')'
 		{
 		  lang_add_fill ($3);
+		}
+	| LINKER_VERSION
+		{
+		  lang_add_version_string ();
 		}
 	| ASSERT_K
 		{ ldlex_expression (); }
@@ -713,7 +723,7 @@ length:
 fill_exp:
 	mustbe_exp
 		{
-		  $$ = exp_get_fill ($1, 0, "fill value");
+		  $$ = exp_get_fill ($1, 0, _("fill value"));
 		}
 	;
 
@@ -740,6 +750,8 @@ assign_op:
 			{ $$ = '&'; }
 	|	OREQ
 			{ $$ = '|'; }
+	|	XOREQ
+			{ $$ = '^'; }
 
 	;
 
@@ -1497,15 +1509,14 @@ opt_semicolon:
 	;
 
 %%
-void
-yyerror(arg)
-     const char *arg;
+static void
+yyerror (const char *arg)
 {
   if (ldfile_assumed_script)
     einfo (_("%P:%s: file format not recognized; treating as linker script\n"),
 	   ldlex_filename ());
   if (error_index > 0 && error_index < ERROR_NAME_MAX)
-    einfo ("%F%P:%pS: %s in %s\n", NULL, arg, error_names[error_index - 1]);
+    einfo (_("%F%P:%pS: %s in %s\n"), NULL, arg, error_names[error_index - 1]);
   else
     einfo ("%F%P:%pS: %s\n", NULL, arg);
 }

@@ -19,9 +19,7 @@ load_lib gdbserver-support.exp
 
 standard_testfile
 
-if { [skip_gdbserver_tests] } {
-    return 0
-}
+require allow_gdbserver_tests
 
 global server_spawn_id
 
@@ -38,7 +36,7 @@ expect {
 	gdb_assert "$num_ran >= 0" $test
     }
 
-    -re "Selftests have been disabled for this build.\r\n$" {
+    -re "Selftests have been disabled for this build.\r\n" {
 	unsupported $test
     }
 

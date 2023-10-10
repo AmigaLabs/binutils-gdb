@@ -1,4 +1,4 @@
-# Copyright 2022 Free Software Foundation, Inc.
+# Copyright 2022-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@ import gdb
 
 from .server import send_event
 from .startup import in_gdb_thread, Invoker, log
-from .breakpoint import breakpoint_descriptor
+from .modules import is_module, make_module
 
 
 @in_gdb_thread
@@ -32,50 +32,52 @@ def _on_exit(event):
             "exitCode": code,
         },
     )
+    send_event("terminated")
 
 
 @in_gdb_thread
-def _bp_modified(event):
+def thread_event(event, reason):
     send_event(
-        "breakpoint",
+        "thread",
         {
-            "reason": "changed",
-            "breakpoint": breakpoint_descriptor(event),
-        },
-    )
-
-
-@in_gdb_thread
-def _bp_created(event):
-    send_event(
-        "breakpoint",
-        {
-            "reason": "new",
-            "breakpoint": breakpoint_descriptor(event),
-        },
-    )
-
-
-@in_gdb_thread
-def _bp_deleted(event):
-    send_event(
-        "breakpoint",
-        {
-            "reason": "removed",
-            "breakpoint": breakpoint_descriptor(event),
+            "reason": reason,
+            "threadId": event.inferior_thread.global_num,
         },
     )
 
 
 @in_gdb_thread
 def _new_thread(event):
-    send_event(
-        "thread",
-        {
-            "reason": "started",
-            "threadId": event.inferior_thread.global_num,
-        },
-    )
+    thread_event(event, "started")
+
+
+@in_gdb_thread
+def _thread_exited(event):
+    thread_event(event, "exited")
+
+
+@in_gdb_thread
+def _new_objfile(event):
+    if is_module(event.new_objfile):
+        send_event(
+            "module",
+            {
+                "reason": "new",
+                "module": make_module(event.new_objfile),
+            },
+        )
+
+
+@in_gdb_thread
+def _objfile_removed(event):
+    if is_module(event.objfile):
+        send_event(
+            "module",
+            {
+                "reason": "removed",
+                "module": make_module(event.objfile),
+            },
+        )
 
 
 _suppress_cont = False
@@ -140,13 +142,10 @@ def _on_stop(event):
     global _expected_stop
     obj = {
         "threadId": gdb.selected_thread().global_num,
-        # FIXME we don't support non-stop for now.
         "allThreadsStopped": True,
     }
     if isinstance(event, gdb.BreakpointEvent):
         # Ignore the expected stop, we hit a breakpoint instead.
-        # FIXME differentiate between 'breakpoint', 'function breakpoint',
-        # 'data breakpoint' and 'instruction breakpoint' here.
         _expected_stop = StopKinds.BREAKPOINT
         obj["hitBreakpointIds"] = [x.number for x in event.breakpoints]
     elif _expected_stop is None:
@@ -159,8 +158,8 @@ def _on_stop(event):
 
 gdb.events.stop.connect(_on_stop)
 gdb.events.exited.connect(_on_exit)
-gdb.events.breakpoint_created.connect(_bp_created)
-gdb.events.breakpoint_modified.connect(_bp_modified)
-gdb.events.breakpoint_deleted.connect(_bp_deleted)
 gdb.events.new_thread.connect(_new_thread)
+gdb.events.thread_exited.connect(_thread_exited)
 gdb.events.cont.connect(_cont)
+gdb.events.new_objfile.connect(_new_objfile)
+gdb.events.free_objfile.connect(_objfile_removed)

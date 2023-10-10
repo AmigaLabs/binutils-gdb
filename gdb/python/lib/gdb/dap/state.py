@@ -1,4 +1,4 @@
-# Copyright 2022 Free Software Foundation, Inc.
+# Copyright 2022-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,4 +22,4 @@ def set_thread(thread_id):
     if thread_id == 0:
         log("+++ Thread == 0 +++")
     else:
-        exec_and_log(f"thread {thread_id}")
+        exec_and_log("thread " + str(thread_id))

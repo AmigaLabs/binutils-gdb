@@ -280,6 +280,9 @@ typedef struct
   /* If set, code and non-code sections should never be in one segment.  */
   bool separate_code;
 
+  /* If set, generation of ELF section header should be suppressed.  */
+  bool no_section_header;
+
   /* The rpath separation character.  Usually ':'.  */
   char rpath_separator;
 
@@ -296,6 +299,9 @@ typedef struct
 
   /* If set, print discarded sections in map file output.  */
   bool print_map_discarded;
+
+  /* If set, print local symbols in map file output.  */
+  bool print_map_locals;
 
   /* If set, emit the names and types of statically-linked variables
      into the CTF.  */

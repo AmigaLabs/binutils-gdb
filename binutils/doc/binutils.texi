@@ -521,6 +521,10 @@ operation @samp{r} (replace).  In particular, the combination @samp{qu} is
 not allowed, since checking the timestamps would lose any speed
 advantage from the operation @samp{q}.
 
+Note - if an archive has been created in a deterministic manner, eg
+via the use of the @option{D} modifier, then replacement will always
+happen and the @option{u} modifier will be ineffective.
+
 @item U
 @cindex deterministic archives
 @kindex --enable-deterministic-archives
@@ -915,7 +919,7 @@ The symbol is an indirect reference to another symbol.
 The symbol is a debugging symbol.
 
 @item n
-The symbol is in the read-only data section.
+The symbol is in a non-data, non-code, non-debug read-only section.
 
 @item p
 The symbol is in a stack unwind section.
@@ -1278,6 +1282,7 @@ objcopy [@option{-F} @var{bfdname}|@option{--target=}@var{bfdname}]
         [@option{-R} @var{sectionpattern}|@option{--remove-section=}@var{sectionpattern}]
         [@option{--keep-section=}@var{sectionpattern}]
         [@option{--remove-relocations=}@var{sectionpattern}]
+        [@option{--strip-section-headers}]
         [@option{-p}|@option{--preserve-dates}]
         [@option{-D}|@option{--enable-deterministic-archives}]
         [@option{-U}|@option{--disable-deterministic-archives}]
@@ -1494,6 +1499,10 @@ will remove all relocations for sections matching the pattern
 '.text.*', but will not remove relocations for the section
 '.text.foo'.
 
+@item --strip-section-headers
+Strip section header   This option is specific to ELF files.
+Implies @option{--strip-all} and @option{--merge-notes}.
+
 @item -S
 @itemx --strip-all
 Do not copy relocation and symbol information from the source file.
@@ -1621,6 +1630,11 @@ commands.  If the input was '12345678' then the outputs would be
 Set the access and modification dates of the output file to be the same
 as those of the input file.
 
+This option also copies the date stored in a PE format file's header,
+unless the SOURCE_DATE_EPOCH environment variable is defined.  If it
+is defined then this variable will be used as the date stored in the
+header, interpreted as the number of seconds since the Unix epoch.
+
 @item -D
 @itemx --enable-deterministic-archives
 @cindex deterministic archives
@@ -1740,13 +1754,14 @@ Set the flags for any sections matching @var{sectionpattern}.  The
 @var{flags} argument is a comma separated string of flag names.  The
 recognized names are @samp{alloc}, @samp{contents}, @samp{load},
 @samp{noload}, @samp{readonly}, @samp{code}, @samp{data}, @samp{rom},
-@samp{exclude}, @samp{share}, and @samp{debug}.  You can set the
-@samp{contents} flag for a section which does not have contents, but it
-is not meaningful to clear the @samp{contents} flag of a section which
-does have contents--just remove the section instead.  Not all flags are
-meaningful for all object file formats.  In particular the
-@samp{share} flag is only meaningful for COFF format files and not for
-ELF format files.
+@samp{exclude}, @samp{share}, @samp{debug}, and @samp{large}.
+You can set the @samp{contents} flag for a section which does not have
+contents, but it is not meaningful to clear the @samp{contents} flag of a
+section which does have contents--just remove the section instead.  Not all
+flags are meaningful for all object file formats.  In particular the
+@samp{share} flag is only meaningful for COFF format files and not for ELF
+format files.  The ELF x86-64 specific flag @samp{large} corresponds to
+SHF_X86_64_LARGE.
 
 @item --set-section-alignment @var{sectionpattern}=@var{align}
 Set the alignment for any sections matching @var{sectionpattern}.
@@ -2407,8 +2422,9 @@ used when disassembling.
 
 @item -D
 @itemx --disassemble-all
-Like @option{-d}, but disassemble the contents of all sections, not just
-those expected to contain instructions.
+Like @option{-d}, but disassemble the contents of all non-empty
+non-bss sections, not just those expected to contain instructions.
+@option{-j} may be used to select specific sections.
 
 This option also has a subtle effect on the disassembly of
 instructions in code sections.  When option @option{-d} is in effect
@@ -2502,7 +2518,8 @@ for specification with @option{-b} or @option{-m}.
 @item -j @var{name}
 @itemx --section=@var{name}
 @cindex section information
-Display information only for section @var{name}.
+Display information for section @var{name}.  This option may be
+specified multiple times.
 
 @item -L
 @itemx --process-links
@@ -2752,6 +2769,12 @@ For XCOFF, the available options are:
 @item ldinfo
 @end table
 
+For PE, the available options are:
+@table @code
+@item header
+@item sections
+@end table
+
 Not all object formats support this option.  In particular the ELF
 format does not use it.
 
@@ -2775,8 +2798,9 @@ disassembly.
 @itemx --full-contents
 @cindex sections, full contents
 @cindex object file sections
-Display the full contents of any sections requested.  By default all
-non-empty sections are displayed.
+Display the full contents of sections, often used in combination with
+@option{-j} to request specific sections.  By default all non-empty
+non-bss sections are displayed.
 
 @item -S
 @itemx --source
@@ -3475,6 +3499,7 @@ strip [@option{-F} @var{bfdname} |@option{--target=}@var{bfdname}]
       [@option{-R} @var{sectionname} |@option{--remove-section=}@var{sectionname}]
       [@option{--keep-section=}@var{sectionpattern}]
       [@option{--remove-relocations=}@var{sectionpattern}]
+      [@option{--strip-section-headers}]
       [@option{-o} @var{file}] [@option{-p}|@option{--preserve-dates}]
       [@option{-D}|@option{--enable-deterministic-archives}]
       [@option{-U}|@option{--disable-deterministic-archives}]
@@ -3576,6 +3601,10 @@ For example:
 will remove all relocations for sections matching the pattern
 '.text.*', but will not remove relocations for the section
 '.text.foo'.
+
+@item --strip-section-headers
+Strip section headers.  This option is specific to ELF files.  Implies
+@option{--strip-all} and @option{--merge-notes}.
 
 @item -s
 @itemx --strip-all
@@ -4936,6 +4965,7 @@ readelf [@option{-a}|@option{--all}]
         [@option{--quiet}]
         [@option{--recurse-limit}|@option{--no-recurse-limit}]
         [@option{-U} @var{method}|@option{--unicode=}@var{method}]
+        [@option{-X}|@option{--extra-sym-info}|@option{--no-extra-sym-info}]
         [@option{-n}|@option{--notes}]
         [@option{-r}|@option{--relocs}]
         [@option{-u}|@option{--unwind}]
@@ -5126,6 +5156,20 @@ unicode escape sequences but it will also highlighted them in red,
 assuming that colouring is supported by the output device.  The
 colouring is intended to draw attention to the presence of unicode
 sequences when they might not be expected.
+
+@item -X
+@itemx --extra-sym-info
+When displaying details of symbols, include extra information not
+normally presented.  Currently this just adds the name of the section
+referenced by the symbol's index field, if there is one.  In the
+future more information may be displayed when this option is enabled.
+
+Enabling this option effectively enables the @option{--wide} option as
+well, at least when displaying symbol information.
+
+@item --no-extra-sym-info
+Disables the effect of the @option{--extra-sym-info} option.  This
+is the default.
 
 @item -e
 @itemx --headers

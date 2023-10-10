@@ -16,15 +16,9 @@
 # Until "set follow-fork-mode" and "catch fork" are implemented on
 # other targets...
 #
-if {![istarget "*-*-linux*"]} {
-    unsupported "inferior-died.exp"
-    return
-}
+require {istarget "*-*-linux*"}
 
-if { ![support_displaced_stepping] } {
-    unsupported "inferior-died.exp"
-    return -1
-}
+require support_displaced_stepping
 
 standard_testfile .c
 

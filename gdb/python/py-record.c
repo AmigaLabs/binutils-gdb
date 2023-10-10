@@ -177,7 +177,8 @@ recpy_end (PyObject *self, void* closure)
 /* Create a new gdb.RecordInstruction object.  */
 
 PyObject *
-recpy_insn_new (thread_info *thread, enum record_method method, Py_ssize_t number)
+recpy_insn_new (thread_info *thread, enum record_method method,
+		Py_ssize_t number)
 {
   recpy_element_object * const obj = PyObject_New (recpy_element_object,
 						   &recpy_insn_type);
@@ -273,7 +274,8 @@ recpy_insn_is_speculative (PyObject *self, void *closure)
 /* Create a new gdb.RecordFunctionSegment object.  */
 
 PyObject *
-recpy_func_new (thread_info *thread, enum record_method method, Py_ssize_t number)
+recpy_func_new (thread_info *thread, enum record_method method,
+		Py_ssize_t number)
 {
   recpy_element_object * const obj = PyObject_New (recpy_element_object,
 						   &recpy_func_type);
@@ -544,7 +546,7 @@ static gdb_PyGetSetDef recpy_gap_getset[] = {
 
 /* Sets up the record API in the gdb module.  */
 
-int
+static int CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION
 gdbpy_initialize_record (void)
 {
   recpy_record_type.tp_new = PyType_GenericNew;
@@ -648,3 +650,5 @@ gdbpy_stop_recording (PyObject *self, PyObject *args)
 
   Py_RETURN_NONE;
 }
+
+GDBPY_INITIALIZE_FILE (gdbpy_initialize_record);

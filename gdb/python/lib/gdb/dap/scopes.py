@@ -1,4 +1,4 @@
-# Copyright 2022 Free Software Foundation, Inc.
+# Copyright 2022-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,48 +18,84 @@ import gdb
 from .frames import frame_for_id
 from .startup import send_gdb_with_response, in_gdb_thread
 from .server import request
+from .varref import BaseReference
 
 
-# Helper function to return a frame's block without error.
-@in_gdb_thread
-def _safe_block(frame):
-    try:
-        return frame.block()
-    except gdb.error:
-        return None
+class _ScopeReference(BaseReference):
+    def __init__(self, name, hint, frame, var_list):
+        super().__init__(name)
+        self.hint = hint
+        self.frame = frame
+        self.inf_frame = frame.inferior_frame()
+        self.func = frame.function()
+        self.line = frame.line()
+        # VAR_LIST might be any kind of iterator, but it's convenient
+        # here if it is just a collection.
+        self.var_list = tuple(var_list)
+
+    def to_object(self):
+        result = super().to_object()
+        result["presentationHint"] = self.hint
+        # How would we know?
+        result["expensive"] = False
+        result["namedVariables"] = len(self.var_list)
+        if self.line is not None:
+            result["line"] = self.line
+            # FIXME construct a Source object
+        return result
+
+    def child_count(self):
+        return len(self.var_list)
+
+    @in_gdb_thread
+    def fetch_one_child(self, idx):
+        # Make sure to select the frame first.  Ideally this would not
+        # be needed, but this is a way to set the current language
+        # properly so that language-dependent APIs will work.
+        self.inf_frame.select()
+        # Here SYM will conform to the SymValueWrapper interface.
+        sym = self.var_list[idx]
+        name = str(sym.symbol())
+        val = sym.value()
+        if val is None:
+            # No synthetic value, so must read the symbol value
+            # ourselves.
+            val = sym.symbol().value(self.inf_frame)
+        elif not isinstance(val, gdb.Value):
+            val = gdb.Value(val)
+        return (name, val)
 
 
-# Helper function to return a list of variables of block, up to the
-# enclosing function.
-@in_gdb_thread
-def _block_vars(block):
-    result = []
-    while True:
-        result += list(block)
-        if block.function is not None:
-            break
-        block = block.superblock
-    return result
+class _RegisterReference(_ScopeReference):
+    def __init__(self, name, frame):
+        super().__init__(
+            name, "registers", frame, frame.inferior_frame().architecture().registers()
+        )
+
+    @in_gdb_thread
+    def fetch_one_child(self, idx):
+        return (
+            self.var_list[idx].name,
+            self.inf_frame.read_register(self.var_list[idx]),
+        )
 
 
 # Helper function to create a DAP scopes for a given frame ID.
 @in_gdb_thread
 def _get_scope(id):
     frame = frame_for_id(id)
-    block = _safe_block(frame)
     scopes = []
-    if block is not None:
-        new_scope = {
-            # FIXME
-            "name": "Locals",
-            "expensive": False,
-            "namedVariables": len(_block_vars(block)),
-        }
-        scopes.append(new_scope)
-    return scopes
+    args = frame.frame_args()
+    if args:
+        scopes.append(_ScopeReference("Arguments", "arguments", frame, args))
+    locs = frame.frame_locals()
+    if locs:
+        scopes.append(_ScopeReference("Locals", "locals", frame, locs))
+    scopes.append(_RegisterReference("Registers", frame))
+    return [x.to_object() for x in scopes]
 
 
 @request("scopes")
-def scopes(*, frameId, **extra):
+def scopes(*, frameId: int, **extra):
     scopes = send_gdb_with_response(lambda: _get_scope(frameId))
     return {"scopes": scopes}

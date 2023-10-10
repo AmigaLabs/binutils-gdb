@@ -30,6 +30,7 @@
 #include "gdbsupport/gdb_signals.h"
 #include "py-event.h"
 #include "py-stopevent.h"
+#include "progspace-and-thread.h"
 #include <unordered_map>
 
 using thread_map_t
@@ -189,20 +190,22 @@ python_new_objfile (struct objfile *objfile)
   if (!gdb_python_initialized)
     return;
 
-  gdbpy_enter enter_py (objfile != NULL
-			? objfile->arch ()
-			: target_gdbarch ());
+  gdbpy_enter enter_py (objfile->arch ());
 
-  if (objfile == NULL)
-    {
-      if (emit_clear_objfiles_event () < 0)
-	gdbpy_print_stack ();
-    }
-  else
-    {
-      if (emit_new_objfile_event (objfile) < 0)
-	gdbpy_print_stack ();
-    }
+  if (emit_new_objfile_event (objfile) < 0)
+    gdbpy_print_stack ();
+}
+
+static void
+python_all_objfiles_removed (program_space *pspace)
+{
+  if (!gdb_python_initialized)
+    return;
+
+  gdbpy_enter enter_py (target_gdbarch ());
+
+  if (emit_clear_objfiles_event (pspace) < 0)
+    gdbpy_print_stack ();
 }
 
 /* Emit a Python event when an objfile is about to be removed.  */
@@ -360,7 +363,9 @@ add_thread_object (struct thread_info *tp)
 }
 
 static void
-delete_thread_object (struct thread_info *tp, int ignore)
+delete_thread_object (thread_info *tp,
+		      gdb::optional<ULONGEST> /* exit_code */,
+		      bool /* silent */)
 {
   if (!gdb_python_initialized)
     return;
@@ -370,6 +375,9 @@ delete_thread_object (struct thread_info *tp, int ignore)
   gdbpy_ref<inferior_object> inf_obj = inferior_to_inferior_object (tp->inf);
   if (inf_obj == NULL)
     return;
+
+  if (emit_thread_exit_event (tp) < 0)
+    gdbpy_print_stack ();
 
   auto it = inf_obj->threads->find (tp);
   if (it != inf_obj->threads->end ())
@@ -525,10 +533,13 @@ gdbpy_inferiors (PyObject *unused, PyObject *unused2)
 static PyObject *
 infpy_read_memory (PyObject *self, PyObject *args, PyObject *kw)
 {
+  inferior_object *inf = (inferior_object *) self;
   CORE_ADDR addr, length;
   gdb::unique_xmalloc_ptr<gdb_byte> buffer;
   PyObject *addr_obj, *length_obj;
   static const char *keywords[] = { "address", "length", NULL };
+
+  INFPY_REQUIRE_VALID (inf);
 
   if (!gdb_PyArg_ParseTupleAndKeywords (args, kw, "OO", keywords,
 					&addr_obj, &length_obj))
@@ -540,6 +551,11 @@ infpy_read_memory (PyObject *self, PyObject *args, PyObject *kw)
 
   try
     {
+      /* Use this scoped-restore because we want to be able to read
+	 memory from an unwinder.  */
+      scoped_restore_current_inferior_for_memory restore_inferior
+	(inf->inferior);
+
       buffer.reset ((gdb_byte *) xmalloc (length));
 
       read_memory (addr, buffer.get (), length);
@@ -562,6 +578,7 @@ infpy_read_memory (PyObject *self, PyObject *args, PyObject *kw)
 static PyObject *
 infpy_write_memory (PyObject *self, PyObject *args, PyObject *kw)
 {
+  inferior_object *inf = (inferior_object *) self;
   struct gdb_exception except;
   Py_ssize_t buf_len;
   const gdb_byte *buffer;
@@ -569,6 +586,8 @@ infpy_write_memory (PyObject *self, PyObject *args, PyObject *kw)
   PyObject *addr_obj, *length_obj = NULL;
   static const char *keywords[] = { "address", "buffer", "length", NULL };
   Py_buffer pybuf;
+
+  INFPY_REQUIRE_VALID (inf);
 
   if (!gdb_PyArg_ParseTupleAndKeywords (args, kw, "Os*|O", keywords,
 					&addr_obj, &pybuf, &length_obj))
@@ -588,6 +607,13 @@ infpy_write_memory (PyObject *self, PyObject *args, PyObject *kw)
 
   try
     {
+      /* It's probably not too important to avoid invalidating the
+	 frame cache when writing memory, but this scoped-restore is
+	 still used here, just to keep the code similar to other code
+	 in this file.  */
+      scoped_restore_current_inferior_for_memory restore_inferior
+	(inf->inferior);
+
       write_memory_with_notification (addr, buffer, length);
     }
   catch (gdb_exception &ex)
@@ -601,7 +627,7 @@ infpy_write_memory (PyObject *self, PyObject *args, PyObject *kw)
 }
 
 /* Implementation of
-   gdb.search_memory (address, length, pattern).  ADDRESS is the
+   Inferior.search_memory (address, length, pattern).  ADDRESS is the
    address to start the search.  LENGTH specifies the scope of the
    search from ADDRESS.  PATTERN is the pattern to search for (and
    must be a Python object supporting the buffer protocol).
@@ -611,6 +637,7 @@ infpy_write_memory (PyObject *self, PyObject *args, PyObject *kw)
 static PyObject *
 infpy_search_memory (PyObject *self, PyObject *args, PyObject *kw)
 {
+  inferior_object *inf = (inferior_object *) self;
   struct gdb_exception except;
   CORE_ADDR start_addr, length;
   static const char *keywords[] = { "address", "length", "pattern", NULL };
@@ -620,6 +647,8 @@ infpy_search_memory (PyObject *self, PyObject *args, PyObject *kw)
   CORE_ADDR found_addr;
   int found = 0;
   Py_buffer pybuf;
+
+  INFPY_REQUIRE_VALID (inf);
 
   if (!gdb_PyArg_ParseTupleAndKeywords (args, kw, "OOs*", keywords,
 					&start_addr_obj, &length_obj,
@@ -653,6 +682,13 @@ infpy_search_memory (PyObject *self, PyObject *args, PyObject *kw)
 
   try
     {
+      /* It's probably not too important to avoid invalidating the
+	 frame cache when searching memory, but this scoped-restore is
+	 still used here, just to keep the code similar to other code
+	 in this file.  */
+      scoped_restore_current_inferior_for_memory restore_inferior
+	(inf->inferior);
+
       found = target_search_memory (start_addr, length,
 				    buffer, pattern_size,
 				    &found_addr);
@@ -714,8 +750,8 @@ infpy_thread_from_thread_handle (PyObject *self, PyObject *args, PyObject *kw)
   else if (gdbpy_is_value_object (handle_obj))
     {
       struct value *val = value_object_to_value (handle_obj);
-      bytes = value_contents_all (val).data ();
-      bytes_len = value_type (val)->length ();
+      bytes = val->contents_all ().data ();
+      bytes_len = val->type ()->length ();
     }
   else
     {
@@ -770,6 +806,162 @@ infpy_repr (PyObject *obj)
 			       inf->num, inf->pid);
 }
 
+/* Implement clear_env.  */
+
+static PyObject *
+infpy_clear_env (PyObject *obj)
+{
+  inferior_object *self = (inferior_object *) obj;
+
+  INFPY_REQUIRE_VALID (self);
+
+  self->inferior->environment.clear ();
+  Py_RETURN_NONE;
+}
+
+/* Implement set_env.  */
+
+static PyObject *
+infpy_set_env (PyObject *obj, PyObject *args, PyObject *kw)
+{
+  inferior_object *self = (inferior_object *) obj;
+  INFPY_REQUIRE_VALID (self);
+
+  const char *name, *val;
+  static const char *keywords[] = { "name", "value", nullptr };
+
+  if (!gdb_PyArg_ParseTupleAndKeywords (args, kw, "ss", keywords,
+					&name, &val))
+    return nullptr;
+
+  self->inferior->environment.set (name, val);
+  Py_RETURN_NONE;
+}
+
+/* Implement unset_env.  */
+
+static PyObject *
+infpy_unset_env (PyObject *obj, PyObject *args, PyObject *kw)
+{
+  inferior_object *self = (inferior_object *) obj;
+  INFPY_REQUIRE_VALID (self);
+
+  const char *name;
+  static const char *keywords[] = { "name", nullptr };
+  if (!gdb_PyArg_ParseTupleAndKeywords (args, kw, "s", keywords, &name))
+    return nullptr;
+
+  self->inferior->environment.unset (name);
+  Py_RETURN_NONE;
+}
+
+/* Getter for "arguments".  */
+
+static PyObject *
+infpy_get_args (PyObject *self, void *closure)
+{
+  inferior_object *inf = (inferior_object *) self;
+
+  INFPY_REQUIRE_VALID (inf);
+
+  const std::string &args = inf->inferior->args ();
+  if (args.empty ())
+    Py_RETURN_NONE;
+
+  return host_string_to_python_string (args.c_str ()).release ();
+}
+
+/* Setter for "arguments".  */
+
+static int
+infpy_set_args (PyObject *self, PyObject *value, void *closure)
+{
+  inferior_object *inf = (inferior_object *) self;
+
+  if (!inf->inferior)
+    {
+      PyErr_SetString (PyExc_RuntimeError, _("Inferior no longer exists."));
+      return -1;
+    }
+
+  if (value == nullptr)
+    {
+      PyErr_SetString (PyExc_TypeError,
+		       _("Cannot delete 'arguments' attribute."));
+      return -1;
+    }
+
+  if (gdbpy_is_string (value))
+    {
+      gdb::unique_xmalloc_ptr<char> str = python_string_to_host_string (value);
+      if (str == nullptr)
+	return -1;
+      inf->inferior->set_args (std::string (str.get ()));
+    }
+  else if (PySequence_Check (value))
+    {
+      std::vector<gdb::unique_xmalloc_ptr<char>> args;
+      Py_ssize_t len = PySequence_Size (value);
+      if (len == -1)
+	return -1;
+      for (Py_ssize_t i = 0; i < len; ++i)
+	{
+	  gdbpy_ref<> item (PySequence_ITEM (value, i));
+	  if (item == nullptr)
+	    return -1;
+	  gdb::unique_xmalloc_ptr<char> str
+	    = python_string_to_host_string (item.get ());
+	  if (str == nullptr)
+	    return -1;
+	  args.push_back (std::move (str));
+	}
+      std::vector<char *> argvec;
+      for (const auto &arg : args)
+	argvec.push_back (arg.get ());
+      gdb::array_view<char * const> view (argvec.data (), argvec.size ());
+      inf->inferior->set_args (view);
+    }
+  else
+    {
+      PyErr_SetString (PyExc_TypeError,
+		       _("string or sequence required for 'arguments'"));
+      return -1;
+    }
+  return 0;
+}
+
+/* Getter for "main_name".  */
+
+static PyObject *
+infpy_get_main_name (PyObject *self, void *closure)
+{
+  inferior_object *inf = (inferior_object *) self;
+
+  INFPY_REQUIRE_VALID (inf);
+
+  const char *name = nullptr;
+  try
+    {
+      /* This is unfortunate but the implementation of main_name can
+	 reach into memory.  It's probably not too important to avoid
+	 invalidating the frame cache here, but this scoped-restore is
+	 still used, just to keep the code similar to other code in
+	 this file.  */
+      scoped_restore_current_inferior_for_memory restore_inferior
+	(inf->inferior);
+
+      name = main_name ();
+    }
+  catch (const gdb_exception &except)
+    {
+      /* We can just ignore this.  */
+    }
+
+  if (name == nullptr)
+    Py_RETURN_NONE;
+
+  return host_string_to_python_string (name).release ();
+}
 
 static void
 infpy_dealloc (PyObject *obj)
@@ -802,7 +994,7 @@ gdbpy_selected_inferior (PyObject *self, PyObject *args)
 	  inferior_to_inferior_object (current_inferior ()).release ());
 }
 
-int
+static int CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION
 gdbpy_initialize_inferior (void)
 {
   if (PyType_Ready (&inferior_object_type) < 0)
@@ -830,6 +1022,8 @@ gdbpy_initialize_inferior (void)
   gdb::observers::new_objfile.attach
     (python_new_objfile, "py-inferior",
      { &auto_load_new_objfile_observer_token });
+  gdb::observers::all_objfiles_removed.attach (python_all_objfiles_removed,
+					       "py-inferior");
   gdb::observers::free_objfile.attach (python_free_objfile, "py-inferior");
   gdb::observers::inferior_added.attach (python_new_inferior, "py-inferior");
   gdb::observers::inferior_removed.attach (python_inferior_deleted,
@@ -838,8 +1032,14 @@ gdbpy_initialize_inferior (void)
   return 0;
 }
 
+GDBPY_INITIALIZE_FILE (gdbpy_initialize_inferior);
+
+
+
 static gdb_PyGetSetDef inferior_object_getset[] =
 {
+  { "arguments", infpy_get_args, infpy_set_args,
+    "Arguments to this program.", nullptr },
   { "num", infpy_get_num, NULL, "ID of inferior, as assigned by GDB.", NULL },
   { "connection", infpy_get_connection, NULL,
     "The gdb.TargetConnection for this inferior.", NULL },
@@ -850,6 +1050,8 @@ static gdb_PyGetSetDef inferior_object_getset[] =
   { "was_attached", infpy_get_was_attached, NULL,
     "True if the inferior was created using 'attach'.", NULL },
   { "progspace", infpy_get_progspace, NULL, "Program space of this inferior" },
+  { "main_name", infpy_get_main_name, nullptr,
+    "Name of 'main' function, if known.", nullptr },
   { NULL }
 };
 
@@ -885,6 +1087,15 @@ Return thread object corresponding to thread handle." },
   { "architecture", (PyCFunction) infpy_architecture, METH_NOARGS,
     "architecture () -> gdb.Architecture\n\
 Return architecture of this inferior." },
+  { "clear_env", (PyCFunction) infpy_clear_env, METH_NOARGS,
+    "clear_env () -> None\n\
+Clear environment of this inferior." },
+  { "set_env", (PyCFunction) infpy_set_env, METH_VARARGS | METH_KEYWORDS,
+    "set_env (name, value) -> None\n\
+Set an environment variable of this inferior." },
+  { "unset_env", (PyCFunction) infpy_unset_env, METH_VARARGS | METH_KEYWORDS,
+    "unset_env (name) -> None\n\
+Unset an environment of this inferior." },
   { NULL }
 };
 

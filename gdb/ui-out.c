@@ -21,7 +21,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
-#include "expression.h"		/* For language.h */
+#include "expression.h"
 #include "language.h"
 #include "ui-out.h"
 #include "gdbsupport/format.h"
@@ -236,9 +236,9 @@ void ui_out_table::append_header (int width, ui_align alignment,
     internal_error (_("table header must be specified after table_begin and "
 		      "before table_body."));
 
-  std::unique_ptr<ui_out_hdr> header (new ui_out_hdr (m_headers.size () + 1,
-							width, alignment,
-							col_name, col_hdr));
+  auto header = gdb::make_unique<ui_out_hdr> (m_headers.size () + 1,
+					      width, alignment,
+					      col_name, col_hdr);
 
   m_headers.push_back (std::move (header));
 }
@@ -328,7 +328,7 @@ ui_out::current_level () const
 void
 ui_out::push_level (ui_out_type type)
 {
-  std::unique_ptr<ui_out_level> level (new ui_out_level (type));
+  auto level = gdb::make_unique<ui_out_level> (type);
 
   m_levels.push_back (std::move (level));
 }

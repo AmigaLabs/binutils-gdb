@@ -319,6 +319,21 @@ archpy_integer_type (PyObject *self, PyObject *args, PyObject *kw)
   return type_to_type_object (type);
 }
 
+/* __repr__ implementation for gdb.Architecture.  */
+
+static PyObject *
+archpy_repr (PyObject *self)
+{
+  const auto gdbarch = arch_object_to_gdbarch (self);
+  if (gdbarch == nullptr)
+    return PyUnicode_FromFormat ("<%s (invalid)>", Py_TYPE (self)->tp_name);
+
+  auto arch_info = gdbarch_bfd_arch_info (gdbarch);
+  return PyUnicode_FromFormat ("<%s arch_name=%s printable_name=%s>",
+			       Py_TYPE (self)->tp_name, arch_info->arch_name,
+			       arch_info->printable_name);
+}
+
 /* Implementation of gdb.architecture_names().  Return a list of all the
    BFD architecture names that GDB understands.  */
 
@@ -344,7 +359,7 @@ gdbpy_all_architecture_names (PyObject *self, PyObject *args)
 
 /* Initializes the Architecture class in the gdb module.  */
 
-int
+static int CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION
 gdbpy_initialize_arch (void)
 {
   arch_object_type.tp_new = PyType_GenericNew;
@@ -354,6 +369,10 @@ gdbpy_initialize_arch (void)
   return gdb_pymodule_addobject (gdb_module, "Architecture",
 				 (PyObject *) &arch_object_type);
 }
+
+GDBPY_INITIALIZE_FILE (gdbpy_initialize_arch);
+
+
 
 static PyMethodDef arch_object_methods [] = {
   { "name", archpy_name, METH_NOARGS,
@@ -391,7 +410,7 @@ PyTypeObject arch_object_type = {
   0,                                  /* tp_getattr */
   0,                                  /* tp_setattr */
   0,                                  /* tp_compare */
-  0,                                  /* tp_repr */
+  archpy_repr,                        /* tp_repr */
   0,                                  /* tp_as_number */
   0,                                  /* tp_as_sequence */
   0,                                  /* tp_as_mapping */

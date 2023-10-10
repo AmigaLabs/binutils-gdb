@@ -188,6 +188,12 @@ extern operatorT i386_operator (const char *name, unsigned int operands, char *)
 extern int i386_need_index_operator (void);
 #define md_need_index_operator i386_need_index_operator
 
+#ifdef BFD64
+extern bool i386_record_operator
+  (operatorT, const expressionS *, const expressionS *);
+#define md_optimize_expr(l, o, r) i386_record_operator (o, l, r)
+#endif
+
 #define md_register_arithmetic 0
 
 extern const struct relax_type md_relax_table[];
@@ -354,24 +360,22 @@ extern void i386_solaris_fix_up_eh_frame (segT);
 #endif
 
 /* Support for SHF_X86_64_LARGE */
-extern bfd_vma x86_64_section_word (char *, size_t);
 extern bfd_vma x86_64_section_letter (int, const char **);
 #define md_elf_section_letter(LETTER, PTR_MSG)	x86_64_section_letter (LETTER, PTR_MSG)
-#define md_elf_section_word(STR, LEN)		x86_64_section_word (STR, LEN)
 
 #if defined (OBJ_ELF) || defined (OBJ_MAYBE_ELF)
 extern void x86_cleanup (void);
 #define md_cleanup() x86_cleanup ()
 
-/* Whether SFrame unwind info is supported.  */
+/* Whether SFrame stack trace info is supported.  */
 extern bool x86_support_sframe_p (void);
 #define support_sframe_p x86_support_sframe_p
 
-/* The stack-pointer register number for SFrame unwind info.  */
+/* The stack-pointer register number for SFrame stack trace info.  */
 extern unsigned int x86_sframe_cfa_sp_reg;
 #define SFRAME_CFA_SP_REG x86_sframe_cfa_sp_reg
 
-/* The frame-pointer register number for CFA unwind info.  */
+/* The frame-pointer register number for SFrame stack trace info.  */
 extern unsigned int x86_sframe_cfa_fp_reg;
 #define SFRAME_CFA_FP_REG x86_sframe_cfa_fp_reg
 

@@ -28,7 +28,7 @@
 #include "process-stratum-target.h"
 #include "value.h"
 #include "gdbcore.h"
-#include "inferior.h"          /* for get_exec_file */
+#include "inferior.h"
 #include "gdbthread.h"
 #include "gdbsupport/pathstuff.h"
 #include "gdbsupport/gdb_tilde_expand.h"
@@ -154,7 +154,7 @@ bsd_kvm_target::close ()
 
   bsd_kvm_corefile.clear ();
   switch_to_no_thread ();
-  exit_inferior_silent (current_inferior ());
+  exit_inferior (current_inferior ());
 }
 
 static LONGEST

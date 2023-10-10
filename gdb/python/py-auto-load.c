@@ -53,10 +53,11 @@ gdbpy_auto_load_enabled (const struct extension_language_defn *extlang)
 static void
 info_auto_load_python_scripts (const char *pattern, int from_tty)
 {
-  auto_load_info_scripts (pattern, from_tty, &extension_language_python);
+  auto_load_info_scripts (current_program_space, pattern, from_tty,
+			  &extension_language_python);
 }
 
-int
+static int CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION
 gdbpy_initialize_auto_load (void)
 {
   add_setshow_boolean_cmd ("python-scripts", class_support,
@@ -95,3 +96,5 @@ Print the list of automatically loaded Python scripts, deprecated."));
 
   return 0;
 }
+
+GDBPY_INITIALIZE_FILE (gdbpy_initialize_auto_load);

@@ -70,7 +70,9 @@
 
 /* We don't support Windows versions before XP, so we define
    _WIN32_WINNT correspondingly to ensure the Windows API headers
-   expose the required symbols.  */
+   expose the required symbols.
+
+   NOTE: this must be kept in sync with common.m4.  */
 #if defined (__MINGW32__) || defined (__CYGWIN__)
 # ifdef _WIN32_WINNT
 #  if _WIN32_WINNT < 0x0501
@@ -94,7 +96,7 @@
 #include <stdint.h>
 #include <string.h>
 #ifdef HAVE_STRINGS_H
-#include <strings.h>	/* for strcasecmp and strncasecmp */
+#include <strings.h>
 #endif
 #include <errno.h>
 #if HAVE_ALLOCA_H
@@ -114,7 +116,7 @@
 
    Say a developer starts out with:
    ...
-   extern void foo (void *ptr) __atttribute__((nonnull (1)));
+   extern void foo (void *ptr) __attribute__((nonnull (1)));
    void foo (void *ptr) {}
    ...
    with the idea in mind to catch:

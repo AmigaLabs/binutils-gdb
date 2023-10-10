@@ -37,6 +37,7 @@
 #include "completer.h"
 #include "gdb-demangle.h"
 #include "split-name.h"
+#include "frame.h"
 
 /* Opaque declarations.  */
 struct ui_file;
@@ -304,7 +305,7 @@ class lookup_name_info final
 	break;
       case language_d:
       case language_go:
-	style = split_style::DOT;
+	style = split_style::DOT_STYLE;
 	break;
       }
     return ::split_name (language_lookup_name (lang), style);
@@ -523,6 +524,18 @@ struct general_symbol_info
     m_value.address = address;
   }
 
+  /* Return the unrelocated address of this symbol.  */
+  unrelocated_addr unrelocated_address () const
+  {
+    return m_value.unrel_addr;
+  }
+
+  /* Set the unrelocated address of this symbol.  */
+  void set_unrelocated_address (unrelocated_addr addr)
+  {
+    m_value.unrel_addr = addr;
+  }
+
   /* Name of the symbol.  This is a required field.  Storage for the
      name is allocated on the objfile_obstack for the associated
      objfile.  For languages like C++ that make a distinction between
@@ -546,6 +559,10 @@ struct general_symbol_info
     const gdb_byte *bytes;
 
     CORE_ADDR address;
+
+    /* The address, if unrelocated.  An unrelocated symbol does not
+       have the runtime section offset applied.  */
+    unrelocated_addr unrel_addr;
 
     /* A common block.  Used with LOC_COMMON_BLOCK.  */
 
@@ -731,10 +748,21 @@ struct minimal_symbol : public general_symbol_info
      offsets from OBJFILE.  */
   CORE_ADDR value_address (objfile *objfile) const;
 
+  /* It does not make sense to call this for minimal symbols, as they
+     are stored unrelocated.  */
+  CORE_ADDR value_address () const = delete;
+
   /* The unrelocated address of the minimal symbol.  */
-  CORE_ADDR value_raw_address () const
+  unrelocated_addr unrelocated_address () const
   {
-    return m_value.address;
+    return m_value.unrel_addr;
+  }
+
+  /* The unrelocated address just after the end of the the minimal
+     symbol.  */
+  unrelocated_addr unrelocated_end_address () const
+  {
+    return unrelocated_addr (CORE_ADDR (unrelocated_address ()) + size ());
   }
 
   /* Return this minimal symbol's type.  */
@@ -827,14 +855,6 @@ struct minimal_symbol : public general_symbol_info
      the object file format may not carry that piece of information.  */
   unsigned int m_has_size : 1;
 
-  /* For data symbols only, if this is set, then the symbol might be
-     subject to copy relocation.  In this case, a minimal symbol
-     matching the symbol's linkage name is first looked for in the
-     main objfile.  If found, then that address is used; otherwise the
-     address in this symbol is used.  */
-
-  unsigned maybe_copied : 1;
-
   /* Non-zero if this symbol ever had its demangled name set (even if
      it was set to NULL).  */
   unsigned int name_set : 1;
@@ -856,6 +876,15 @@ struct minimal_symbol : public general_symbol_info
   /* True if MSYMBOL is of some text type.  */
 
   bool text_p () const;
+
+  /* For data symbols only, given an objfile, if 'maybe_copied'
+     evaluates to 'true' for that objfile, then the symbol might be
+     subject to copy relocation.  In this case, a minimal symbol
+     matching the symbol's linkage name is first looked for in the
+     main objfile.  If found, then that address is used; otherwise the
+     address in this symbol is used.  */
+
+  bool maybe_copied (objfile *objfile) const;
 };
 
 #include "minsyms.h"
@@ -1019,11 +1048,11 @@ enum address_class
      without possibly having its address available for LOC_STATIC.  Testcase
      is provided as `gdb.dwarf2/dw2-unresolved.exp'.
 
-     This is also used for thread local storage (TLS) variables.  In this case,
-     the address of the TLS variable must be determined when the variable is
-     referenced, from the MSYMBOL_VALUE_RAW_ADDRESS, which is the offset
-     of the TLS variable in the thread local storage of the shared
-     library/object.  */
+     This is also used for thread local storage (TLS) variables.  In
+     this case, the address of the TLS variable must be determined
+     when the variable is referenced, from the msymbol's address,
+     which is the offset of the TLS variable in the thread local
+     storage of the shared library/object.  */
 
   LOC_UNRESOLVED,
 
@@ -1148,6 +1177,12 @@ struct symbol_block_ops
      the corresponding DW_AT_frame_base attribute.  */
   CORE_ADDR (*get_frame_base) (struct symbol *framefunc,
 			       frame_info_ptr frame);
+
+  /* Return the block for this function.  So far, this is used to
+     implement function aliases.  So, if this is set, then it's not
+     necessary to set the other functions in this structure; and vice
+     versa.  */
+  const block *(*get_block_value) (const struct symbol *sym);
 };
 
 /* Functions used with LOC_REGISTER and LOC_REGPARM_ADDR.  */
@@ -1190,6 +1225,10 @@ enum symbol_subclass_kind
 };
 
 extern gdb::array_view<const struct symbol_impl> symbol_impls;
+
+bool symbol_matches_domain (enum language symbol_language,
+			    domain_enum symbol_domain,
+			    domain_enum domain);
 
 /* This structure is space critical.  See space comments at the top.  */
 
@@ -1235,6 +1274,13 @@ struct symbol : public general_symbol_info, public allocate_on_obstack
   address_class aclass () const
   {
     return this->impl ().aclass;
+  }
+
+  /* Call symbol_matches_domain on this symbol, using the symbol's
+     domain.  */
+  bool matches (domain_enum d) const
+  {
+    return symbol_matches_domain (language (), domain (), d);
   }
 
   domain_enum domain () const
@@ -1292,12 +1338,12 @@ struct symbol : public general_symbol_info, public allocate_on_obstack
     m_type = type;
   }
 
-  unsigned short line () const
+  unsigned int line () const
   {
     return m_line;
   }
 
-  void set_line (unsigned short line)
+  void set_line (unsigned int line)
   {
     m_line = line;
   }
@@ -1345,10 +1391,7 @@ struct symbol : public general_symbol_info, public allocate_on_obstack
     m_value.common_block = common_block;
   }
 
-  const block *value_block () const
-  {
-    return m_value.block;
-  }
+  const block *value_block () const;
 
   void set_value_block (const block *block)
   {
@@ -1460,13 +1503,9 @@ struct symbol : public general_symbol_info, public allocate_on_obstack
      SYMBOL_INLINED set) this is the line number of the function's call
      site.  Inlined function symbols are not definitions, and they are
      never found by symbol table lookup.
-     If this symbol is arch-owned, LINE shall be zero.
+     If this symbol is arch-owned, LINE shall be zero.  */
 
-     FIXME: Should we really make the assumption that nobody will try
-     to debug files longer than 64K lines?  What about machine
-     generated programs?  */
-
-  unsigned short m_line = 0;
+  unsigned int m_line = 0;
 
   /* An arbitrary data pointer, allowing symbol readers to record
      additional information on a per-symbol basis.  Note that this data
@@ -1505,6 +1544,15 @@ struct block_symbol
 #define SYMBOL_BLOCK_OPS(symbol)	((symbol)->impl ().ops_block)
 #define SYMBOL_REGISTER_OPS(symbol)	((symbol)->impl ().ops_register)
 #define SYMBOL_LOCATION_BATON(symbol)   (symbol)->aux_value
+
+inline const block *
+symbol::value_block () const
+{
+  if (SYMBOL_BLOCK_OPS (this) != nullptr
+      && SYMBOL_BLOCK_OPS (this)->get_block_value != nullptr)
+    return SYMBOL_BLOCK_OPS (this)->get_block_value (this);
+  return m_value.block;
+}
 
 extern int register_symbol_computed_impl (enum address_class,
 					  const struct symbol_computed_ops *);
@@ -1546,18 +1594,44 @@ struct rust_vtable_symbol : public symbol
 
 struct linetable_entry
 {
+  /* Set the (unrelocated) PC for this entry.  */
+  void set_unrelocated_pc (unrelocated_addr pc)
+  { m_pc = pc; }
+
+  /* Return the unrelocated PC for this entry.  */
+  unrelocated_addr unrelocated_pc () const
+  { return m_pc; }
+
+  /* Return the relocated PC for this entry.  */
+  CORE_ADDR pc (const struct objfile *objfile) const;
+
+  bool operator< (const linetable_entry &other) const
+  {
+    if (m_pc == other.m_pc
+	&& (line != 0) != (other.line != 0))
+      return line == 0;
+    return m_pc < other.m_pc;
+  }
+
+  /* Two entries are equal if they have the same line and PC.  The
+     other members are ignored.  */
+  bool operator== (const linetable_entry &other) const
+  { return line == other.line && m_pc == other.m_pc; }
+
   /* The line number for this entry.  */
   int line;
 
   /* True if this PC is a good location to place a breakpoint for LINE.  */
-  unsigned is_stmt : 1;
+  bool is_stmt : 1;
 
   /* True if this location is a good location to place a breakpoint after a
      function prologue.  */
   bool prologue_end : 1;
 
+private:
+
   /* The address for this entry.  */
-  CORE_ADDR pc;
+  unrelocated_addr m_pc;
 };
 
 /* The order of entries in the linetable is significant.  They should
@@ -1610,12 +1684,12 @@ struct symtab
     m_compunit = compunit;
   }
 
-  struct linetable *linetable () const
+  const struct linetable *linetable () const
   {
     return m_linetable;
   }
 
-  void set_linetable (struct linetable *linetable)
+  void set_linetable (const struct linetable *linetable)
   {
     m_linetable = linetable;
   }
@@ -1642,7 +1716,7 @@ struct symtab
   /* Table mapping core addresses to line numbers for this file.
      Can be NULL if none.  Never shared between different symtabs.  */
 
-  struct linetable *m_linetable;
+  const struct linetable *m_linetable;
 
   /* Name of this source file, in a form appropriate to print to the user.
 
@@ -1785,16 +1859,6 @@ struct compunit_symtab
     m_blockvector = blockvector;
   }
 
-  int block_line_section () const
-  {
-    return m_block_line_section;
-  }
-
-  void set_block_line_section (int block_line_section)
-  {
-    m_block_line_section = block_line_section;
-  }
-
   bool locations_valid () const
   {
     return m_locations_valid;
@@ -1883,10 +1947,6 @@ struct compunit_symtab
      all symtabs in a given compilation unit.  */
   struct blockvector *m_blockvector;
 
-  /* Section in objfile->section_offsets for the blockvector and
-     the linetable.  Probably always SECT_OFF_TEXT.  */
-  int m_block_line_section;
-
   /* Symtab has been compiled with both optimizations and debug info so that
      GDB may stop skipping prologues as variables locations are valid already
      at function entry points.  */
@@ -1930,6 +1990,19 @@ is_main_symtab_of_compunit_symtab (struct symtab *symtab)
 {
   return symtab == symtab->compunit ()->primary_filetab ();
 }
+
+/* Return true if epilogue unwind info of CUST is valid.  */
+
+static inline bool
+compunit_epilogue_unwind_valid (struct compunit_symtab *cust)
+{
+  /* In absence of producer information, assume epilogue unwind info is
+     valid.  */
+  if (cust == nullptr)
+    return true;
+
+  return cust->epilogue_unwind_valid ();
+}
 
 
 /* The virtual function table is now an array of structures which have the
@@ -1958,10 +2031,6 @@ extern const char multiple_symbols_all[];
 extern const char multiple_symbols_cancel[];
 
 const char *multiple_symbols_select_mode (void);
-
-bool symbol_matches_domain (enum language symbol_language,
-			    domain_enum symbol_domain,
-			    domain_enum domain);
 
 /* lookup a symbol table by source file name.  */
 
@@ -2189,10 +2258,6 @@ extern bound_minimal_symbol find_gnu_ifunc (const symbol *sym);
 
 extern void clear_pc_function_cache (void);
 
-/* Expand symtab containing PC, SECTION if not already expanded.  */
-
-extern void expand_symtab_containing_pc (CORE_ADDR, struct obj_section *);
-
 /* lookup full symbol table by address.  */
 
 extern struct compunit_symtab *find_pc_compunit_symtab (CORE_ADDR);
@@ -2394,8 +2459,12 @@ extern void skip_prologue_sal (struct symtab_and_line *);
 extern CORE_ADDR skip_prologue_using_sal (struct gdbarch *gdbarch,
 					  CORE_ADDR func_addr);
 
-extern struct symbol *fixup_symbol_section (struct symbol *,
-					    struct objfile *);
+/* If SYM requires a section index, find it either via minimal symbols
+   or examining OBJFILE's sections.  Note that SYM's current address
+   must not have any runtime offsets applied.  */
+
+extern void fixup_symbol_section (struct symbol *sym,
+				  struct objfile *objfile);
 
 /* If MSYMBOL is an text symbol, look for a function debug symbol with
    the same address.  Returns NULL if not found.  This is necessary in
@@ -2410,7 +2479,7 @@ extern symbol *find_function_alias_target (bound_minimal_symbol msymbol);
    the following structs is returned.  */
 struct symbol_search
 {
-  symbol_search (int block_, struct symbol *symbol_)
+  symbol_search (block_enum block_, struct symbol *symbol_)
     : block (block_),
       symbol (symbol_)
   {
@@ -2418,7 +2487,7 @@ struct symbol_search
     msymbol.objfile = nullptr;
   }
 
-  symbol_search (int block_, struct minimal_symbol *minsym,
+  symbol_search (block_enum block_, struct minimal_symbol *minsym,
 		 struct objfile *objfile)
     : block (block_),
       symbol (nullptr)
@@ -2437,9 +2506,9 @@ struct symbol_search
     return compare_search_syms (*this, other) == 0;
   }
 
-  /* The block in which the match was found.  Could be, for example,
-     STATIC_BLOCK or GLOBAL_BLOCK.  */
-  int block;
+  /* The block in which the match was found.  Either STATIC_BLOCK or
+     GLOBAL_BLOCK.  */
+  block_enum block;
 
   /* Information describing what was found.
 
@@ -2607,9 +2676,6 @@ extern struct block_symbol
    compiler (armcc).  */
 bool producer_is_realview (const char *producer);
 
-void fixup_section (struct general_symbol_info *ginfo,
-		    CORE_ADDR addr, struct objfile *objfile);
-
 extern unsigned int symtab_create_debug;
 
 /* Print a "symtab-create" debug statement.  */
@@ -2677,7 +2743,7 @@ void iterate_over_symtabs (const char *name,
 
 
 std::vector<CORE_ADDR> find_pcs_for_symtab_line
-    (struct symtab *symtab, int line, struct linetable_entry **best_entry);
+    (struct symtab *symtab, int line, const linetable_entry **best_entry);
 
 /* Prototype for callbacks for LA_ITERATE_OVER_SYMBOLS.  The callback
    is called once per matching symbol SYM.  The callback should return

@@ -82,6 +82,7 @@ struct adjusted_section
 {
   asection *section;
   bfd_vma adj_vma;
+  bfd_vma orig_vma;
 };
 
 /* A trie to map quickly from address range to compilation unit.
@@ -136,7 +137,7 @@ struct trie_leaf
   struct {
     struct comp_unit *unit;
     bfd_vma low_pc, high_pc;
-  } ranges[TRIE_LEAF_SIZE];
+  } ranges[];
 };
 
 struct trie_interior
@@ -147,7 +148,9 @@ struct trie_interior
 
 static struct trie_node *alloc_trie_leaf (bfd *abfd)
 {
-  struct trie_leaf *leaf = bfd_zalloc (abfd, sizeof (struct trie_leaf));
+  struct trie_leaf *leaf;
+  size_t amt = sizeof (*leaf) + TRIE_LEAF_SIZE * sizeof (leaf->ranges[0]);
+  leaf = bfd_zalloc (abfd, amt);
   if (leaf == NULL)
     return NULL;
   leaf->head.num_room_in_leaf = TRIE_LEAF_SIZE;
@@ -1420,7 +1423,7 @@ read_indexed_address (uint64_t idx, struct comp_unit *unit)
   offset += unit->dwarf_addr_offset;
   if (offset < unit->dwarf_addr_offset
       || offset > file->dwarf_addr_size
-      || file->dwarf_addr_size - offset < unit->offset_size)
+      || file->dwarf_addr_size - offset < unit->addr_size)
     return 0;
 
   info_ptr = file->dwarf_addr_buffer + offset;
@@ -2206,9 +2209,7 @@ insert_arange_in_trie (bfd *abfd,
       const struct trie_leaf *leaf = (struct trie_leaf *) trie;
       unsigned int new_room_in_leaf = trie->num_room_in_leaf * 2;
       struct trie_leaf *new_leaf;
-      size_t amt = (sizeof (struct trie_leaf)
-		    + ((new_room_in_leaf - TRIE_LEAF_SIZE)
-		       * sizeof (leaf->ranges[0])));
+      size_t amt = sizeof (*leaf) + new_room_in_leaf * sizeof (leaf->ranges[0]);
       new_leaf = bfd_zalloc (abfd, amt);
       new_leaf->head.num_room_in_leaf = new_room_in_leaf;
       new_leaf->num_stored_in_leaf = leaf->num_stored_in_leaf;
@@ -4082,8 +4083,11 @@ scan_unit_for_symbols (struct comp_unit *unit)
 		{
 		case DW_AT_call_file:
 		  if (is_int_form (&attr))
-		    func->caller_file = concat_filename (unit->line_table,
-							 attr.u.val);
+		    {
+		      free (func->caller_file);
+		      func->caller_file = concat_filename (unit->line_table,
+							   attr.u.val);
+		    }
 		  break;
 
 		case DW_AT_call_line:
@@ -4642,21 +4646,20 @@ parse_comp_unit (struct dwarf2_debug *stash,
    really contains the given address.  */
 
 static bool
-comp_unit_contains_address (struct comp_unit *unit, bfd_vma addr)
+comp_unit_may_contain_address (struct comp_unit *unit, bfd_vma addr)
 {
   struct arange *arange;
 
   if (unit->error)
     return false;
 
-  arange = &unit->arange;
-  do
-    {
-      if (addr >= arange->low && addr < arange->high)
-	return true;
-      arange = arange->next;
-    }
-  while (arange);
+  if (unit->arange.high == 0 /* No ranges have been computed yet.  */
+      || unit->line_table == NULL) /* The line info table has not been loaded.  */
+    return true;
+
+  for (arange = &unit->arange; arange != NULL; arange = arange->next)
+    if (addr >= arange->low && addr < arange->high)
+      return true;
 
   return false;
 }
@@ -4681,6 +4684,7 @@ comp_unit_find_nearest_line (struct comp_unit *unit,
 
   *function_ptr = NULL;
   func_p = lookup_address_in_function_table (unit, addr, function_ptr);
+
   if (func_p && (*function_ptr)->tag == DW_TAG_inlined_subroutine)
     unit->stash->inliner_chain = *function_ptr;
 
@@ -4952,7 +4956,7 @@ unset_sections (struct dwarf2_debug *stash)
   i = stash->adjusted_section_count;
   p = stash->adjusted_sections;
   for (; i > 0; i--, p++)
-    p->section->vma = 0;
+    p->section->vma = p->orig_vma;
 }
 
 /* Set VMAs for allocated and .debug_info sections in ORIG_BFD, a
@@ -4993,10 +4997,9 @@ place_sections (bfd *orig_bfd, struct dwarf2_debug *stash)
 	{
 	  int is_debug_info;
 
-	  if ((sect->output_section != NULL
-	       && sect->output_section != sect
-	       && (sect->flags & SEC_DEBUGGING) == 0)
-	      || sect->vma != 0)
+	  if (sect->output_section != NULL
+	      && sect->output_section != sect
+	      && (sect->flags & SEC_DEBUGGING) == 0)
 	    continue;
 
 	  is_debug_info = (strcmp (sect->name, debug_info_name) == 0
@@ -5037,10 +5040,9 @@ place_sections (bfd *orig_bfd, struct dwarf2_debug *stash)
 	      bfd_size_type sz;
 	      int is_debug_info;
 
-	      if ((sect->output_section != NULL
-		   && sect->output_section != sect
-		   && (sect->flags & SEC_DEBUGGING) == 0)
-		  || sect->vma != 0)
+	      if (sect->output_section != NULL
+		  && sect->output_section != sect
+		  && (sect->flags & SEC_DEBUGGING) == 0)
 		continue;
 
 	      is_debug_info = (strcmp (sect->name, debug_info_name) == 0
@@ -5052,24 +5054,17 @@ place_sections (bfd *orig_bfd, struct dwarf2_debug *stash)
 
 	      sz = sect->rawsize ? sect->rawsize : sect->size;
 
-	      if (is_debug_info)
-		{
-		  BFD_ASSERT (sect->alignment_power == 0);
-		  sect->vma = last_dwarf;
-		  last_dwarf += sz;
-		}
-	      else
-		{
-		  /* Align the new address to the current section
-		     alignment.  */
-		  last_vma = ((last_vma
-			       + ~(-((bfd_vma) 1 << sect->alignment_power)))
-			      & (-((bfd_vma) 1 << sect->alignment_power)));
-		  sect->vma = last_vma;
-		  last_vma += sz;
-		}
-
 	      p->section = sect;
+	      p->orig_vma = sect->vma;
+
+	      bfd_vma *v = is_debug_info ? &last_dwarf : &last_vma;
+	      /* Align the new address to the current section
+		 alignment.  */
+	      bfd_vma mask = -(bfd_vma) 1 << sect->alignment_power;
+	      *v = (*v + ~mask) & mask;
+	      sect->vma = *v;
+	      *v += sz;
+
 	      p->adj_vma = sect->vma;
 	      p++;
 	    }
@@ -5379,7 +5374,6 @@ _bfd_dwarf2_slurp_debug_info (bfd *abfd, bfd *debug_bfd,
 			      void **pinfo,
 			      bool do_place)
 {
-  size_t amt = sizeof (struct dwarf2_debug);
   bfd_size_type total_size;
   asection *msec;
   struct dwarf2_debug *stash = (struct dwarf2_debug *) *pinfo;
@@ -5391,7 +5385,7 @@ _bfd_dwarf2_slurp_debug_info (bfd *abfd, bfd *debug_bfd,
 	{
 	  /* Check that we did previously find some debug information
 	     before attempting to make use of it.  */
-	  if (stash->f.bfd_ptr != NULL)
+	  if (stash->f.dwarf_info_size != 0)
 	    {
 	      if (do_place && !place_sections (abfd, stash))
 		return false;
@@ -5401,13 +5395,14 @@ _bfd_dwarf2_slurp_debug_info (bfd *abfd, bfd *debug_bfd,
 	  return false;
 	}
       _bfd_dwarf2_cleanup_debug_info (abfd, pinfo);
-      memset (stash, 0, amt);
+      memset (stash, 0, sizeof (*stash));
     }
   else
     {
-      stash = (struct dwarf2_debug *) bfd_zalloc (abfd, amt);
+      stash = (struct dwarf2_debug *) bfd_zalloc (abfd, sizeof (*stash));
       if (! stash)
 	return false;
+      *pinfo = stash;
     }
   stash->orig_bfd = abfd;
   stash->debug_sections = debug_sections;
@@ -5432,8 +5427,6 @@ _bfd_dwarf2_slurp_debug_info (bfd *abfd, bfd *debug_bfd,
   stash->alt.trie_root = alloc_trie_leaf (abfd);
   if (!stash->alt.trie_root)
     return false;
-
-  *pinfo = stash;
 
   if (debug_bfd == NULL)
     debug_bfd = abfd;
@@ -5483,14 +5476,11 @@ _bfd_dwarf2_slurp_debug_info (bfd *abfd, bfd *debug_bfd,
 
   /* There can be more than one DWARF2 info section in a BFD these
      days.  First handle the easy case when there's only one.  If
-     there's more than one, try case two: none of the sections is
-     compressed.  In that case, read them all in and produce one
-     large stash.  We do this in two passes - in the first pass we
+     there's more than one, try case two: read them all in and produce
+     one large stash.  We do this in two passes - in the first pass we
      just accumulate the section sizes, and in the second pass we
      read in the section's contents.  (The allows us to avoid
-     reallocing the data as we add sections to the stash.)  If
-     some or all sections are compressed, then do things the slow
-     way, with a bunch of reallocs.  */
+     reallocing the data as we add sections to the stash.)  */
 
   if (! find_debug_info (debug_bfd, debug_sections, msec))
     {
@@ -5499,7 +5489,7 @@ _bfd_dwarf2_slurp_debug_info (bfd *abfd, bfd *debug_bfd,
       if (! read_section (debug_bfd, &stash->debug_sections[debug_info],
 			  symbols, 0,
 			  &stash->f.dwarf_info_buffer, &total_size))
-	return false;
+	goto restore_vma;
     }
   else
     {
@@ -5509,19 +5499,19 @@ _bfd_dwarf2_slurp_debug_info (bfd *abfd, bfd *debug_bfd,
 	   msec = find_debug_info (debug_bfd, debug_sections, msec))
 	{
 	  if (_bfd_section_size_insane (debug_bfd, msec))
-	    return false;
+	    goto restore_vma;
 	  /* Catch PR25070 testcase overflowing size calculation here.  */
 	  if (total_size + msec->size < total_size)
 	    {
 	      bfd_set_error (bfd_error_no_memory);
-	      return false;
+	      goto restore_vma;
 	    }
 	  total_size += msec->size;
 	}
 
       stash->f.dwarf_info_buffer = (bfd_byte *) bfd_malloc (total_size);
       if (stash->f.dwarf_info_buffer == NULL)
-	return false;
+	goto restore_vma;
 
       total_size = 0;
       for (msec = find_debug_info (debug_bfd, debug_sections, NULL);
@@ -5537,7 +5527,7 @@ _bfd_dwarf2_slurp_debug_info (bfd *abfd, bfd *debug_bfd,
 	  if (!(bfd_simple_get_relocated_section_contents
 		(debug_bfd, msec, stash->f.dwarf_info_buffer + total_size,
 		 symbols)))
-	    return false;
+	    goto restore_vma;
 
 	  total_size += size;
 	}
@@ -5546,6 +5536,10 @@ _bfd_dwarf2_slurp_debug_info (bfd *abfd, bfd *debug_bfd,
   stash->f.info_ptr = stash->f.dwarf_info_buffer;
   stash->f.dwarf_info_size = total_size;
   return true;
+
+ restore_vma:
+  unset_sections (stash);
+  return false;
 }
 
 /* Parse the next DWARF2 compilation unit at FILE->INFO_PTR.  */
@@ -5899,8 +5893,7 @@ _bfd_dwarf2_find_nearest_line_with_alt
       /* Check the previously read comp. units first.  */
       for (each = stash->f.all_comp_units; each; each = each->next_unit)
 	if ((symbol->flags & BSF_FUNCTION) == 0
-	    || each->arange.high == 0
-	    || comp_unit_contains_address (each, addr))
+	    || comp_unit_may_contain_address (each, addr))
 	  {
 	    found = comp_unit_find_line (each, symbol, addr, filename_ptr,
 					 linenumber_ptr);
@@ -5982,13 +5975,11 @@ _bfd_dwarf2_find_nearest_line_with_alt
 	 address.  */
       if (do_line)
 	found = (((symbol->flags & BSF_FUNCTION) == 0
-		  || each->arange.high == 0
-		  || comp_unit_contains_address (each, addr))
+		  || comp_unit_may_contain_address (each, addr))
 		 && comp_unit_find_line (each, symbol, addr,
 					 filename_ptr, linenumber_ptr));
       else
-	found = ((each->arange.high == 0
-		  || comp_unit_contains_address (each, addr))
+	found = (comp_unit_may_contain_address (each, addr)
 		 && comp_unit_find_nearest_line (each, addr,
 						 filename_ptr,
 						 &function,
@@ -6039,8 +6030,7 @@ _bfd_dwarf2_find_nearest_line_with_alt
 	}
     }
 
-  if ((abfd->flags & (EXEC_P | DYNAMIC)) == 0)
-    unset_sections (stash);
+  unset_sections (stash);
 
   return found;
 }
@@ -6148,6 +6138,82 @@ _bfd_dwarf2_cleanup_debug_info (bfd *abfd, void **pinfo)
     bfd_close (stash->alt.bfd_ptr);
 }
 
+typedef struct elf_find_function_cache
+{
+  asection *     last_section;
+  asymbol *      func;
+  const char *   filename;
+  bfd_size_type  code_size;
+  bfd_vma        code_off;
+
+} elf_find_function_cache;
+
+
+/* Returns TRUE if symbol SYM with address CODE_OFF and size CODE_SIZE
+   is a better fit to match OFFSET than whatever is currenly stored in
+   CACHE.  */
+
+static inline bool
+better_fit (elf_find_function_cache *  cache,
+	    asymbol *                  sym,
+	    bfd_vma                    code_off,
+	    bfd_size_type              code_size,
+	    bfd_vma                    offset)
+{
+  /* If the symbol is beyond the desired offset, ignore it.  */
+  if (code_off > offset)
+    return false;
+
+  /* If the symbol is further away from the desired
+     offset than our current best, then ignore it.  */
+  if (code_off < cache->code_off)
+    return false;
+
+  /* On the other hand, if it is closer, then use it.  */
+  if (code_off > cache->code_off)
+    return true;
+
+  /* assert (code_off == cache->code_off);  */
+
+  /* If our current best fit does not actually reach the desired
+     offset...  */
+  if (cache->code_off + cache->code_size <= offset)
+    /* ... then return whichever candidate covers
+       more area and hence gets closer to OFFSET.  */
+    return code_size > cache->code_size;
+
+  /* The current cache'd symbol covers OFFSET.  */
+
+  /* If the new symbol does not cover the desired offset then skip it.  */  
+  if (code_off + code_size <= offset)
+    return false;
+
+  /* Both symbols cover OFFSET.  */
+
+  /* Prefer functions over non-functions.  */
+  flagword cache_flags = cache->func->flags;
+  flagword sym_flags   = sym->flags;
+
+  if ((cache_flags & BSF_FUNCTION) && ((sym_flags & BSF_FUNCTION) == 0))
+    return false;
+  if ((sym_flags & BSF_FUNCTION) && ((cache_flags & BSF_FUNCTION) == 0))
+    return true;
+
+  /* FIXME: Should we choose LOCAL over GLOBAL ?  */
+
+  /* Prefer typed symbols over notyped.  */
+  int cache_type = ELF_ST_TYPE (((elf_symbol_type *) cache->func)->internal_elf_sym.st_info);
+  int sym_type   = ELF_ST_TYPE (((elf_symbol_type *) sym)->internal_elf_sym.st_info);
+
+  if (cache_type == STT_NOTYPE && sym_type != STT_NOTYPE)
+    return true;
+  if (cache_type != STT_NOTYPE && sym_type == STT_NOTYPE)
+    return false;
+
+  /* Otherwise choose whichever symbol covers a smaller area.  */
+  return code_size < cache->code_size;
+}
+
 /* Find the function to a particular section and offset,
    for error reporting.  */
 
@@ -6159,21 +6225,14 @@ _bfd_elf_find_function (bfd *abfd,
 			const char **filename_ptr,
 			const char **functionname_ptr)
 {
-  struct elf_find_function_cache
-  {
-    asection *last_section;
-    asymbol *func;
-    const char *filename;
-    bfd_size_type func_size;
-  } *cache;
-
   if (symbols == NULL)
     return NULL;
 
   if (bfd_get_flavour (abfd) != bfd_target_elf_flavour)
     return NULL;
 
-  cache = elf_tdata (abfd)->elf_find_function_cache;
+  elf_find_function_cache * cache = elf_tdata (abfd)->elf_find_function_cache;
+
   if (cache == NULL)
     {
       cache = bfd_zalloc (abfd, sizeof (*cache));
@@ -6181,13 +6240,13 @@ _bfd_elf_find_function (bfd *abfd,
       if (cache == NULL)
 	return NULL;
     }
+
   if (cache->last_section != section
       || cache->func == NULL
       || offset < cache->func->value
-      || offset >= cache->func->value + cache->func_size)
+      || offset >= cache->func->value + cache->code_size)
     {
       asymbol *file;
-      bfd_vma low_func;
       asymbol **p;
       /* ??? Given multiple file symbols, it is impossible to reliably
 	 choose the right file name for global symbols.  File symbols are
@@ -6201,11 +6260,11 @@ _bfd_elf_find_function (bfd *abfd,
       const struct elf_backend_data *bed = get_elf_backend_data (abfd);
 
       file = NULL;
-      low_func = 0;
       state = nothing_seen;
       cache->filename = NULL;
       cache->func = NULL;
-      cache->func_size = 0;
+      cache->code_size = 0;
+      cache->code_off = 0;
       cache->last_section = section;
 
       for (p = symbols; *p != NULL; p++)
@@ -6222,24 +6281,36 @@ _bfd_elf_find_function (bfd *abfd,
 	      continue;
 	    }
 
+	  if (state == nothing_seen)
+	    state = symbol_seen;
+
 	  size = bed->maybe_function_sym (sym, section, &code_off);
-	  if (size != 0
-	      && code_off <= offset
-	      && (code_off > low_func
-		  || (code_off == low_func
-		      && size > cache->func_size)))
+
+	  if (size == 0)
+	    continue;
+
+	  if (better_fit (cache, sym, code_off, size, offset))
 	    {
 	      cache->func = sym;
-	      cache->func_size = size;
+	      cache->code_size = size;
+	      cache->code_off = code_off;
 	      cache->filename = NULL;
-	      low_func = code_off;
+
 	      if (file != NULL
 		  && ((sym->flags & BSF_LOCAL) != 0
 		      || state != file_after_symbol_seen))
 		cache->filename = bfd_asymbol_name (file);
 	    }
-	  if (state == nothing_seen)
-	    state = symbol_seen;
+	  /* Otherwise, if the symbol is beyond the desired offset but it
+	     lies within the bounds of the current best match then reduce
+	     the size of the current best match so that future searches
+	     will not not used the cached symbol by mistake.  */
+	  else if (code_off > offset 
+		   && code_off > cache->code_off
+		   && code_off < cache->code_off + cache->code_size)
+	    {
+	      cache->code_size = code_off - cache->code_off;
+	    }
 	}
     }
 

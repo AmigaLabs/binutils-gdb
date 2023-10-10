@@ -25,7 +25,6 @@
 #include "symtab.h"
 #include "source.h"
 #include "objfiles.h"
-#include "psymtab.h"
 #include "solib.h"
 #include "solist.h"
 #include "gdbsupport/gdb_regex.h"
@@ -34,7 +33,8 @@
    current file being executed.  */
 
 void
-mi_cmd_file_list_exec_source_file (const char *command, char **argv, int argc)
+mi_cmd_file_list_exec_source_file (const char *command,
+				   const char *const *argv, int argc)
 {
   struct symtab_and_line st;
   struct ui_out *uiout = current_uiout;
@@ -65,7 +65,8 @@ mi_cmd_file_list_exec_source_file (const char *command, char **argv, int argc)
 /* Implement -file-list-exec-source-files command.  */
 
 void
-mi_cmd_file_list_exec_source_files (const char *command, char **argv, int argc)
+mi_cmd_file_list_exec_source_files (const char *command,
+				    const char *const *argv, int argc)
 {
   enum opt
     {
@@ -83,7 +84,7 @@ mi_cmd_file_list_exec_source_files (const char *command, char **argv, int argc)
 
   /* Parse arguments.  */
   int oind = 0;
-  char *oarg;
+  const char *oarg;
 
   bool group_by_objfile = false;
   bool match_on_basename = false;
@@ -131,7 +132,8 @@ mi_cmd_file_list_exec_source_files (const char *command, char **argv, int argc)
 /* See mi-cmds.h.  */
 
 void
-mi_cmd_file_list_shared_libraries (const char *command, char **argv, int argc)
+mi_cmd_file_list_shared_libraries (const char *command,
+				   const char *const *argv, int argc)
 {
   struct ui_out *uiout = current_uiout;
   const char *pattern;

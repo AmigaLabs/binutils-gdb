@@ -241,7 +241,17 @@ extern struct objfile *symbol_file_add_from_bfd (const gdb_bfd_ref_ptr &,
 extern void symbol_file_add_separate (const gdb_bfd_ref_ptr &, const char *,
 				      symfile_add_flags, struct objfile *);
 
-extern std::string find_separate_debug_file_by_debuglink (struct objfile *);
+/* Find separate debuginfo for OBJFILE (using .gnu_debuglink section).
+   Returns pathname, or an empty string.
+
+   Any warnings generated as part of this lookup are added to WARNINGS.  If
+   some other mechanism can be used to lookup the debug information then
+   the warning will not be shown, however, if GDB fails to find suitable
+   debug information using any approach, then any warnings will be
+   printed.  */
+
+extern std::string find_separate_debug_file_by_debuglink
+  (struct objfile *objfile, deferred_warnings *warnings);
 
 /* Build (allocate and populate) a section_addr_info struct from an
    existing section table.  */
@@ -268,6 +278,11 @@ extern bool auto_solib_add;
 extern void set_initial_language (void);
 
 extern gdb_bfd_ref_ptr symfile_bfd_open (const char *);
+
+/* Like symfile_bfd_open, but will not throw an exception on error.
+   Instead, it issues a warning and returns nullptr.  */
+
+extern gdb_bfd_ref_ptr symfile_bfd_open_no_error (const char *) noexcept;
 
 extern int get_section_index (struct objfile *, const char *);
 
@@ -296,10 +311,10 @@ extern int section_is_overlay (struct obj_section *);
 extern int section_is_mapped (struct obj_section *);
 
 /* Return true if pc belongs to section's VMA.  */
-extern CORE_ADDR pc_in_mapped_range (CORE_ADDR, struct obj_section *);
+extern bool pc_in_mapped_range (CORE_ADDR, struct obj_section *);
 
 /* Return true if pc belongs to section's LMA.  */
-extern CORE_ADDR pc_in_unmapped_range (CORE_ADDR, struct obj_section *);
+extern bool pc_in_unmapped_range (CORE_ADDR, struct obj_section *);
 
 /* Map an address from a section's LMA to its VMA.  */
 extern CORE_ADDR overlay_mapped_address (CORE_ADDR, struct obj_section *);

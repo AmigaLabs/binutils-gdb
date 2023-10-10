@@ -184,7 +184,7 @@ changequote(,)
     # We require texinfo to be 6.3 or later, for a working synindex
     # and validatemenus: otherwise we fall back to /bin/true.
     if ${MAKEINFO} --version \
-       | egrep 'texinfo[^0-9]*(6\.[3-9]|[7-9][0-9])' >/dev/null 2>&1; then
+       | egrep 'texinfo[^0-9]*(6\.[3-9]|[7-9]|[1-6][0-9])' >/dev/null 2>&1; then
       build_info=yes
     else
         build_info=
@@ -241,7 +241,12 @@ if @<:@llength @<:@info commands try@:>@@:>@ then { puts yes } else { puts no }
 EOF
 fi`
 ])
-AM_CONDITIONAL(TCL_TRY, test "${ac_cv_libctf_tcl_try}" = yes)
+
+HAVE_TCL_TRY=false
+if test "${ac_cv_libctf_tcl_try}" = "yes"; then
+    HAVE_TCL_TRY=true
+fi
+AC_SUBST(HAVE_TCL_TRY)
 
 # Use a version script, if possible, or an -export-symbols-regex otherwise.
 decommented_version_script=

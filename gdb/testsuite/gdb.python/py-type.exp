@@ -34,12 +34,7 @@ proc build_inferior {exefile lang} {
 
 # Restart GDB.
 proc restart_gdb {exefile} { 
-  global srcdir subdir srcfile testfile hex
-
-  gdb_exit
-  gdb_start
-  gdb_reinitialize_dir $srcdir/$subdir
-  gdb_load ${exefile}
+  clean_restart $exefile
 
   if {![runto_main]} {
       return
@@ -351,7 +346,7 @@ if { [build_inferior "${binfile}" "c"] == 0 } {
   restart_gdb "${binfile}"
 
   # Skip all tests if Python scripting is not enabled.
-  if { [skip_python_tests] } { continue }
+  if { ![allow_python_tests] } { continue }
 
   gdb_test "python print (gdb.lookup_type ('char').objfile)" "None"
 
@@ -393,3 +388,7 @@ if { [build_inferior "${binfile}-cxx" "c++"] == 0 } {
       test_type_equality
   }
 }
+
+# Test __repr__().
+gdb_test "python print (repr (gdb.lookup_type ('char')))" \
+      "<gdb.Type code=TYPE_CODE_INT name=char>" "test __repr__()"

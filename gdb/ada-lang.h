@@ -202,8 +202,6 @@ extern int ada_is_simple_array_type (struct type *);
 
 extern int ada_is_array_descriptor_type (struct type *);
 
-extern int ada_is_bogus_array_descriptor (struct type *);
-
 extern LONGEST ada_discrete_type_low_bound (struct type *);
 
 extern LONGEST ada_discrete_type_high_bound (struct type *);
@@ -337,14 +335,12 @@ extern enum ada_renaming_category ada_parse_renaming (struct symbol *,
 
 extern void ada_find_printable_frame (frame_info_ptr fi);
 
-extern char *ada_breakpoint_rewrite (char *, int *);
-
-extern char *ada_main_name (void);
+extern const char *ada_main_name ();
 
 extern void create_ada_exception_catchpoint
   (struct gdbarch *gdbarch, enum ada_exception_catchpoint_kind ex_kind,
-   const std::string &excep_string, const std::string &cond_string, int tempflag,
-   int disabled, int from_tty);
+   std::string &&excep_string, const std::string &cond_string, int tempflag,
+   int enabled, int from_tty);
 
 /* Return true if BP is an Ada catchpoint.  */
 

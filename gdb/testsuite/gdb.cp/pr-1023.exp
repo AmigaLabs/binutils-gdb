@@ -18,7 +18,7 @@
 
 # This file is part of the gdb testsuite.
 
-if { [skip_cplus_tests] } { return }
+require allow_cplus_tests
 
 #
 # test running programs
@@ -50,4 +50,3 @@ gdb_test \
   "Breakpoint $decimal at $hex: file .*$srcfile, line 10.*"
 
 gdb_exit
-return 0

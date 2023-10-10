@@ -20,7 +20,6 @@
 #include "linux-ptrace.h"
 #include "linux-procfs.h"
 #include "linux-waitpid.h"
-#include "gdbsupport/buffer.h"
 #ifdef HAVE_SYS_PROCFS_H
 #include <sys/procfs.h>
 #endif
@@ -310,7 +309,7 @@ linux_child_function (void *child_stack)
   ptrace (PTRACE_TRACEME, 0, (PTRACE_TYPE_ARG3) 0, (PTRACE_TYPE_ARG4) 0);
   kill (getpid (), SIGSTOP);
 
-  /* This code is only reacheable by the child (grandchild's parent)
+  /* This code is only reachable by the child (grandchild's parent)
      process.  */
   _exit (0);
 }

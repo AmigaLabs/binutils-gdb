@@ -272,6 +272,8 @@ for this_target in $target $canon_targets ; do
         ;;
 
 changequote(,)dnl
+      ppc-*-aix5.[01]*)
+	;;
       ppc-*-aix[5-9].*)
 changequote([,])dnl
 	AC_DEFINE(AIX_WEAK_SUPPORT, 1,
@@ -392,15 +394,15 @@ changequote([,])dnl
 	esac
 	# Decide which ABI to target by default.
 	case ${target} in
+	  mips64*-openbsd* | mips64*-linux-gnuabi64)
+	    mips_default_abi=N64_ABI
+	    ;;
 	  mips64*-linux* | mips-sgi-irix6* | mips64*-freebsd* \
 	  | mips64*-kfreebsd*-gnu | mips64*-ps2-elf*)
 	    mips_default_abi=N32_ABI
 	    ;;
 	  mips*-linux* | mips*-freebsd* | mips*-kfreebsd*-gnu)
 	    mips_default_abi=O32_ABI
-	    ;;
-	  mips64*-openbsd*)
-	    mips_default_abi=N64_ABI
 	    ;;
 	  *)
 	    mips_default_abi=NO_ABI
@@ -449,7 +451,6 @@ changequote([,])dnl
       	if test $this_target = $target ; then
 	  AC_DEFINE_UNQUOTED(DEFAULT_ARCH, "${arch}", [Default architecture.])
 	fi
-        using_cgen=yes
         ;;
       epiphany | fr30 | ip2k | iq2000 | lm32 | m32r | or1k)
 	using_cgen=yes
@@ -473,6 +474,14 @@ changequote([,])dnl
 	;;
       frv)
 	using_cgen=yes
+	;;
+      kvx)
+	for f in config/kvx-parse.o; do
+	  case " $extra_objects " in
+	    *" $f "*) ;;
+	    *) extra_objects="$extra_objects $f" ;;
+	  esac
+	done
 	;;
       m68k)
 	f=config/m68k-parse.o

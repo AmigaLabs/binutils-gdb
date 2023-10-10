@@ -291,8 +291,8 @@ thpy_thread_handle (PyObject *self, PyObject *args)
   thread_object *thread_obj = (thread_object *) self;
   THPY_REQUIRE_VALID (thread_obj);
 
-  gdb::byte_vector hv;
-  
+  gdb::array_view<const gdb_byte> hv;
+
   try
     {
       hv = target_thread_info_to_thread_handle (thread_obj->thread);
@@ -361,7 +361,7 @@ gdbpy_selected_thread (PyObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-int
+static int CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION
 gdbpy_initialize_thread (void)
 {
   if (PyType_Ready (&thread_object_type) < 0)
@@ -370,6 +370,10 @@ gdbpy_initialize_thread (void)
   return gdb_pymodule_addobject (gdb_module, "InferiorThread",
 				 (PyObject *) &thread_object_type);
 }
+
+GDBPY_INITIALIZE_FILE (gdbpy_initialize_thread);
+
+
 
 static gdb_PyGetSetDef thread_object_getset[] =
 {

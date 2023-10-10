@@ -17,13 +17,6 @@ case ${target} in
     ;;
 esac
 
-case ${target} in
-  x86_64-*-mingw* | x86_64-*-pe | x86_64-*-pep | x86_64-*-cygwin | \
-  i[3-7]86-*-mingw32* | i[3-7]86-*-cygwin* | i[3-7]86-*-winnt | i[3-7]86-*-pe)
-    pdb_support=" ";;
-  *)
-esac
-
 rm -f e${EMULATION_NAME}.c
 (echo;echo;echo;echo;echo)>e${EMULATION_NAME}.c # there, now line numbers match ;-)
 fragment <<EOF
@@ -82,7 +75,19 @@ fragment <<EOF
 #include "ldctor.h"
 #include "ldbuildid.h"
 #include "coff/internal.h"
-${pdb_support+#include \"pdb.h\"}
+EOF
+
+case ${target} in
+  x86_64-*-mingw* | x86_64-*-pe | x86_64-*-pep | x86_64-*-cygwin | \
+  i[3-7]86-*-mingw32* | i[3-7]86-*-cygwin* | i[3-7]86-*-winnt | i[3-7]86-*-pe | \
+  aarch64-*-mingw* | aarch64-*-pe* )
+fragment <<EOF
+#include "pdb.h"
+EOF
+    ;;
+esac
+
+fragment <<EOF
 
 /* FIXME: See bfd/peXXigen.c for why we include an architecture specific
    header in generic PE code.  */
@@ -117,7 +122,7 @@ ${pdb_support+#include \"pdb.h\"}
 #define PE_DEF_SECTION_ALIGNMENT ${OVERRIDE_SECTION_ALIGNMENT}
 #endif
 
-#ifdef TARGET_IS_i386pep
+#if defined(TARGET_IS_i386pep) || defined(COFF_WITH_peAArch64)
 #define DLL_SUPPORT
 #endif
 
@@ -126,8 +131,8 @@ ${pdb_support+#include \"pdb.h\"}
 					 | IMAGE_DLL_CHARACTERISTICS_HIGH_ENTROPY_VA \
   					 | IMAGE_DLL_CHARACTERISTICS_NX_COMPAT)
 
-#if defined(TARGET_IS_i386pep) || ! defined(DLL_SUPPORT)
-#define	PE_DEF_SUBSYSTEM		3
+#if defined(TARGET_IS_i386pep) || defined(COFF_WITH_peAArch64) || ! defined(DLL_SUPPORT)
+#define	PE_DEF_SUBSYSTEM		IMAGE_SUBSYSTEM_WINDOWS_CUI
 #undef NT_EXE_IMAGE_BASE
 #define NT_EXE_IMAGE_BASE \
   ((bfd_vma) (${move_default_addr_high} ? 0x100400000LL \
@@ -162,7 +167,7 @@ ${pdb_support+#include \"pdb.h\"}
   ((bfd_vma) (${move_default_addr_high} ? 0x0ffff0000LL \
 					: 0x0ffc0000LL))
 #undef  PE_DEF_SECTION_ALIGNMENT
-#define	PE_DEF_SUBSYSTEM		2
+#define	PE_DEF_SUBSYSTEM		IMAGE_SUBSYSTEM_WINDOWS_GUI
 #undef  PE_DEF_FILE_ALIGNMENT
 #define PE_DEF_FILE_ALIGNMENT		0x00000200
 #define PE_DEF_SECTION_ALIGNMENT	0x00000400
@@ -626,6 +631,9 @@ set_entry_point (void)
     }
 
   lang_default_entry (entry);
+
+  if (bfd_link_executable (&link_info) && ! entry_from_cmdline)
+    ldlang_add_undef (entry, false);  
 }
 
 static void
@@ -1112,13 +1120,37 @@ pep_undef_cdecl_match (struct bfd_link_hash_entry *h, void *inf)
 }
 
 static void
+set_decoration (const char *undecorated_name,
+		struct bfd_link_hash_entry * decoration)
+{
+  static bool  gave_warning_message = false;
+  struct decoration_hash_entry *entry;
+
+  if (is_underscoring () && undecorated_name[0] == '_')
+    undecorated_name++;
+
+  entry = (struct decoration_hash_entry *)
+	  bfd_hash_lookup (&(coff_hash_table (&link_info)->decoration_hash),
+			   undecorated_name, true /* create */, false /* copy */);
+
+  if (entry->decorated_link != NULL && !gave_warning_message)
+    {
+      einfo (_("%P: warning: overwriting decorated name %s with %s\n"),
+	     entry->decorated_link->root.string, undecorated_name);
+      gave_warning_message = true;
+    }
+
+  entry->decorated_link = decoration;
+}
+
+static void
 pep_fixup_stdcalls (void)
 {
   static int gave_warning_message = 0;
   struct bfd_link_hash_entry *undef, *sym;
 
   if (pep_dll_extra_pe_debug)
-    printf ("%s\n", __FUNCTION__);
+    printf ("%s\n", __func__);
 
   for (undef = link_info.hash->undefs; undef; undef=undef->u.undef.next)
     if (undef->type == bfd_link_hash_undefined)
@@ -1172,6 +1204,7 @@ pep_fixup_stdcalls (void)
 		undef->type = bfd_link_hash_defined;
 		undef->u.def.value = sym->u.def.value;
 		undef->u.def.section = sym->u.def.section;
+		set_decoration (undef->root.string, sym);
 
 		if (pep_enable_stdcall_fixup == -1)
 		  {
@@ -1189,62 +1222,102 @@ pep_fixup_stdcalls (void)
       }
 }
 
+static bfd_vma
+read_addend (arelent *rel, asection *s)
+{
+  char buf[8];
+  bfd_vma addend = 0;
+  bool ok = false;
+
+  switch (rel->howto->bitsize)
+    {
+    case 8:
+      ok = bfd_get_section_contents (s->owner, s, buf, rel->address, 1);
+      if (ok)
+	{
+	  if (rel->howto->pc_relative)
+	    addend = bfd_get_signed_8 (s->owner, buf);
+	  else
+	    addend = bfd_get_8 (s->owner, buf);
+	}
+      break;
+    case 16:
+      ok = bfd_get_section_contents (s->owner, s, buf, rel->address, 2);
+      if (ok)
+	{
+	  if (rel->howto->pc_relative)
+	    addend = bfd_get_signed_16 (s->owner, buf);
+	  else
+	    addend = bfd_get_16 (s->owner, buf);
+	}
+      break;
+    case 26:
+    case 32:
+      ok = bfd_get_section_contents (s->owner, s, buf, rel->address, 4);
+      if (ok)
+	{
+	  if (rel->howto->pc_relative)
+	    addend = bfd_get_signed_32 (s->owner, buf);
+	  else
+	    addend = bfd_get_32 (s->owner, buf);
+	}
+      break;
+    case 64:
+      ok = bfd_get_section_contents (s->owner, s, buf, rel->address, 8);
+      if (ok)
+	addend = bfd_get_64 (s->owner, buf);
+      break;
+    }
+  if (!ok)
+    einfo (_("%P: %H: cannot get section contents - auto-import exception\n"),
+	   s->owner, s, rel->address);
+  return addend;
+}
+
 static void
 make_import_fixup (arelent *rel, asection *s, char *name, const char *symname)
 {
   struct bfd_symbol *sym = *rel->sym_ptr_ptr;
-  char addend[8];
-  bfd_vma _addend = 0;
-  int suc = 0;
+  bfd_vma addend;
 
   if (pep_dll_extra_pe_debug)
     printf ("arelent: %s@%#lx: add=%li\n", sym->name,
 	    (unsigned long) rel->address, (long) rel->addend);
 
-  memset (addend, 0, sizeof (addend));
-  switch ((rel->howto->bitsize))
-    {
-    case 8:
-      suc = bfd_get_section_contents (s->owner, s, addend, rel->address, 1);
-      if (suc && rel->howto->pc_relative)
-	_addend = bfd_get_signed_8 (s->owner, addend);
-      else if (suc)
-	_addend = bfd_get_8 (s->owner, addend);
-      break;
-    case 16:
-      suc = bfd_get_section_contents (s->owner, s, addend, rel->address, 2);
-      if (suc && rel->howto->pc_relative)
-	_addend = bfd_get_signed_16 (s->owner, addend);
-      else if (suc)
-	_addend = bfd_get_16 (s->owner, addend);
-      break;
-    case 32:
-      suc = bfd_get_section_contents (s->owner, s, addend, rel->address, 4);
-      if (suc && rel->howto->pc_relative)
-	_addend = bfd_get_signed_32 (s->owner, addend);
-      else if (suc)
-	_addend = bfd_get_32 (s->owner, addend);
-      break;
-    case 64:
-      suc = bfd_get_section_contents (s->owner, s, addend, rel->address, 8);
-      if (suc)
-	_addend = bfd_get_64 (s->owner, addend);
-      break;
-    }
-  if (! suc)
-    einfo (_("%P: %C: cannot get section contents - auto-import exception\n"),
-	   s->owner, s, rel->address);
+  addend = read_addend (rel, s);
 
   if (pep_dll_extra_pe_debug)
     {
       printf ("import of 0x%lx(0x%lx) sec_addr=0x%lx",
-	      (long) _addend, (long) rel->addend, (long) rel->address);
+	      (long) addend, (long) rel->addend, (long) rel->address);
       if (rel->howto->pc_relative)
 	printf (" pcrel");
       printf (" %d bit rel.\n", (int) rel->howto->bitsize);
     }
 
-  pep_create_import_fixup (rel, s, _addend, name, symname);
+  pep_create_import_fixup (rel, s, addend, name, symname);
+}
+
+static void
+make_runtime_ref (void)
+{
+  const char *rr = U ("_pei386_runtime_relocator");
+  struct bfd_link_hash_entry *h
+    = bfd_wrapped_link_hash_lookup (link_info.output_bfd, &link_info,
+				    rr, true, false, true);
+  if (!h)
+    einfo (_("%F%P: bfd_link_hash_lookup failed: %E\n"));
+  else
+    {
+      if (h->type == bfd_link_hash_new)
+	{
+	  h->type = bfd_link_hash_undefined;
+	  h->u.undef.abfd = NULL;
+	  if (h->u.undef.next == NULL && h != link_info.hash->undefs_tail)
+	    bfd_link_add_undef (link_info.hash, h);
+	}
+      h->non_ir_ref_regular = true;
+    }
 }
 
 static bool
@@ -1280,7 +1353,7 @@ pecoff_checksum_contents (bfd *abfd,
       if (bfd_seek (abfd, filepos, SEEK_SET) != 0)
 	return 0;
 
-      status = bfd_bread (&b, (bfd_size_type) 1, abfd);
+      status = bfd_read (&b, 1, abfd);
       if (status < 1)
 	{
 	  break;
@@ -1296,7 +1369,7 @@ pecoff_checksum_contents (bfd *abfd,
 static bool
 write_build_id (bfd *abfd)
 {
-  struct pe_tdata *t = pe_data (abfd);
+  struct pe_tdata *td = pe_data (abfd);
   asection *asec;
   struct bfd_link_order *link_order = NULL;
   unsigned char *contents;
@@ -1312,7 +1385,7 @@ write_build_id (bfd *abfd)
 	{
 	  if (l->type == bfd_indirect_link_order)
 	    {
-	      if (l->u.indirect.section == t->build_id.sec)
+	      if (l->u.indirect.section == td->build_id.sec)
 		{
 		  link_order = l;
 		  break;
@@ -1331,15 +1404,16 @@ write_build_id (bfd *abfd)
       return true;
     }
 
-  if (t->build_id.sec->contents == NULL)
-    t->build_id.sec->contents = (unsigned char *) xmalloc (t->build_id.sec->size);
-  contents = t->build_id.sec->contents;
+  if (td->build_id.sec->contents == NULL)
+    td->build_id.sec->contents = xmalloc (td->build_id.sec->size);
+  contents = td->build_id.sec->contents;
 
-  build_id_size = compute_build_id_size (t->build_id.style);
+  build_id_size = compute_build_id_size (td->build_id.style);
   build_id = xmalloc (build_id_size);
-  generate_build_id (abfd, t->build_id.style, pecoff_checksum_contents, build_id, build_id_size);
+  generate_build_id (abfd, td->build_id.style, pecoff_checksum_contents,
+		     build_id, build_id_size);
 
-  bfd_vma ib = pe_data (link_info.output_bfd)->pe_opthdr.ImageBase;
+  bfd_vma ib = td->pe_opthdr.ImageBase;
 
 #ifdef PDB_H
   if (pdb_name)
@@ -1366,11 +1440,11 @@ write_build_id (bfd *abfd)
   struct external_IMAGE_DEBUG_DIRECTORY *ext = (struct external_IMAGE_DEBUG_DIRECTORY *)contents;
   _bfd_XXi_swap_debugdir_out (abfd, &idd, ext);
 
-  /* Write the debug directory enttry */
+  /* Write the debug directory entry.  */
   if (bfd_seek (abfd, asec->filepos + link_order->offset, SEEK_SET) != 0)
     return 0;
 
-  if (bfd_bwrite (contents, sizeof (*ext), abfd) != sizeof (*ext))
+  if (bfd_write (contents, sizeof (*ext), abfd) != sizeof (*ext))
     return 0;
 
 #ifdef PDB_H
@@ -1386,10 +1460,12 @@ write_build_id (bfd *abfd)
   cvinfo.CVSignature = CVINFO_PDB70_CVSIGNATURE;
   cvinfo.Age = 1;
 
-  /* Zero pad or truncate the generated build_id to fit in the CodeView record.  */
+  /* Zero pad or truncate the generated build_id to fit in the
+     CodeView record.  */
   memset (&(cvinfo.Signature), 0, CV_INFO_SIGNATURE_LENGTH);
-  memcpy (&(cvinfo.Signature), build_id, (build_id_size > CV_INFO_SIGNATURE_LENGTH)
-	  ? CV_INFO_SIGNATURE_LENGTH :  build_id_size);
+  memcpy (&(cvinfo.Signature), build_id,
+	  (build_id_size > CV_INFO_SIGNATURE_LENGTH
+	   ? CV_INFO_SIGNATURE_LENGTH : build_id_size));
 
   free (build_id);
 
@@ -1399,9 +1475,9 @@ write_build_id (bfd *abfd)
     return 0;
 
   /* Record the location of the debug directory in the data directory.  */
-  pe_data (link_info.output_bfd)->pe_opthdr.DataDirectory[PE_DEBUG_DATA].VirtualAddress
-    = asec->vma  - ib + link_order->offset;
-  pe_data (link_info.output_bfd)->pe_opthdr.DataDirectory[PE_DEBUG_DATA].Size
+  td->pe_opthdr.DataDirectory[PE_DEBUG_DATA].VirtualAddress
+    = asec->vma - ib + link_order->offset;
+  td->pe_opthdr.DataDirectory[PE_DEBUG_DATA].Size
     = sizeof (struct external_IMAGE_DEBUG_DIRECTORY);
 
   return true;
@@ -1425,10 +1501,10 @@ setup_build_id (bfd *ibfd)
   s = bfd_make_section_anyway_with_flags (ibfd, ".buildid", flags);
   if (s != NULL)
     {
-      struct pe_tdata *t = pe_data (link_info.output_bfd);
-      t->build_id.after_write_object_contents = &write_build_id;
-      t->build_id.style = emit_build_id;
-      t->build_id.sec = s;
+      struct pe_tdata *td = pe_data (link_info.output_bfd);
+      td->build_id.after_write_object_contents = &write_build_id;
+      td->build_id.style = emit_build_id;
+      td->build_id.sec = s;
 
       /* Section is a fixed size:
 	 One IMAGE_DEBUG_DIRECTORY entry, of type IMAGE_DEBUG_TYPE_CODEVIEW,
@@ -1450,6 +1526,16 @@ setup_build_id (bfd *ibfd)
 }
 
 static void
+gld${EMULATION_NAME}_before_plugin_all_symbols_read (void)
+{
+#ifdef DLL_SUPPORT
+  if (link_info.lto_plugin_active
+      && link_info.pei386_auto_import) /* -1=warn or 1=enable */
+    make_runtime_ref ();
+#endif
+}
+
+static void
 gld${EMULATION_NAME}_after_open (void)
 {
   after_open_default ();
@@ -1461,7 +1547,7 @@ gld${EMULATION_NAME}_after_open (void)
       bfd *a;
       struct bfd_link_hash_entry *sym;
 
-      printf ("%s()\n", __FUNCTION__);
+      printf ("%s()\n", __func__);
 
       for (sym = link_info.hash->undefs; sym; sym=sym->u.undef.next)
 	printf ("-%s\n", sym->root.string);
@@ -1519,7 +1605,7 @@ gld${EMULATION_NAME}_after_open (void)
 
   if (bfd_get_flavour (link_info.output_bfd) != bfd_target_coff_flavour
       || coff_data (link_info.output_bfd) == NULL
-      || coff_data (link_info.output_bfd)->pe == 0)
+      || !obj_pe (link_info.output_bfd))
     einfo (_("%F%P: cannot perform PE operations on non PE output file '%pB'\n"),
 	   link_info.output_bfd);
 
@@ -1573,14 +1659,14 @@ gld${EMULATION_NAME}_after_open (void)
   if (pep_enable_stdcall_fixup) /* -1=warn or 1=enable */
     pep_fixup_stdcalls ();
 
-#ifndef TARGET_IS_i386pep
+#if !defined(TARGET_IS_i386pep) && !defined(COFF_WITH_peAArch64)
   if (bfd_link_pic (&link_info))
 #else
   if (!bfd_link_relocatable (&link_info))
 #endif
     pep_dll_build_sections (link_info.output_bfd, &link_info);
 
-#ifndef TARGET_IS_i386pep
+#if !defined(TARGET_IS_i386pep) && !defined(COFF_WITH_peAArch64)
   else
     pep_exe_build_sections (link_info.output_bfd, &link_info);
 #endif
@@ -1876,6 +1962,8 @@ gld${EMULATION_NAME}_recognized_file (lang_input_statement_type *entry ATTRIBUTE
 #ifdef DLL_SUPPORT
 #ifdef TARGET_IS_i386pep
   pep_dll_id_target ("pei-x86-64");
+#elif defined(COFF_WITH_peAArch64)
+  pep_dll_id_target ("pei-aarch64-little");
 #endif
   if (pep_bfd_is_dll (entry->the_bfd))
     return pep_implied_import_dll (entry->filename);
@@ -2207,8 +2295,8 @@ gld${EMULATION_NAME}_open_dynamic_archive
 			    search->name and the start of the format string.  */
 			 + 2);
 
-  sprintf (full_string, "%s/", search->name);
-  base_string = full_string + strlen (full_string);
+  base_string = stpcpy (full_string, search->name);
+  *base_string++ = '/';
 
   for (i = 0; libname_fmt[i].format; i++)
     {
@@ -2254,7 +2342,7 @@ then
 # Scripts compiled in.
 
 # sed commands to quote an ld script as a C string.
-sc="-f stringify.sed"
+sc="-f ${srcdir}/emultempl/stringify.sed"
 
 fragment <<EOF
 {
@@ -2309,6 +2397,7 @@ EOF
 fi
 
 LDEMUL_AFTER_PARSE=gld${EMULATION_NAME}_after_parse
+LDEMUL_BEFORE_PLUGIN_ALL_SYMBOLS_READ=gld${EMULATION_NAME}_before_plugin_all_symbols_read
 LDEMUL_AFTER_OPEN=gld${EMULATION_NAME}_after_open
 LDEMUL_BEFORE_ALLOCATION=gld${EMULATION_NAME}_before_allocation
 LDEMUL_FINISH=gld${EMULATION_NAME}_finish

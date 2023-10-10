@@ -196,23 +196,15 @@ _bfd_elf_swap_versym_out (bfd *abfd,
 unsigned long
 bfd_elf_hash (const char *namearg)
 {
-  const unsigned char *name = (const unsigned char *) namearg;
-  unsigned long h = 0;
-  unsigned long g;
-  int ch;
+  uint32_t h = 0;
 
-  while ((ch = *name++) != '\0')
+  for (const unsigned char *name = (const unsigned char *) namearg;
+       *name; name++)
     {
-      h = (h << 4) + ch;
-      if ((g = (h & 0xf0000000)) != 0)
-	{
-	  h ^= g >> 24;
-	  /* The ELF ABI says `h &= ~g', but this is equivalent in
-	     this case and on some machines one insn instead of two.  */
-	  h ^= g;
-	}
+      h = (h << 4) + *name;
+      h ^= (h >> 24) & 0xf0;
     }
-  return h & 0xffffffff;
+  return h & 0x0fffffff;
 }
 
 /* DT_GNU_HASH hash function.  Do not change this function; you will
@@ -221,13 +213,12 @@ bfd_elf_hash (const char *namearg)
 unsigned long
 bfd_elf_gnu_hash (const char *namearg)
 {
-  const unsigned char *name = (const unsigned char *) namearg;
-  unsigned long h = 5381;
-  unsigned char ch;
+  uint32_t h = 5381;
 
-  while ((ch = *name++) != '\0')
-    h = (h << 5) + h + ch;
-  return h & 0xffffffff;
+  for (const unsigned char *name = (const unsigned char *) namearg;
+       *name; name++)
+    h = (h << 5) + h + *name;
+  return h;
 }
 
 /* Create a tdata field OBJECT_SIZE bytes in length, zeroed out and with
@@ -406,6 +397,17 @@ bfd_elf_get_elf_syms (bfd *ibfd,
   if (symcount == 0)
     return intsym_buf;
 
+  if (elf_use_dt_symtab_p (ibfd))
+    {
+      /* Use dynamic symbol table.  */
+      if (elf_tdata (ibfd)->dt_symtab_count != symcount + symoffset)
+	{
+	  bfd_set_error (bfd_error_invalid_operation);
+	  return NULL;
+	}
+      return elf_tdata (ibfd)->dt_symtab + symoffset;
+    }
+
   /* Normal syms might have section extension entries.  */
   shndx_hdr = NULL;
   if (elf_symtab_shndx_list (ibfd) != NULL)
@@ -458,7 +460,7 @@ bfd_elf_get_elf_syms (bfd *ibfd,
     }
   if (extsym_buf == NULL
       || bfd_seek (ibfd, pos, SEEK_SET) != 0
-      || bfd_bread (extsym_buf, amt, ibfd) != amt)
+      || bfd_read (extsym_buf, amt, ibfd) != amt)
     {
       intsym_buf = NULL;
       goto out;
@@ -482,7 +484,7 @@ bfd_elf_get_elf_syms (bfd *ibfd,
 	}
       if (extshndx_buf == NULL
 	  || bfd_seek (ibfd, pos, SEEK_SET) != 0
-	  || bfd_bread (extshndx_buf, amt, ibfd) != amt)
+	  || bfd_read (extshndx_buf, amt, ibfd) != amt)
 	{
 	  intsym_buf = NULL;
 	  goto out;
@@ -1689,7 +1691,7 @@ _bfd_elf_print_private_bfd_data (bfd *abfd, void *farg)
     }
 
   s = bfd_get_section_by_name (abfd, ".dynamic");
-  if (s != NULL)
+  if (s != NULL && (s->flags & SEC_HAS_CONTENTS) != 0)
     {
       unsigned int elfsec;
       unsigned long shlink;
@@ -1882,6 +1884,555 @@ _bfd_elf_print_private_bfd_data (bfd *abfd, void *farg)
   return false;
 }
 
+/* Find the file offset corresponding to VMA by using the program
+   headers.  */
+
+static file_ptr
+offset_from_vma (Elf_Internal_Phdr *phdrs, size_t phnum, bfd_vma vma,
+		 size_t size, size_t *max_size_p)
+{
+  Elf_Internal_Phdr *seg;
+  size_t i;
+
+  for (seg = phdrs, i = 0; i < phnum; ++seg, ++i)
+    if (seg->p_type == PT_LOAD
+	&& vma >= (seg->p_vaddr & -seg->p_align)
+	&& vma + size <= seg->p_vaddr + seg->p_filesz)
+      {
+	if (max_size_p)
+	  *max_size_p = seg->p_vaddr + seg->p_filesz - vma;
+	return vma - seg->p_vaddr + seg->p_offset;
+      }
+
+  if (max_size_p)
+    *max_size_p = 0;
+  bfd_set_error (bfd_error_invalid_operation);
+  return (file_ptr) -1;
+}
+
+/* Convert hash table to internal form.  */
+
+static bfd_vma *
+get_hash_table_data (bfd *abfd, bfd_size_type number,
+		     unsigned int ent_size, bfd_size_type filesize)
+{
+  unsigned char *e_data = NULL;
+  bfd_vma *i_data = NULL;
+  bfd_size_type size;
+
+  if (ent_size != 4 && ent_size != 8)
+    return NULL;
+
+  if ((size_t) number != number)
+    {
+      bfd_set_error (bfd_error_file_too_big);
+      return NULL;
+    }
+
+  size = ent_size * number;
+  /* Be kind to memory checkers (eg valgrind, address sanitizer) by not
+     attempting to allocate memory when the read is bound to fail.  */
+  if (size > filesize
+      || number >= ~(size_t) 0 / ent_size
+      || number >= ~(size_t) 0 / sizeof (*i_data))
+    {
+      bfd_set_error (bfd_error_file_too_big);
+      return NULL;
+    }
+
+  e_data = _bfd_malloc_and_read (abfd, size, size);
+  if (e_data == NULL)
+    return NULL;
+
+  i_data = (bfd_vma *) bfd_malloc (number * sizeof (*i_data));
+  if (i_data == NULL)
+    {
+      free (e_data);
+      return NULL;
+    }
+
+  if (ent_size == 4)
+    while (number--)
+      i_data[number] = bfd_get_32 (abfd, e_data + number * ent_size);
+  else
+    while (number--)
+      i_data[number] = bfd_get_64 (abfd, e_data + number * ent_size);
+
+  free (e_data);
+  return i_data;
+}
+
+/* Address of .MIPS.xhash section.  FIXME: What is the best way to
+   support DT_MIPS_XHASH?  */
+#define DT_MIPS_XHASH	       0x70000036
+
+/* Reconstruct dynamic symbol table from PT_DYNAMIC segment.  */
+
+bool
+_bfd_elf_get_dynamic_symbols (bfd *abfd, Elf_Internal_Phdr *phdr,
+			      Elf_Internal_Phdr *phdrs, size_t phnum,
+			      bfd_size_type filesize)
+{
+  bfd_byte *extdyn, *extdynend;
+  size_t extdynsize;
+  void (*swap_dyn_in) (bfd *, const void *, Elf_Internal_Dyn *);
+  bool (*swap_symbol_in) (bfd *, const void *, const void *,
+			  Elf_Internal_Sym *);
+  Elf_Internal_Dyn dyn;
+  bfd_vma dt_hash = 0;
+  bfd_vma dt_gnu_hash = 0;
+  bfd_vma dt_mips_xhash = 0;
+  bfd_vma dt_strtab = 0;
+  bfd_vma dt_symtab = 0;
+  size_t dt_strsz = 0;
+  bfd_vma dt_versym = 0;
+  bfd_vma dt_verdef = 0;
+  bfd_vma dt_verneed = 0;
+  bfd_byte *dynbuf = NULL;
+  char *strbuf = NULL;
+  bfd_vma *gnubuckets = NULL;
+  bfd_vma *gnuchains = NULL;
+  bfd_vma *mipsxlat = NULL;
+  file_ptr saved_filepos, filepos;
+  bool res = false;
+  size_t amt;
+  bfd_byte *esymbuf = NULL, *esym;
+  bfd_size_type symcount;
+  Elf_Internal_Sym *isymbuf = NULL;
+  Elf_Internal_Sym *isym, *isymend;
+  bfd_byte *versym = NULL;
+  bfd_byte *verdef = NULL;
+  bfd_byte *verneed = NULL;
+  size_t verdef_size = 0;
+  size_t verneed_size = 0;
+  size_t extsym_size;
+  const struct elf_backend_data *bed;
+
+  /* Return TRUE if symbol table is bad.  */
+  if (elf_bad_symtab (abfd))
+    return true;
+
+  /* Return TRUE if DT_HASH/DT_GNU_HASH have bee processed before.  */
+  if (elf_tdata (abfd)->dt_strtab != NULL)
+    return true;
+
+  bed = get_elf_backend_data (abfd);
+
+  /* Save file position for elf_object_p.  */
+  saved_filepos = bfd_tell (abfd);
+
+  if (bfd_seek (abfd, phdr->p_offset, SEEK_SET) != 0)
+    goto error_return;
+
+  dynbuf = _bfd_malloc_and_read (abfd, phdr->p_filesz, phdr->p_filesz);
+  if (dynbuf == NULL)
+    goto error_return;
+
+  extsym_size = bed->s->sizeof_sym;
+  extdynsize = bed->s->sizeof_dyn;
+  swap_dyn_in = bed->s->swap_dyn_in;
+
+  extdyn = dynbuf;
+  if (phdr->p_filesz < extdynsize)
+    goto error_return;
+  extdynend = extdyn + phdr->p_filesz;
+  for (; extdyn <= (extdynend - extdynsize); extdyn += extdynsize)
+    {
+      swap_dyn_in (abfd, extdyn, &dyn);
+
+      if (dyn.d_tag == DT_NULL)
+	break;
+
+      switch (dyn.d_tag)
+	{
+	case DT_HASH:
+	  dt_hash = dyn.d_un.d_val;
+	  break;
+	case DT_GNU_HASH:
+	  if (bed->elf_machine_code != EM_MIPS
+	      && bed->elf_machine_code != EM_MIPS_RS3_LE)
+	    dt_gnu_hash = dyn.d_un.d_val;
+	  break;
+	case DT_STRTAB:
+	  dt_strtab = dyn.d_un.d_val;
+	  break;
+	case DT_SYMTAB:
+	  dt_symtab = dyn.d_un.d_val;
+	  break;
+	case DT_STRSZ:
+	  dt_strsz = dyn.d_un.d_val;
+	  break;
+	case DT_SYMENT:
+	  if (dyn.d_un.d_val != extsym_size)
+	    goto error_return;
+	  break;
+	case DT_VERSYM:
+	  dt_versym = dyn.d_un.d_val;
+	  break;
+	case DT_VERDEF:
+	  dt_verdef = dyn.d_un.d_val;
+	  break;
+	case DT_VERNEED:
+	  dt_verneed = dyn.d_un.d_val;
+	  break;
+	default:
+	  if (dyn.d_tag == DT_MIPS_XHASH
+	      && (bed->elf_machine_code == EM_MIPS
+		  || bed->elf_machine_code == EM_MIPS_RS3_LE))
+	    {
+	      dt_gnu_hash = dyn.d_un.d_val;
+	      dt_mips_xhash = dyn.d_un.d_val;
+	    }
+	  break;
+	}
+    }
+
+  /* Check if we can reconstruct dynamic symbol table from PT_DYNAMIC
+     segment.  */
+  if ((!dt_hash && !dt_gnu_hash)
+      || !dt_strtab
+      || !dt_symtab
+      || !dt_strsz)
+    goto error_return;
+
+  /* Get dynamic string table.  */
+  filepos = offset_from_vma (phdrs, phnum, dt_strtab, dt_strsz, NULL);
+  if (filepos == (file_ptr) -1
+      || bfd_seek (abfd, filepos, SEEK_SET) != 0)
+    goto error_return;
+
+  /* Dynamic string table must be valid until ABFD is closed.  */
+  strbuf = (char *) _bfd_alloc_and_read (abfd, dt_strsz + 1, dt_strsz);
+  if (strbuf == NULL)
+    goto error_return;
+  /* Since this is a string table, make sure that it is terminated.  */
+  strbuf[dt_strsz] = 0;
+
+  /* Get the real symbol count from DT_HASH or DT_GNU_HASH.  Prefer
+     DT_HASH since it is simpler than DT_GNU_HASH.  */
+  if (dt_hash)
+    {
+      unsigned char nb[16];
+      unsigned int hash_ent_size;
+
+      switch (bed->elf_machine_code)
+	{
+	case EM_ALPHA:
+	case EM_S390:
+	case EM_S390_OLD:
+	  if (bed->s->elfclass == ELFCLASS64)
+	    {
+	      hash_ent_size = 8;
+	      break;
+	    }
+	  /* FALLTHROUGH */
+	default:
+	  hash_ent_size = 4;
+	  break;
+	}
+
+      filepos = offset_from_vma (phdrs, phnum, dt_hash, sizeof (nb),
+				 NULL);
+      if (filepos == (file_ptr) -1
+	  || bfd_seek (abfd, filepos, SEEK_SET) != 0
+	  || bfd_read (nb, 2 * hash_ent_size, abfd) != 2 * hash_ent_size)
+	goto error_return;
+
+      /* The number of dynamic symbol table entries equals the number
+	 of chains.  */
+      if (hash_ent_size == 8)
+	symcount = bfd_get_64 (abfd, nb + hash_ent_size);
+      else
+	symcount = bfd_get_32 (abfd, nb + hash_ent_size);
+    }
+  else
+    {
+      /* For DT_GNU_HASH, only defined symbols with non-STB_LOCAL
+	 bindings are in hash table.  Since in dynamic symbol table,
+	 all symbols with STB_LOCAL binding are placed before symbols
+	 with other bindings and all undefined symbols are placed
+	 before defined ones, the highest symbol index in DT_GNU_HASH
+	 is the highest dynamic symbol table index.  */
+      unsigned char nb[16];
+      bfd_vma ngnubuckets;
+      bfd_vma gnusymidx;
+      size_t i, ngnuchains;
+      bfd_vma maxchain = 0xffffffff, bitmaskwords;
+      bfd_vma buckets_vma;
+
+      filepos = offset_from_vma (phdrs, phnum, dt_gnu_hash,
+				 sizeof (nb), NULL);
+      if (filepos == (file_ptr) -1
+	  || bfd_seek (abfd, filepos, SEEK_SET) != 0
+	  || bfd_read (nb, sizeof (nb), abfd) != sizeof (nb))
+	goto error_return;
+
+      ngnubuckets = bfd_get_32 (abfd, nb);
+      gnusymidx = bfd_get_32 (abfd, nb + 4);
+      bitmaskwords = bfd_get_32 (abfd, nb + 8);
+      buckets_vma = dt_gnu_hash + 16;
+      if (bed->s->elfclass == ELFCLASS32)
+	buckets_vma += bitmaskwords * 4;
+      else
+	buckets_vma += bitmaskwords * 8;
+      filepos = offset_from_vma (phdrs, phnum, buckets_vma, 4, NULL);
+      if (filepos == (file_ptr) -1
+	  || bfd_seek (abfd, filepos, SEEK_SET) != 0)
+	goto error_return;
+
+      gnubuckets = get_hash_table_data (abfd, ngnubuckets, 4, filesize);
+      if (gnubuckets == NULL)
+	goto error_return;
+
+      for (i = 0; i < ngnubuckets; i++)
+	if (gnubuckets[i] != 0)
+	  {
+	    if (gnubuckets[i] < gnusymidx)
+	      goto error_return;
+
+	    if (maxchain == 0xffffffff || gnubuckets[i] > maxchain)
+	      maxchain = gnubuckets[i];
+	  }
+
+      if (maxchain == 0xffffffff)
+	{
+	  symcount = 0;
+	  goto empty_gnu_hash;
+	}
+
+      maxchain -= gnusymidx;
+      filepos = offset_from_vma (phdrs, phnum,
+				 (buckets_vma +
+				  4 * (ngnubuckets + maxchain)),
+				 4, NULL);
+      if (filepos == (file_ptr) -1
+	  || bfd_seek (abfd, filepos, SEEK_SET) != 0)
+	goto error_return;
+
+      do
+	{
+	  if (bfd_read (nb, 4, abfd) != 4)
+	    goto error_return;
+	  ++maxchain;
+	  if (maxchain == 0)
+	    goto error_return;
+	}
+      while ((bfd_get_32 (abfd, nb) & 1) == 0);
+
+      filepos = offset_from_vma (phdrs, phnum,
+				 (buckets_vma + 4 * ngnubuckets),
+				 4, NULL);
+      if (filepos == (file_ptr) -1
+	  || bfd_seek (abfd, filepos, SEEK_SET) != 0)
+	goto error_return;
+
+      gnuchains = get_hash_table_data (abfd, maxchain, 4, filesize);
+      if (gnuchains == NULL)
+	goto error_return;
+      ngnuchains = maxchain;
+
+      if (dt_mips_xhash)
+	{
+	  filepos = offset_from_vma (phdrs, phnum,
+				     (buckets_vma
+				      + 4 * (ngnubuckets + maxchain)),
+				     4, NULL);
+	  if (filepos == (file_ptr) -1
+	      || bfd_seek (abfd, filepos, SEEK_SET) != 0)
+	    goto error_return;
+
+	  mipsxlat = get_hash_table_data (abfd, maxchain, 4, filesize);
+	  if (mipsxlat == NULL)
+	    goto error_return;
+	}
+
+      symcount = 0;
+      for (i = 0; i < ngnubuckets; ++i)
+	if (gnubuckets[i] != 0)
+	  {
+	    bfd_vma si = gnubuckets[i];
+	    bfd_vma off = si - gnusymidx;
+	    do
+	      {
+		if (mipsxlat)
+		  {
+		    if (mipsxlat[off] >= symcount)
+		      symcount = mipsxlat[off] + 1;
+		  }
+		else
+		  {
+		    if (si >= symcount)
+		      symcount = si + 1;
+		  }
+		si++;
+	      }
+	    while (off < ngnuchains && (gnuchains[off++] & 1) == 0);
+	  }
+    }
+
+  /* Swap in dynamic symbol table.  */
+  if (_bfd_mul_overflow (symcount, extsym_size, &amt))
+    {
+      bfd_set_error (bfd_error_file_too_big);
+      goto error_return;
+    }
+
+  filepos = offset_from_vma (phdrs, phnum, dt_symtab, amt, NULL);
+  if (filepos == (file_ptr) -1
+      || bfd_seek (abfd, filepos, SEEK_SET) != 0)
+    goto error_return;
+  esymbuf = _bfd_malloc_and_read (abfd, amt, amt);
+  if (esymbuf == NULL)
+    goto error_return;
+
+  if (_bfd_mul_overflow (symcount, sizeof (Elf_Internal_Sym), &amt))
+    {
+      bfd_set_error (bfd_error_file_too_big);
+      goto error_return;
+    }
+
+  /* Dynamic symbol table must be valid until ABFD is closed.  */
+  isymbuf = (Elf_Internal_Sym *) bfd_alloc (abfd, amt);
+  if (isymbuf == NULL)
+    goto error_return;
+
+  swap_symbol_in = bed->s->swap_symbol_in;
+
+  /* Convert the symbols to internal form.  */
+  isymend = isymbuf + symcount;
+  for (esym = esymbuf, isym = isymbuf;
+       isym < isymend;
+       esym += extsym_size, isym++)
+    if (!swap_symbol_in (abfd, esym, NULL, isym)
+	|| isym->st_name >= dt_strsz)
+      {
+	bfd_set_error (bfd_error_invalid_operation);
+	goto error_return;
+      }
+
+  if (dt_versym)
+    {
+      /* Swap in DT_VERSYM.  */
+      if (_bfd_mul_overflow (symcount, 2, &amt))
+	{
+	  bfd_set_error (bfd_error_file_too_big);
+	  goto error_return;
+	}
+
+      filepos = offset_from_vma (phdrs, phnum, dt_versym, amt, NULL);
+      if (filepos == (file_ptr) -1
+	  || bfd_seek (abfd, filepos, SEEK_SET) != 0)
+	goto error_return;
+
+      /* DT_VERSYM info must be valid until ABFD is closed.  */
+      versym = _bfd_alloc_and_read (abfd, amt, amt);
+
+      if (dt_verdef)
+	{
+	  /* Read in DT_VERDEF.  */
+	  filepos = offset_from_vma (phdrs, phnum, dt_verdef,
+				     0, &verdef_size);
+	  if (filepos == (file_ptr) -1
+	      || bfd_seek (abfd, filepos, SEEK_SET) != 0)
+	    goto error_return;
+
+	  /* DT_VERDEF info must be valid until ABFD is closed.  */
+	  verdef = _bfd_alloc_and_read (abfd, verdef_size,
+					verdef_size);
+	}
+
+      if (dt_verneed)
+	{
+	  /* Read in DT_VERNEED.  */
+	  filepos = offset_from_vma (phdrs, phnum, dt_verneed,
+				     0, &verneed_size);
+	  if (filepos == (file_ptr) -1
+	      || bfd_seek (abfd, filepos, SEEK_SET) != 0)
+	    goto error_return;
+
+	  /* DT_VERNEED info must be valid until ABFD is closed.  */
+	  verneed = _bfd_alloc_and_read (abfd, verneed_size,
+					 verneed_size);
+	}
+    }
+
+ empty_gnu_hash:
+  elf_tdata (abfd)->dt_strtab = strbuf;
+  elf_tdata (abfd)->dt_strsz = dt_strsz;
+  elf_tdata (abfd)->dt_symtab = isymbuf;
+  elf_tdata (abfd)->dt_symtab_count = symcount;
+  elf_tdata (abfd)->dt_versym = versym;
+  elf_tdata (abfd)->dt_verdef = verdef;
+  elf_tdata (abfd)->dt_verneed = verneed;
+  elf_tdata (abfd)->dt_verdef_count
+    = verdef_size / sizeof (Elf_External_Verdef);
+  elf_tdata (abfd)->dt_verneed_count
+    = verneed_size / sizeof (Elf_External_Verneed);
+
+  res = true;
+
+ error_return:
+  /* Restore file position for elf_object_p.  */
+  if (bfd_seek (abfd, saved_filepos, SEEK_SET) != 0)
+    res = false;
+  free (dynbuf);
+  free (esymbuf);
+  free (gnubuckets);
+  free (gnuchains);
+  free (mipsxlat);
+  return res;
+}
+
+/* Reconstruct section from dynamic symbol.  */
+
+asection *
+_bfd_elf_get_section_from_dynamic_symbol (bfd *abfd,
+					  Elf_Internal_Sym *isym)
+{
+  asection *sec;
+  flagword flags;
+
+  if (!elf_use_dt_symtab_p (abfd))
+    return NULL;
+
+  flags = SEC_ALLOC | SEC_LOAD;
+  switch (ELF_ST_TYPE (isym->st_info))
+    {
+    case STT_FUNC:
+    case STT_GNU_IFUNC:
+      sec = bfd_get_section_by_name (abfd, ".text");
+      if (sec == NULL)
+	sec = bfd_make_section_with_flags (abfd,
+					   ".text",
+					   flags | SEC_CODE);
+      break;
+    case STT_COMMON:
+      sec = bfd_com_section_ptr;
+      break;
+    case STT_OBJECT:
+      sec = bfd_get_section_by_name (abfd, ".data");
+      if (sec == NULL)
+	sec = bfd_make_section_with_flags (abfd,
+					   ".data",
+					   flags | SEC_DATA);
+      break;
+    case STT_TLS:
+      sec = bfd_get_section_by_name (abfd, ".tdata");
+      if (sec == NULL)
+	sec = bfd_make_section_with_flags (abfd,
+					   ".tdata",
+					   (flags
+					    | SEC_DATA
+					    | SEC_THREAD_LOCAL));
+      break;
+    default:
+      sec = bfd_abs_section_ptr;
+      break;
+    }
+
+  return sec;
+}
+
 /* Get version name.  If BASE_P is TRUE, return "Base" for VER_FLG_BASE
    and return symbol version for symbol version itself.   */
 
@@ -1891,8 +2442,11 @@ _bfd_elf_get_symbol_version_string (bfd *abfd, asymbol *symbol,
 				    bool *hidden)
 {
   const char *version_string = NULL;
-  if (elf_dynversym (abfd) != 0
-      && (elf_dynverdef (abfd) != 0 || elf_dynverref (abfd) != 0))
+  if ((elf_dynversym (abfd) != 0
+       && (elf_dynverdef (abfd) != 0 || elf_dynverref (abfd) != 0))
+      || (elf_tdata (abfd)->dt_versym != NULL
+	  && (elf_tdata (abfd)->dt_verdef != NULL
+	      || elf_tdata (abfd)->dt_verneed != NULL)))
     {
       unsigned int vernum = ((elf_symbol_type *) symbol)->version;
 
@@ -2390,6 +2944,7 @@ bfd_section_from_shdr (bfd *abfd, unsigned int shindex)
 	   its sh_link points to the null section.  */
 	if (((abfd->flags & (DYNAMIC | EXEC_P)) != 0
 	     && (hdr->sh_flags & SHF_ALLOC) != 0)
+	    || (hdr->sh_flags & SHF_COMPRESSED) != 0
 	    || hdr->sh_type == SHT_RELR
 	    || hdr->sh_link == SHN_UNDEF
 	    || hdr->sh_link != elf_onesymtab (abfd)
@@ -3107,6 +3662,8 @@ _bfd_elf_init_reloc_shdr (bfd *abfd,
 
   BFD_ASSERT (reldata->hdr == NULL);
   rel_hdr = bfd_zalloc (abfd, sizeof (*rel_hdr));
+  if (rel_hdr == NULL)
+    return false;
   reldata->hdr = rel_hdr;
 
   if (delay_st_name_p)
@@ -3870,21 +4427,23 @@ assign_section_numbers (bfd *abfd, struct bfd_link_info *link_info)
 	{
 	case SHT_REL:
 	case SHT_RELA:
-	  /* A reloc section which we are treating as a normal BFD
-	     section.  sh_link is the section index of the symbol
-	     table.  sh_info is the section index of the section to
-	     which the relocation entries apply.  We assume that an
-	     allocated reloc section uses the dynamic symbol table
-	     if there is one.  Otherwise we guess the normal symbol
-	     table.  FIXME: How can we be sure?  */
-	  if (d->this_hdr.sh_link == 0 && (sec->flags & SEC_ALLOC) != 0)
-	    {
-	      s = bfd_get_section_by_name (abfd, ".dynsym");
-	      if (s != NULL)
-		d->this_hdr.sh_link = elf_section_data (s)->this_idx;
-	    }
+	  /* sh_link is the section index of the symbol table.
+	     sh_info is the section index of the section to which the
+	     relocation entries apply.  */
 	  if (d->this_hdr.sh_link == 0)
-	    d->this_hdr.sh_link = elf_onesymtab (abfd);
+	    {
+	      /* FIXME maybe: If this is a reloc section which we are
+		 treating as a normal section then we likely should
+		 not be assuming its sh_link is .dynsym or .symtab.  */
+	      if ((sec->flags & SEC_ALLOC) != 0)
+		{
+		  s = bfd_get_section_by_name (abfd, ".dynsym");
+		  if (s != NULL)
+		    d->this_hdr.sh_link = elf_section_data (s)->this_idx;
+		}
+	      else
+		d->this_hdr.sh_link = elf_onesymtab (abfd);
+	    }
 
 	  s = elf_get_reloc_section (sec);
 	  if (s != NULL)
@@ -4260,7 +4819,7 @@ _bfd_elf_compute_section_file_positions (bfd *abfd,
     {
       bfd_map_over_sections (abfd, bfd_elf_set_group_contents, &failed);
       if (failed)
-	return false;
+	goto err_free_strtab;
     }
 
   shstrtab_hdr = &elf_tdata (abfd)->shstrtab_hdr;
@@ -4276,9 +4835,9 @@ _bfd_elf_compute_section_file_positions (bfd *abfd,
   shstrtab_hdr->sh_addralign = 1;
 
   if (!assign_file_positions_except_relocs (abfd, link_info))
-    return false;
+    goto err_free_strtab;
 
-  if (need_symtab)
+  if (strtab != NULL)
     {
       file_ptr off;
       Elf_Internal_Shdr *hdr;
@@ -4305,13 +4864,17 @@ _bfd_elf_compute_section_file_positions (bfd *abfd,
 	 out.  */
       if (bfd_seek (abfd, hdr->sh_offset, SEEK_SET) != 0
 	  || ! _bfd_elf_strtab_emit (abfd, strtab))
-	return false;
+	goto err_free_strtab;
       _bfd_elf_strtab_free (strtab);
     }
 
   abfd->output_has_begun = true;
-
   return true;
+
+ err_free_strtab:
+  if (strtab != NULL)
+    _bfd_elf_strtab_free (strtab);
+  return false;
 }
 
 /* Retrieve .eh_frame_hdr.  Prior to size_dynamic_sections the
@@ -5402,22 +5965,6 @@ print_segment_map (const struct elf_segment_map *m)
   fflush (stderr);
 }
 
-static bool
-write_zeros (bfd *abfd, file_ptr pos, bfd_size_type len)
-{
-  void *buf;
-  bool ret;
-
-  if (bfd_seek (abfd, pos, SEEK_SET) != 0)
-    return false;
-  buf = bfd_zmalloc (len);
-  if (buf == NULL)
-    return false;
-  ret = bfd_bwrite (buf, len, abfd) == len;
-  free (buf);
-  return ret;
-}
-
 /* Assign file positions to the sections based on the mapping from
    sections to segments.  This function also sets up some fields in
    the file header.  */
@@ -5866,11 +6413,13 @@ assign_file_positions_for_load_sections (bfd *abfd,
 		      if (p->p_filesz + adjust < p->p_memsz)
 			{
 			  /* We have a PROGBITS section following NOBITS ones.
-			     Allocate file space for the NOBITS section(s) and
-			     zero it.  */
+			     Allocate file space for the NOBITS section(s).
+			     We don't need to write out the zeros, posix
+			     fseek past the end of data already written
+			     followed by a write at that location is
+			     guaranteed to result in zeros being read
+			     from the gap.  */
 			  adjust = p->p_memsz - p->p_filesz;
-			  if (!write_zeros (abfd, off, adjust))
-			    return false;
 			}
 		    }
 		  /* We only adjust sh_offset in SHT_NOBITS sections
@@ -6617,6 +7166,10 @@ _bfd_elf_assign_file_positions_for_non_load (bfd *abfd)
   Elf_Internal_Ehdr *i_ehdrp;
   const struct elf_backend_data *bed;
 
+  /* Skip non-load sections without section header.  */
+  if ((abfd->flags & BFD_NO_SECTION_HEADER) != 0)
+    return true;
+
   off = elf_next_file_pos (abfd);
 
   shdrpp = elf_elfsections (abfd);
@@ -6740,9 +7293,11 @@ _bfd_elf_write_object_contents (bfd *abfd)
   num_sec = elf_numsections (abfd);
   for (count = 1; count < num_sec; count++)
     {
-      i_shdrp[count]->sh_name
-	= _bfd_elf_strtab_offset (elf_shstrtab (abfd),
-				  i_shdrp[count]->sh_name);
+      /* Don't set the sh_name field without section header.  */
+      if ((abfd->flags & BFD_NO_SECTION_HEADER) == 0)
+	i_shdrp[count]->sh_name
+	  = _bfd_elf_strtab_offset (elf_shstrtab (abfd),
+				    i_shdrp[count]->sh_name);
       if (bed->elf_backend_section_processing)
 	if (!(*bed->elf_backend_section_processing) (abfd, i_shdrp[count]))
 	  return false;
@@ -6751,7 +7306,7 @@ _bfd_elf_write_object_contents (bfd *abfd)
 	  bfd_size_type amt = i_shdrp[count]->sh_size;
 
 	  if (bfd_seek (abfd, i_shdrp[count]->sh_offset, SEEK_SET) != 0
-	      || bfd_bwrite (i_shdrp[count]->contents, amt, abfd) != amt)
+	      || bfd_write (i_shdrp[count]->contents, amt, abfd) != amt)
 	    return false;
 	}
     }
@@ -6759,6 +7314,7 @@ _bfd_elf_write_object_contents (bfd *abfd)
   /* Write out the section header names.  */
   t = elf_tdata (abfd);
   if (elf_shstrtab (abfd) != NULL
+      && t->shstrtab_hdr.sh_offset != -1
       && (bfd_seek (abfd, t->shstrtab_hdr.sh_offset, SEEK_SET) != 0
 	  || !_bfd_elf_strtab_emit (abfd, elf_shstrtab (abfd))))
     return false;
@@ -6907,14 +7463,14 @@ section_size (asection *section, Elf_Internal_Phdr *segment)
 
 /* Returns TRUE if the given section is contained within the given
    segment.  LMA addresses are compared against PADDR when
-   bed->want_p_paddr_set_to_zero is false, VMA against VADDR when true.  */
+   USE_VADDR is false, VMA against VADDR when true.  */
 static bool
 is_contained_by (asection *section, Elf_Internal_Phdr *segment,
 		 bfd_vma paddr, bfd_vma vaddr, unsigned int opb,
-		 const struct elf_backend_data *bed)
+		 bool use_vaddr)
 {
-  bfd_vma seg_addr = !bed->want_p_paddr_set_to_zero ? paddr : vaddr;
-  bfd_vma addr = !bed->want_p_paddr_set_to_zero ? section->lma : section->vma;
+  bfd_vma seg_addr = !use_vaddr ? paddr : vaddr;
+  bfd_vma addr = !use_vaddr ? section->lma : section->vma;
   bfd_vma octet;
   if (_bfd_mul_overflow (addr, opb, &octet))
     return false;
@@ -6996,7 +7552,8 @@ rewrite_elf_program_header (bfd *ibfd, bfd *obfd, bfd_vma maxpagesize)
 	  (with the possible exception of .dynamic).  */
 #define IS_SECTION_IN_INPUT_SEGMENT(section, segment, bed, opb)		\
   (((is_contained_by (section, segment, segment->p_paddr,		\
-		      segment->p_vaddr, opb, bed)			\
+		      segment->p_vaddr, opb,				\
+		      bed->want_p_paddr_set_to_zero)			\
      && (section->flags & SEC_ALLOC) != 0)				\
     || is_note (section, segment))					\
    && segment->p_type != PT_GNU_STACK					\
@@ -7229,10 +7786,12 @@ rewrite_elf_program_header (bfd *ibfd, bfd *obfd, bfd_vma maxpagesize)
 	     no sections, but ordinary, loadable segments should contain
 	     something.  They are allowed by the ELF spec however, so only
 	     a warning is produced.
+	     Don't warn if an empty PT_LOAD contains the program headers.
 	     There is however the valid use case of embedded systems which
 	     have segments with p_filesz of 0 and a p_memsz > 0 to initialize
 	     flash memory with zeros.  No warning is shown for that case.  */
 	  if (segment->p_type == PT_LOAD
+	      && !map->includes_phdrs
 	      && (segment->p_filesz > 0 || segment->p_memsz == 0))
 	    /* xgettext:c-format */
 	    _bfd_error_handler
@@ -7323,7 +7882,7 @@ rewrite_elf_program_header (bfd *ibfd, bfd *obfd, bfd_vma maxpagesize)
 	      /* Match up the physical address of the segment with the
 		 LMA address of the output section.  */
 	      if (is_contained_by (output_section, segment, map->p_paddr,
-				   map->p_paddr + map->p_vaddr_offset, opb, bed)
+				   0, opb, false)
 		  || is_note (section, segment))
 		{
 		  if (matching_lma == NULL
@@ -7441,7 +8000,7 @@ rewrite_elf_program_header (bfd *ibfd, bfd *obfd, bfd_vma maxpagesize)
 	      BFD_ASSERT (output_section != NULL);
 
 	      if (is_contained_by (output_section, segment, map->p_paddr,
-				   map->p_paddr + map->p_vaddr_offset, opb, bed)
+				   0, opb, false)
 		  || is_note (section, segment))
 		{
 		  if (map->count == 0)
@@ -8619,6 +9178,11 @@ _bfd_elf_get_dynamic_symtab_upper_bound (bfd *abfd)
 
   if (elf_dynsymtab (abfd) == 0)
     {
+      /* Check if there is dynamic symbol table.  */
+      symcount = elf_tdata (abfd)->dt_symtab_count;
+      if (symcount)
+	goto compute_symtab_size;
+
       bfd_set_error (bfd_error_invalid_operation);
       return -1;
     }
@@ -8629,6 +9193,8 @@ _bfd_elf_get_dynamic_symtab_upper_bound (bfd *abfd)
       bfd_set_error (bfd_error_file_too_big);
       return -1;
     }
+
+ compute_symtab_size:
   symtab_size = symcount * (sizeof (asymbol *));
   if (symcount == 0)
     symtab_size = sizeof (asymbol *);
@@ -8748,15 +9314,16 @@ _bfd_elf_get_dynamic_reloc_upper_bound (bfd *abfd)
   for (s = abfd->sections; s != NULL; s = s->next)
     if (elf_section_data (s)->this_hdr.sh_link == elf_dynsymtab (abfd)
 	&& (elf_section_data (s)->this_hdr.sh_type == SHT_REL
-	    || elf_section_data (s)->this_hdr.sh_type == SHT_RELA))
+	    || elf_section_data (s)->this_hdr.sh_type == SHT_RELA)
+	&& (elf_section_data (s)->this_hdr.sh_flags & SHF_COMPRESSED) == 0)
       {
-	ext_rel_size += s->size;
-	if (ext_rel_size < s->size)
+	ext_rel_size += elf_section_data (s)->this_hdr.sh_size;
+	if (ext_rel_size < elf_section_data (s)->this_hdr.sh_size)
 	  {
 	    bfd_set_error (bfd_error_file_truncated);
 	    return -1;
 	  }
-	count += s->size / elf_section_data (s)->this_hdr.sh_entsize;
+	count += NUM_SHDR_ENTRIES (&elf_section_data (s)->this_hdr);
 	if (count > LONG_MAX / sizeof (arelent *))
 	  {
 	    bfd_set_error (bfd_error_file_too_big);
@@ -8805,14 +9372,15 @@ _bfd_elf_canonicalize_dynamic_reloc (bfd *abfd,
     {
       if (elf_section_data (s)->this_hdr.sh_link == elf_dynsymtab (abfd)
 	  && (elf_section_data (s)->this_hdr.sh_type == SHT_REL
-	      || elf_section_data (s)->this_hdr.sh_type == SHT_RELA))
+	      || elf_section_data (s)->this_hdr.sh_type == SHT_RELA)
+	  && (elf_section_data (s)->this_hdr.sh_flags & SHF_COMPRESSED) == 0)
 	{
 	  arelent *p;
 	  long count, i;
 
 	  if (! (*slurp_relocs) (abfd, s, syms, true))
 	    return -1;
-	  count = s->size / elf_section_data (s)->this_hdr.sh_entsize;
+	  count = NUM_SHDR_ENTRIES (&elf_section_data (s)->this_hdr);
 	  p = s->relocation;
 	  for (i = 0; i < count; i++)
 	    *storage++ = p++;
@@ -8831,38 +9399,56 @@ bool
 _bfd_elf_slurp_version_tables (bfd *abfd, bool default_imported_symver)
 {
   bfd_byte *contents = NULL;
+  bool free_contents = false;
   unsigned int freeidx = 0;
   size_t amt;
 
-  if (elf_dynverref (abfd) != 0)
+  if (elf_dynverref (abfd) != 0 || elf_tdata (abfd)->dt_verneed != NULL)
     {
       Elf_Internal_Shdr *hdr;
       Elf_External_Verneed *everneed;
       Elf_Internal_Verneed *iverneed;
       unsigned int i;
       bfd_byte *contents_end;
+      size_t verneed_count;
+      size_t verneed_size;
 
-      hdr = &elf_tdata (abfd)->dynverref_hdr;
-
-      if (hdr->sh_info > hdr->sh_size / sizeof (Elf_External_Verneed))
+      if (elf_tdata (abfd)->dt_verneed != NULL)
 	{
-	error_return_bad_verref:
-	  _bfd_error_handler
-	    (_("%pB: .gnu.version_r invalid entry"), abfd);
-	  bfd_set_error (bfd_error_bad_value);
-	error_return_verref:
-	  elf_tdata (abfd)->verref = NULL;
-	  elf_tdata (abfd)->cverrefs = 0;
-	  goto error_return;
+	  hdr = NULL;
+	  contents = elf_tdata (abfd)->dt_verneed;
+	  verneed_count = elf_tdata (abfd)->dt_verneed_count;
+	  verneed_size = verneed_count * sizeof (Elf_External_Verneed);
+	}
+      else
+	{
+	  hdr = &elf_tdata (abfd)->dynverref_hdr;
+
+	  if (hdr->sh_info > hdr->sh_size / sizeof (Elf_External_Verneed))
+	    {
+	    error_return_bad_verref:
+	      _bfd_error_handler
+		(_("%pB: .gnu.version_r invalid entry"), abfd);
+	      bfd_set_error (bfd_error_bad_value);
+	    error_return_verref:
+	      elf_tdata (abfd)->verref = NULL;
+	      elf_tdata (abfd)->cverrefs = 0;
+	      goto error_return;
+	    }
+
+	  if (bfd_seek (abfd, hdr->sh_offset, SEEK_SET) != 0)
+	    goto error_return_verref;
+	  contents = _bfd_malloc_and_read (abfd, hdr->sh_size, hdr->sh_size);
+	  if (contents == NULL)
+	    goto error_return_verref;
+
+	  free_contents = true;
+	  verneed_size = hdr->sh_size;
+	  verneed_count = hdr->sh_info;
 	}
 
-      if (bfd_seek (abfd, hdr->sh_offset, SEEK_SET) != 0)
-	goto error_return_verref;
-      contents = _bfd_malloc_and_read (abfd, hdr->sh_size, hdr->sh_size);
-      if (contents == NULL)
-	goto error_return_verref;
-
-      if (_bfd_mul_overflow (hdr->sh_info, sizeof (Elf_Internal_Verneed), &amt))
+      if (_bfd_mul_overflow (verneed_count,
+			     sizeof (Elf_Internal_Verneed), &amt))
 	{
 	  bfd_set_error (bfd_error_file_too_big);
 	  goto error_return_verref;
@@ -8875,10 +9461,11 @@ _bfd_elf_slurp_version_tables (bfd *abfd, bool default_imported_symver)
 
       BFD_ASSERT (sizeof (Elf_External_Verneed)
 		  == sizeof (Elf_External_Vernaux));
-      contents_end = contents + hdr->sh_size - sizeof (Elf_External_Verneed);
+      contents_end = (contents + verneed_size
+		      - sizeof (Elf_External_Verneed));
       everneed = (Elf_External_Verneed *) contents;
       iverneed = elf_tdata (abfd)->verref;
-      for (i = 0; i < hdr->sh_info; i++, iverneed++)
+      for (i = 0; i < verneed_count; i++, iverneed++)
 	{
 	  Elf_External_Vernaux *evernaux;
 	  Elf_Internal_Vernaux *ivernaux;
@@ -8888,9 +9475,20 @@ _bfd_elf_slurp_version_tables (bfd *abfd, bool default_imported_symver)
 
 	  iverneed->vn_bfd = abfd;
 
-	  iverneed->vn_filename =
-	    bfd_elf_string_from_elf_section (abfd, hdr->sh_link,
-					     iverneed->vn_file);
+	  if (elf_use_dt_symtab_p (abfd))
+	    {
+	      if (iverneed->vn_file < elf_tdata (abfd)->dt_strsz)
+		iverneed->vn_filename
+		  = elf_tdata (abfd)->dt_strtab + iverneed->vn_file;
+	      else
+		iverneed->vn_filename = NULL;
+	    }
+	  else if (hdr == NULL)
+	    goto error_return_bad_verref;
+	  else
+	    iverneed->vn_filename
+	      = bfd_elf_string_from_elf_section (abfd, hdr->sh_link,
+						 iverneed->vn_file);
 	  if (iverneed->vn_filename == NULL)
 	    goto error_return_bad_verref;
 
@@ -8921,9 +9519,20 @@ _bfd_elf_slurp_version_tables (bfd *abfd, bool default_imported_symver)
 	    {
 	      _bfd_elf_swap_vernaux_in (abfd, evernaux, ivernaux);
 
-	      ivernaux->vna_nodename =
-		bfd_elf_string_from_elf_section (abfd, hdr->sh_link,
-						 ivernaux->vna_name);
+	      if (elf_use_dt_symtab_p (abfd))
+		{
+		  if (ivernaux->vna_name < elf_tdata (abfd)->dt_strsz)
+		    ivernaux->vna_nodename
+		      = elf_tdata (abfd)->dt_strtab + ivernaux->vna_name;
+		  else
+		    ivernaux->vna_nodename = NULL;
+		}
+	      else if (hdr == NULL)
+		goto error_return_bad_verref;
+	      else
+		ivernaux->vna_nodename
+		  = bfd_elf_string_from_elf_section (abfd, hdr->sh_link,
+						     ivernaux->vna_name);
 	      if (ivernaux->vna_nodename == NULL)
 		goto error_return_bad_verref;
 
@@ -8950,7 +9559,7 @@ _bfd_elf_slurp_version_tables (bfd *abfd, bool default_imported_symver)
 	  iverneed->vn_nextref = NULL;
 	  if (iverneed->vn_next == 0)
 	    break;
-	  if (i + 1 < hdr->sh_info)
+	  if (hdr != NULL && (i + 1 < hdr->sh_info))
 	    iverneed->vn_nextref = iverneed + 1;
 
 	  if (iverneed->vn_next
@@ -8962,11 +9571,12 @@ _bfd_elf_slurp_version_tables (bfd *abfd, bool default_imported_symver)
 	}
       elf_tdata (abfd)->cverrefs = i;
 
-      free (contents);
+      if (elf_tdata (abfd)->dt_verneed == NULL)
+	free (contents);
       contents = NULL;
     }
 
-  if (elf_dynverdef (abfd) != 0)
+  if (elf_dynverdef (abfd) != 0 || elf_tdata (abfd)->dt_verdef != NULL)
     {
       Elf_Internal_Shdr *hdr;
       Elf_External_Verdef *everdef;
@@ -8976,40 +9586,56 @@ _bfd_elf_slurp_version_tables (bfd *abfd, bool default_imported_symver)
       unsigned int i;
       unsigned int maxidx;
       bfd_byte *contents_end_def, *contents_end_aux;
+      size_t verdef_count;
+      size_t verdef_size;
 
-      hdr = &elf_tdata (abfd)->dynverdef_hdr;
-
-      if (hdr->sh_size < sizeof (Elf_External_Verdef))
+      if (elf_tdata (abfd)->dt_verdef != NULL)
 	{
-	error_return_bad_verdef:
-	  _bfd_error_handler
-	    (_("%pB: .gnu.version_d invalid entry"), abfd);
-	  bfd_set_error (bfd_error_bad_value);
-	error_return_verdef:
-	  elf_tdata (abfd)->verdef = NULL;
-	  elf_tdata (abfd)->cverdefs = 0;
-	  goto error_return;
+	  hdr = NULL;
+	  contents = elf_tdata (abfd)->dt_verdef;
+	  verdef_count = elf_tdata (abfd)->dt_verdef_count;
+	  verdef_size = verdef_count * sizeof (Elf_External_Verdef);
+	}
+      else
+	{
+	  hdr = &elf_tdata (abfd)->dynverdef_hdr;
+
+	  if (hdr->sh_size < sizeof (Elf_External_Verdef))
+	    {
+	    error_return_bad_verdef:
+	      _bfd_error_handler
+		(_("%pB: .gnu.version_d invalid entry"), abfd);
+	      bfd_set_error (bfd_error_bad_value);
+	    error_return_verdef:
+	      elf_tdata (abfd)->verdef = NULL;
+	      elf_tdata (abfd)->cverdefs = 0;
+	      goto error_return;
+	    }
+
+	  if (bfd_seek (abfd, hdr->sh_offset, SEEK_SET) != 0)
+	    goto error_return_verdef;
+	  contents = _bfd_malloc_and_read (abfd, hdr->sh_size, hdr->sh_size);
+	  if (contents == NULL)
+	    goto error_return_verdef;
+
+	  BFD_ASSERT (sizeof (Elf_External_Verdef)
+		      >= sizeof (Elf_External_Verdaux));
+
+	  verdef_count = hdr->sh_info;
+	  verdef_size = hdr->sh_size;
 	}
 
-      if (bfd_seek (abfd, hdr->sh_offset, SEEK_SET) != 0)
-	goto error_return_verdef;
-      contents = _bfd_malloc_and_read (abfd, hdr->sh_size, hdr->sh_size);
-      if (contents == NULL)
-	goto error_return_verdef;
-
-      BFD_ASSERT (sizeof (Elf_External_Verdef)
-		  >= sizeof (Elf_External_Verdaux));
-      contents_end_def = contents + hdr->sh_size
-			 - sizeof (Elf_External_Verdef);
-      contents_end_aux = contents + hdr->sh_size
-			 - sizeof (Elf_External_Verdaux);
+      contents_end_def = (contents + verdef_size
+			  - sizeof (Elf_External_Verdef));
+      contents_end_aux = (contents + verdef_size
+			  - sizeof (Elf_External_Verdaux));
 
       /* We know the number of entries in the section but not the maximum
 	 index.  Therefore we have to run through all entries and find
 	 the maximum.  */
       everdef = (Elf_External_Verdef *) contents;
       maxidx = 0;
-      for (i = 0; i < hdr->sh_info; ++i)
+      for (i = 0; i < verdef_count; ++i)
 	{
 	  _bfd_elf_swap_verdef_in (abfd, everdef, &iverdefmem);
 
@@ -9041,6 +9667,9 @@ _bfd_elf_slurp_version_tables (bfd *abfd, bool default_imported_symver)
 	  bfd_set_error (bfd_error_file_too_big);
 	  goto error_return_verdef;
 	}
+
+      if (amt == 0)
+	goto error_return_verdef;
       elf_tdata (abfd)->verdef = (Elf_Internal_Verdef *) bfd_zalloc (abfd, amt);
       if (elf_tdata (abfd)->verdef == NULL)
 	goto error_return_verdef;
@@ -9049,7 +9678,7 @@ _bfd_elf_slurp_version_tables (bfd *abfd, bool default_imported_symver)
 
       everdef = (Elf_External_Verdef *) contents;
       iverdefarr = elf_tdata (abfd)->verdef;
-      for (i = 0; i < hdr->sh_info; i++)
+      for (i = 0; i < verdef_count; ++i)
 	{
 	  Elf_External_Verdaux *everdaux;
 	  Elf_Internal_Verdaux *iverdaux;
@@ -9092,9 +9721,18 @@ _bfd_elf_slurp_version_tables (bfd *abfd, bool default_imported_symver)
 	    {
 	      _bfd_elf_swap_verdaux_in (abfd, everdaux, iverdaux);
 
-	      iverdaux->vda_nodename =
-		bfd_elf_string_from_elf_section (abfd, hdr->sh_link,
-						 iverdaux->vda_name);
+	      if (elf_use_dt_symtab_p (abfd))
+		{
+		  if (iverdaux->vda_name < elf_tdata (abfd)->dt_strsz)
+		    iverdaux->vda_nodename
+		      = elf_tdata (abfd)->dt_strtab + iverdaux->vda_name;
+		  else
+		    iverdaux->vda_nodename = NULL;
+		}
+	      else
+		iverdaux->vda_nodename
+		  = bfd_elf_string_from_elf_section (abfd, hdr->sh_link,
+						     iverdaux->vda_name);
 	      if (iverdaux->vda_nodename == NULL)
 		goto error_return_bad_verdef;
 
@@ -9129,7 +9767,8 @@ _bfd_elf_slurp_version_tables (bfd *abfd, bool default_imported_symver)
 		     ((bfd_byte *) everdef + iverdef->vd_next));
 	}
 
-      free (contents);
+      if (elf_tdata (abfd)->dt_verdef == NULL)
+	free (contents);
       contents = NULL;
     }
   else if (default_imported_symver)
@@ -9144,6 +9783,8 @@ _bfd_elf_slurp_version_tables (bfd *abfd, bool default_imported_symver)
 	  bfd_set_error (bfd_error_file_too_big);
 	  goto error_return;
 	}
+      if (amt == 0)
+	goto error_return;
       elf_tdata (abfd)->verdef = (Elf_Internal_Verdef *) bfd_zalloc (abfd, amt);
       if (elf_tdata (abfd)->verdef == NULL)
 	goto error_return;
@@ -9182,7 +9823,8 @@ _bfd_elf_slurp_version_tables (bfd *abfd, bool default_imported_symver)
   return true;
 
  error_return:
-  free (contents);
+  if (free_contents)
+    free (contents);
   return false;
 }
 
@@ -9595,20 +10237,22 @@ _bfd_elf_validate_reloc (bfd *abfd, arelent *areloc)
 }
 
 bool
-_bfd_elf_close_and_cleanup (bfd *abfd)
+_bfd_elf_free_cached_info (bfd *abfd)
 {
-  struct elf_obj_tdata *tdata = elf_tdata (abfd);
-  if (tdata != NULL
-      && (bfd_get_format (abfd) == bfd_object
-	  || bfd_get_format (abfd) == bfd_core))
+  struct elf_obj_tdata *tdata;
+
+  if ((bfd_get_format (abfd) == bfd_object
+       || bfd_get_format (abfd) == bfd_core)
+      && (tdata = elf_tdata (abfd)) != NULL)
     {
-      if (elf_tdata (abfd)->o != NULL && elf_shstrtab (abfd) != NULL)
+      if (tdata->o != NULL && elf_shstrtab (abfd) != NULL)
 	_bfd_elf_strtab_free (elf_shstrtab (abfd));
       _bfd_dwarf2_cleanup_debug_info (abfd, &tdata->dwarf2_find_line_info);
+      _bfd_dwarf1_cleanup_debug_info (abfd, &tdata->dwarf1_find_line_info);
       _bfd_stab_cleanup (abfd, &tdata->line_info);
     }
 
-  return _bfd_generic_close_and_cleanup (abfd);
+  return _bfd_generic_bfd_free_cached_info (abfd);
 }
 
 /* For Rel targets, we encode meaningful data for BFD_RELOC_VTABLE_ENTRY
@@ -10060,6 +10704,27 @@ elfcore_grok_aarch_mte (bfd *abfd, Elf_Internal_Note *note)
 {
   return elfcore_make_note_pseudosection (abfd, ".reg-aarch-mte",
 					  note);
+}
+
+static bool
+elfcore_grok_aarch_ssve (bfd *abfd, Elf_Internal_Note *note)
+{
+  return elfcore_make_note_pseudosection (abfd, ".reg-aarch-ssve", note);
+}
+
+static bool
+elfcore_grok_aarch_za (bfd *abfd, Elf_Internal_Note *note)
+{
+  return elfcore_make_note_pseudosection (abfd, ".reg-aarch-za", note);
+}
+
+/* Convert NOTE into a bfd_section called ".reg-aarch-zt".  Return TRUE if
+   successful, otherwise return FALSE.  */
+
+static bool
+elfcore_grok_aarch_zt (bfd *abfd, Elf_Internal_Note *note)
+{
+  return elfcore_make_note_pseudosection (abfd, ".reg-aarch-zt", note);
 }
 
 static bool
@@ -10774,6 +11439,27 @@ elfcore_grok_note (bfd *abfd, Elf_Internal_Note *note)
       if (note->namesz == 6
 	  && strcmp (note->namedata, "LINUX") == 0)
 	return elfcore_grok_aarch_mte (abfd, note);
+      else
+	return true;
+
+    case NT_ARM_SSVE:
+      if (note->namesz == 6
+	  && strcmp (note->namedata, "LINUX") == 0)
+	return elfcore_grok_aarch_ssve (abfd, note);
+      else
+	return true;
+
+    case NT_ARM_ZA:
+      if (note->namesz == 6
+	  && strcmp (note->namedata, "LINUX") == 0)
+	return elfcore_grok_aarch_za (abfd, note);
+      else
+	return true;
+
+    case NT_ARM_ZT:
+      if (note->namesz == 6
+	  && strcmp (note->namedata, "LINUX") == 0)
+	return elfcore_grok_aarch_zt (abfd, note);
       else
 	return true;
 
@@ -11557,11 +12243,6 @@ elfcore_grok_nto_regs (bfd *abfd,
   return true;
 }
 
-#define BFD_QNT_CORE_INFO	7
-#define BFD_QNT_CORE_STATUS	8
-#define BFD_QNT_CORE_GREG	9
-#define BFD_QNT_CORE_FPREG	10
-
 static bool
 elfcore_grok_nto_note (bfd *abfd, Elf_Internal_Note *note)
 {
@@ -11572,13 +12253,13 @@ elfcore_grok_nto_note (bfd *abfd, Elf_Internal_Note *note)
 
   switch (note->type)
     {
-    case BFD_QNT_CORE_INFO:
+    case QNT_CORE_INFO:
       return elfcore_make_note_pseudosection (abfd, ".qnx_core_info", note);
-    case BFD_QNT_CORE_STATUS:
+    case QNT_CORE_STATUS:
       return elfcore_grok_nto_status (abfd, note, &tid);
-    case BFD_QNT_CORE_GREG:
+    case QNT_CORE_GREG:
       return elfcore_grok_nto_regs (abfd, note, tid, ".reg");
-    case BFD_QNT_CORE_FPREG:
+    case QNT_CORE_FPREG:
       return elfcore_grok_nto_regs (abfd, note, tid, ".reg2");
     default:
       return true;
@@ -12397,6 +13078,53 @@ elfcore_write_aarch_mte (bfd *abfd,
 }
 
 char *
+elfcore_write_aarch_ssve (bfd *abfd,
+			  char *buf,
+			  int *bufsiz,
+			  const void *aarch_ssve,
+			  int size)
+{
+  char *note_name = "LINUX";
+  return elfcore_write_note (abfd, buf, bufsiz,
+			     note_name, NT_ARM_SSVE,
+			     aarch_ssve,
+			     size);
+}
+
+char *
+elfcore_write_aarch_za (bfd *abfd,
+			char *buf,
+			int *bufsiz,
+			const void *aarch_za,
+			int size)
+{
+  char *note_name = "LINUX";
+  return elfcore_write_note (abfd, buf, bufsiz,
+			     note_name, NT_ARM_ZA,
+			     aarch_za,
+			     size);
+}
+
+/* Write the buffer of zt register values in aarch_zt (length SIZE) into
+   the note buffer BUF and update *BUFSIZ.  ABFD is the bfd the note is being
+   written into.  Return a pointer to the new start of the note buffer, to
+   replace BUF which may no longer be valid.  */
+
+char *
+elfcore_write_aarch_zt (bfd *abfd,
+			char *buf,
+			int *bufsiz,
+			const void *aarch_zt,
+			int size)
+{
+  char *note_name = "LINUX";
+  return elfcore_write_note (abfd, buf, bufsiz,
+			     note_name, NT_ARM_ZT,
+			     aarch_zt,
+			     size);
+}
+
+char *
 elfcore_write_arc_v2 (bfd *abfd,
 		      char *buf,
 		      int *bufsiz,
@@ -12577,6 +13305,12 @@ elfcore_write_register_note (bfd *abfd,
     return elfcore_write_aarch_pauth (abfd, buf, bufsiz, data, size);
   if (strcmp (section, ".reg-aarch-mte") == 0)
     return elfcore_write_aarch_mte (abfd, buf, bufsiz, data, size);
+  if (strcmp (section, ".reg-aarch-ssve") == 0)
+    return elfcore_write_aarch_ssve (abfd, buf, bufsiz, data, size);
+  if (strcmp (section, ".reg-aarch-za") == 0)
+    return elfcore_write_aarch_za (abfd, buf, bufsiz, data, size);
+  if (strcmp (section, ".reg-aarch-zt") == 0)
+    return elfcore_write_aarch_zt (abfd, buf, bufsiz, data, size);
   if (strcmp (section, ".reg-arc-v2") == 0)
     return elfcore_write_arc_v2 (abfd, buf, bufsiz, data, size);
   if (strcmp (section, ".gdb-tdesc") == 0)
@@ -12879,31 +13613,6 @@ _bfd_elf_section_offset (bfd *abfd,
     }
 }
 
-/* Create a new BFD as if by bfd_openr.  Rather than opening a file,
-   reconstruct an ELF file by reading the segments out of remote memory
-   based on the ELF file header at EHDR_VMA and the ELF program headers it
-   points to.  If not null, *LOADBASEP is filled in with the difference
-   between the VMAs from which the segments were read, and the VMAs the
-   file headers (and hence BFD's idea of each section's VMA) put them at.
-
-   The function TARGET_READ_MEMORY is called to copy LEN bytes from the
-   remote memory at target address VMA into the local buffer at MYADDR; it
-   should return zero on success or an `errno' code on failure.  TEMPL must
-   be a BFD for an ELF target with the word size and byte order found in
-   the remote memory.  */
-
-bfd *
-bfd_elf_bfd_from_remote_memory
-  (bfd *templ,
-   bfd_vma ehdr_vma,
-   bfd_size_type size,
-   bfd_vma *loadbasep,
-   int (*target_read_memory) (bfd_vma, bfd_byte *, bfd_size_type))
-{
-  return (*get_elf_backend_data (templ)->elf_backend_bfd_from_remote_memory)
-    (templ, ehdr_vma, size, loadbasep, target_read_memory);
-}
-
 long
 _bfd_elf_get_synthetic_symtab (bfd *abfd,
 			       long symcount ATTRIBUTE_UNUSED,
@@ -12955,7 +13664,7 @@ _bfd_elf_get_synthetic_symtab (bfd *abfd,
   if (! (*slurp_relocs) (abfd, relplt, dynsyms, true))
     return -1;
 
-  count = relplt->size / hdr->sh_entsize;
+  count = NUM_SHDR_ENTRIES (hdr);
   size = count * sizeof (asymbol);
   p = relplt->relocation;
   for (i = 0; i < count; i++, p += bed->s->int_rels_per_ext_rel)
@@ -13231,8 +13940,7 @@ _bfd_elf_slurp_secondary_reloc_section (bfd *       abfd,
 	    }
 
 	  if (bfd_seek (abfd, hdr->sh_offset, SEEK_SET) != 0
-	      || (bfd_bread (native_relocs, hdr->sh_size, abfd)
-		  != hdr->sh_size))
+	      || bfd_read (native_relocs, hdr->sh_size, abfd) != hdr->sh_size)
 	    {
 	      free (native_relocs);
 	      /* The internal_relocs will be freed when

@@ -39,8 +39,12 @@ struct expression;
 struct dcache_struct;
 struct inferior;
 
-#include "infrun.h" /* For enum exec_direction_kind.  */
-#include "breakpoint.h" /* For enum bptype.  */
+/* Define const gdb_byte using one identifier, to make it easy for
+   make-target-delegates.py to parse.  */
+typedef const gdb_byte const_gdb_byte;
+
+#include "infrun.h"
+#include "breakpoint.h"
 #include "gdbsupport/scoped_restore.h"
 #include "gdbsupport/refcounted-object.h"
 #include "target-section.h"
@@ -82,8 +86,9 @@ struct inferior;
 #include "disasm-flags.h"
 #include "tracepoint.h"
 #include "gdbsupport/fileio.h"
+#include "gdbsupport/x86-xstate.h"
 
-#include "gdbsupport/break-common.h" /* For enum target_hw_bp_type.  */
+#include "gdbsupport/break-common.h"
 
 enum strata
   {
@@ -679,8 +684,8 @@ struct target_ops
 						       inferior *inf)
       TARGET_DEFAULT_RETURN (NULL);
     /* See target_thread_info_to_thread_handle.  */
-    virtual gdb::byte_vector thread_info_to_thread_handle (struct thread_info *)
-      TARGET_DEFAULT_RETURN (gdb::byte_vector ());
+    virtual gdb::array_view<const_gdb_byte> thread_info_to_thread_handle (struct thread_info *)
+      TARGET_DEFAULT_RETURN (gdb::array_view<const gdb_byte> ());
     virtual void stop (ptid_t)
       TARGET_DEFAULT_IGNORE ();
     virtual void interrupt ()
@@ -1038,7 +1043,7 @@ struct target_ops
     virtual int get_trace_status (struct trace_status *ts)
       TARGET_DEFAULT_RETURN (-1);
 
-    virtual void get_tracepoint_status (struct breakpoint *tp,
+    virtual void get_tracepoint_status (tracepoint *tp,
 					struct uploaded_tp *utp)
       TARGET_DEFAULT_NORETURN (tcomplain ());
 
@@ -1321,6 +1326,10 @@ struct target_ops
     virtual bool store_memtags (CORE_ADDR address, size_t len,
 				const gdb::byte_vector &tags, int type)
       TARGET_DEFAULT_NORETURN (tcomplain ());
+
+    /* Return the x86 XSAVE extended state area layout.  */
+    virtual x86_xsave_layout fetch_x86_xsave_layout ()
+      TARGET_DEFAULT_RETURN (x86_xsave_layout ());
   };
 
 /* Deleter for std::unique_ptr.  See comments in
@@ -1409,15 +1418,6 @@ extern target_ops *get_dummy_target ();
 /* Define easy words for doing these operations on our current target.  */
 
 extern const char *target_shortname ();
-
-/* Does whatever cleanup is required for a target that we are no
-   longer going to be calling.  This routine is automatically always
-   called after popping the target off the target stack - the target's
-   own methods are no longer available through the target vector.
-   Closing file descriptors and freeing all memory allocated memory are
-   typical things it should do.  */
-
-void target_close (struct target_ops *targ);
 
 /* Find the correct target to use for "attach".  If a target on the
    current stack supports attaching, then it is returned.  Otherwise,
@@ -1933,7 +1933,7 @@ extern struct thread_info *target_thread_handle_to_thread_info
 /* Given a thread, return the thread handle, a target-specific sequence of
    bytes which serves as a thread identifier within the program being
    debugged.  */
-extern gdb::byte_vector target_thread_info_to_thread_handle
+extern gdb::array_view<const gdb_byte> target_thread_info_to_thread_handle
   (struct thread_info *);
 
 /* Attempts to find the pathname of the executable file
@@ -2034,7 +2034,7 @@ extern bool target_have_steppable_watchpoint ();
 
 /* Provide defaults for hardware watchpoint functions.  */
 
-/* If the *_hw_beakpoint functions have not been defined
+/* If the *_hw_breakpoint functions have not been defined
    elsewhere use the definitions in the target vector.  */
 
 /* Returns positive if we can set a hardware watchpoint of type TYPE.
@@ -2255,7 +2255,7 @@ extern void target_trace_set_readonly_regions ();
 
 extern int target_get_trace_status (trace_status *ts);
 
-extern void target_get_tracepoint_status (breakpoint *tp, uploaded_tp *utp);
+extern void target_get_tracepoint_status (tracepoint *tp, uploaded_tp *utp);
 
 extern void target_trace_stop ();
 
@@ -2309,6 +2309,8 @@ extern bool target_fetch_memtags (CORE_ADDR address, size_t len,
 
 extern bool target_store_memtags (CORE_ADDR address, size_t len,
 				  const gdb::byte_vector &tags, int type);
+
+extern x86_xsave_layout target_fetch_x86_xsave_layout ();
 
 /* Command logging facility.  */
 
@@ -2474,6 +2476,10 @@ extern int remote_timeout;
    scoped_restore to restore it back to the current value.  */
 extern scoped_restore_tmpl<int>
     make_scoped_restore_show_memory_breakpoints (int show);
+
+/* True if we should trust readonly sections from the
+   executable when reading memory.  */
+extern bool trust_readonly;
 
 extern bool may_write_registers;
 extern bool may_write_memory;

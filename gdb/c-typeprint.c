@@ -18,7 +18,7 @@
 
 #include "defs.h"
 #include "gdbsupport/gdb_obstack.h"
-#include "bfd.h"		/* Binary File Description.  */
+#include "bfd.h"
 #include "symtab.h"
 #include "gdbtypes.h"
 #include "expression.h"
@@ -286,7 +286,7 @@ cp_type_print_method_args (struct type *mtype, const char *prefix,
 
       struct field arg = args[i];
       /* Skip any artificial arguments.  */
-      if (FIELD_ARTIFICIAL (arg))
+      if (arg.is_artificial ())
 	continue;
 
       if (printed_args > 0)
@@ -441,31 +441,6 @@ c_type_print_varspec_prefix (struct type *type,
 				   stream, show, passed_a_ptr, 0,
 				   language, flags, podata);
       break;
-
-    case TYPE_CODE_UNDEF:
-    case TYPE_CODE_STRUCT:
-    case TYPE_CODE_UNION:
-    case TYPE_CODE_ENUM:
-    case TYPE_CODE_FLAGS:
-    case TYPE_CODE_INT:
-    case TYPE_CODE_FLT:
-    case TYPE_CODE_VOID:
-    case TYPE_CODE_ERROR:
-    case TYPE_CODE_CHAR:
-    case TYPE_CODE_BOOL:
-    case TYPE_CODE_SET:
-    case TYPE_CODE_RANGE:
-    case TYPE_CODE_STRING:
-    case TYPE_CODE_COMPLEX:
-    case TYPE_CODE_NAMESPACE:
-    case TYPE_CODE_DECFLOAT:
-    case TYPE_CODE_FIXED_POINT:
-      /* These types need no prefix.  They are listed here so that
-	 gcc -Wall will reveal any types that haven't been handled.  */
-      break;
-    default:
-      error (_("type not handled in c_type_print_varspec_prefix()"));
-      break;
     }
 }
 
@@ -560,7 +535,7 @@ c_type_print_args (struct type *type, struct ui_file *stream,
     {
       struct type *param_type;
 
-      if (TYPE_FIELD_ARTIFICIAL (type, i) && linkage_name)
+      if (type->field (i).is_artificial () && linkage_name)
 	continue;
 
       if (printed_any)
@@ -820,32 +795,6 @@ c_type_print_varspec_suffix (struct type *type,
     case TYPE_CODE_TYPEDEF:
       c_type_print_varspec_suffix (type->target_type (), stream,
 				   show, passed_a_ptr, 0, language, flags);
-      break;
-
-    case TYPE_CODE_UNDEF:
-    case TYPE_CODE_STRUCT:
-    case TYPE_CODE_UNION:
-    case TYPE_CODE_FLAGS:
-    case TYPE_CODE_ENUM:
-    case TYPE_CODE_INT:
-    case TYPE_CODE_FLT:
-    case TYPE_CODE_VOID:
-    case TYPE_CODE_ERROR:
-    case TYPE_CODE_CHAR:
-    case TYPE_CODE_BOOL:
-    case TYPE_CODE_SET:
-    case TYPE_CODE_RANGE:
-    case TYPE_CODE_STRING:
-    case TYPE_CODE_COMPLEX:
-    case TYPE_CODE_NAMESPACE:
-    case TYPE_CODE_DECFLOAT:
-    case TYPE_CODE_FIXED_POINT:
-      /* These types do not need a suffix.  They are listed so that
-	 gcc -Wall will report types that may not have been
-	 considered.  */
-      break;
-    default:
-      error (_("type not handled in c_type_print_varspec_suffix()"));
       break;
     }
 }
@@ -1153,7 +1102,7 @@ c_type_print_base_struct_union (struct type *type, struct ui_file *stream,
 	     virtual table pointers are not specifically marked in
 	     the debug info, they should be artificial.  */
 	  if ((i == vptr_fieldno && type == basetype)
-	      || TYPE_FIELD_ARTIFICIAL (type, i))
+	      || type->field (i).is_artificial ())
 	    continue;
 
 	  if (need_access_label)
@@ -1164,7 +1113,7 @@ c_type_print_base_struct_union (struct type *type, struct ui_file *stream,
 		 TYPE_FIELD_PRIVATE (type, i), flags);
 	    }
 
-	  bool is_static = field_is_static (&type->field (i));
+	  bool is_static = type->field (i).is_static ();
 
 	  if (flags->print_offsets)
 	    podata->update (type, i, stream);
@@ -1205,15 +1154,14 @@ c_type_print_base_struct_union (struct type *type, struct ui_file *stream,
 			  stream, newshow, level + 4,
 			  language, &local_flags, &local_podata);
 
-	  if (!is_static && TYPE_FIELD_PACKED (type, i))
+	  if (!is_static && type->field (i).is_packed ())
 	    {
 	      /* It is a bitfield.  This code does not attempt
 		 to look at the bitpos and reconstruct filler,
 		 unnamed fields.  This would lead to misleading
 		 results if the compiler does not put out fields
 		 for such things (I don't know what it does).  */
-	      gdb_printf (stream, " : %d",
-			  TYPE_FIELD_BITSIZE (type, i));
+	      gdb_printf (stream, " : %d", type->field (i).bitsize ());
 	    }
 	  gdb_printf (stream, ";\n");
 	}
@@ -1642,11 +1590,11 @@ c_type_print_base_1 (struct type *type, struct ui_file *stream,
 				language, &local_flags, podata);
 		gdb_printf (stream, " @%s",
 			    plongest (type->field (i).loc_bitpos ()));
-		if (TYPE_FIELD_BITSIZE (type, i) > 1)
+		if (type->field (i).bitsize () > 1)
 		  {
 		    gdb_printf (stream, "-%s",
 				plongest (type->field (i).loc_bitpos ()
-					  + TYPE_FIELD_BITSIZE (type, i)
+					  + type->field (i).bitsize ()
 					  - 1));
 		  }
 		gdb_printf (stream, ";\n");

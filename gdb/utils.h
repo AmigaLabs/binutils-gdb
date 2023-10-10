@@ -1,5 +1,3 @@
-/* *INDENT-OFF* */ /* ATTRIBUTE_PRINTF confuses indent, avoid running it
-		      for now.  */
 /* I/O, string, cleanup, and other random utilities for GDB.
    Copyright (C) 1986-2023 Free Software Foundation, Inc.
 
@@ -277,7 +275,13 @@ extern void fprintf_symbol (struct ui_file *, const char *,
 
 extern void perror_warning_with_name (const char *string);
 
-extern void print_sys_errmsg (const char *, int);
+/* Issue a warning formatted as '<filename>: <explanation>', where
+   <filename> is FILENAME with filename styling applied.  As such, don't
+   pass anything more than a filename in this string.  The <explanation>
+   is a string returned from calling safe_strerror(SAVED_ERRNO).  */
+
+extern void warning_filename_and_errno (const char *filename,
+					int saved_errno);
 
 /* Warnings and error messages.  */
 
@@ -286,8 +290,6 @@ extern void (*deprecated_error_begin_hook) (void);
 /* Message to be printed before the warning message, when a warning occurs.  */
 
 extern const char *warning_pre_print;
-
-extern void error_stream (const string_file &) ATTRIBUTE_NORETURN;
 
 extern void demangler_vwarning (const char *file, int line,
 			       const char *, va_list ap)
@@ -304,13 +306,6 @@ extern pid_t wait_to_die_with_timeout (pid_t pid, int *status, int timeout);
 #endif
 
 extern int myread (int, char *, int);
-
-/* Integer exponentiation: Return V1**V2, where both arguments
-   are integers.
-
-   Requires V1 != 0 if V2 < 0.
-   Returns 1 for 0 ** 0.  */
-extern ULONGEST uinteger_pow (ULONGEST v1, LONGEST v2);
 
 /* Resource limits used by getrlimit and setrlimit.  */
 
@@ -343,5 +338,91 @@ extern void dump_core (void);
 extern void copy_bitwise (gdb_byte *dest, ULONGEST dest_offset,
 			  const gdb_byte *source, ULONGEST source_offset,
 			  ULONGEST nbits, int bits_big_endian);
+
+/* When readline decides that the terminal cannot auto-wrap lines, it reduces
+   the width of the reported screen width by 1.  This variable indicates
+   whether that's the case or not, allowing us to add it back where
+   necessary.  See _rl_term_autowrap in readline/terminal.c.  */
+
+extern int readline_hidden_cols;
+
+/* Assign VAL to LVAL, and set CHANGED to true if the assignment changed
+   LVAL.  */
+
+template<typename T>
+void
+assign_set_if_changed (T &lval, const T &val, bool &changed)
+{
+  if (lval == val)
+    return;
+
+  lval = val;
+  changed = true;
+}
+
+/* Assign VAL to LVAL, and return true if the assignment changed LVAL.  */
+
+template<typename T>
+bool
+assign_return_if_changed (T &lval, const T &val)
+{
+  if (lval == val)
+    return false;
+
+  lval = val;
+  return true;
+}
+
+/* In some cases GDB needs to try several different solutions to a problem,
+   if any of the solutions work then as far as the user is concerned the
+   problem is solved, and GDB should continue without warnings.  However,
+   if none of the solutions work then GDB should emit any warnings that
+   occurred while trying each possible solution.
+
+   One example of this is locating separate debug info.  There are several
+   different approaches for this; following the .gnu_debuglink, a build-id
+   based lookup, or using debuginfod.  If any works, and debug info is
+   located, then the user doesn't want to see warnings from the earlier
+   approaches that were tried and failed.
+
+   However, GDB should emit all the warnings using separate calls to
+   warning -- this ensures that each warning is formatted on its own line,
+   and that any styling is emitted correctly.
+
+   This class helps with deferring warnings.  Warnings can be added to an
+   instance of this class with the 'warn' function, and all warnings can be
+   emitted with a single call to 'emit'.  */
+
+struct deferred_warnings
+{
+  /* Add a warning to the list of deferred warnings.  */
+  void warn (const char *format, ...) ATTRIBUTE_PRINTF(2,3)
+  {
+    /* Generate the warning text into a string_file.  We allow the text to
+       be styled only if gdb_stderr allows styling -- warnings are sent to
+       gdb_stderr.  */
+    string_file msg (gdb_stderr->can_emit_style_escape ());
+
+    va_list args;
+    va_start (args, format);
+    msg.vprintf (format, args);
+    va_end (args);
+
+    /* Move the text into the list of deferred warnings.  */
+    m_warnings.emplace_back (std::move (msg));
+  }
+
+  /* Emit all warnings.  */
+  void emit () const
+  {
+    for (const auto &w : m_warnings)
+      warning ("%s", w.c_str ());
+  }
+
+private:
+
+  /* The list of all deferred warnings.  */
+  std::vector<string_file> m_warnings;
+};
 
 #endif /* UTILS_H */

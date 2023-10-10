@@ -40,6 +40,7 @@
 #include "gdbsupport/byte-vector.h"
 #include "async-event.h"
 #include "valprint.h"
+#include "interps.h"
 
 #include <signal.h>
 
@@ -785,7 +786,7 @@ record_full_message_wrapper_safe (struct regcache *regcache,
     {
       record_full_message (regcache, signal);
     }
-  catch (const gdb_exception &ex)
+  catch (const gdb_exception_error &ex)
     {
       exception_print (gdb_stderr, ex);
       return false;
@@ -981,7 +982,7 @@ record_full_open (const char *name, int from_tty)
 
   record_full_init_record_breakpoints ();
 
-  gdb::observers::record_changed.notify (current_inferior (),  1, "full", NULL);
+  interps_notify_record_changed (current_inferior (),  1, "full", NULL);
 }
 
 /* "close" target method.  Close the process record target.  */
@@ -1093,6 +1094,13 @@ record_full_target::resume (ptid_t ptid, int step, enum gdb_signal signal)
 
       /* Make sure the target beneath reports all signals.  */
       target_pass_signals ({});
+
+      /* Disable range-stepping, forcing the process target to report stops for
+	 all executed instructions, so we can record them all.  */
+      process_stratum_target *proc_target
+	= current_inferior ()->process_target ();
+      for (thread_info *thread : all_non_exited_threads (proc_target, ptid))
+	thread->control.may_range_step = 0;
 
       this->beneath ()->resume (ptid, step, signal);
     }

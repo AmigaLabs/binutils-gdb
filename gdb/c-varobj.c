@@ -245,7 +245,7 @@ static struct value *
 value_struct_element_index (struct value *value, int type_index)
 {
   struct value *result = NULL;
-  struct type *type = value_type (value);
+  struct type *type = value->type ();
 
   type = check_typedef (type);
 
@@ -254,10 +254,10 @@ value_struct_element_index (struct value *value, int type_index)
 
   try
     {
-      if (field_is_static (&type->field (type_index)))
+      if (type->field (type_index).is_static ())
 	result = value_static_field (type, type_index);
       else
-	result = value_primitive_field (value, 0, type_index, type);
+	result = value->primitive_field (0, type_index, type);
     }
   catch (const gdb_exception_error &e)
     {
@@ -506,14 +506,14 @@ c_value_of_variable (const struct varobj *var,
 	  }
 	else
 	  {
-	    if (var->not_fetched && value_lazy (var->value.get ()))
+	    if (var->not_fetched && var->value->lazy ())
 	      /* Frozen variable and no value yet.  We don't
 		 implicitly fetch the value.  MI response will
 		 use empty string for the value, which is OK.  */
 	      return std::string ();
 
 	    gdb_assert (varobj_value_is_changeable_p (var));
-	    gdb_assert (!value_lazy (var->value.get ()));
+	    gdb_assert (!var->value->lazy ());
 	    
 	    /* If the specified format is the current one,
 	       we can reuse print_value.  */
@@ -651,7 +651,7 @@ cplus_class_num_children (struct type *type, int children[3])
 	 table pointers are not specifically marked in the debug info,
 	 they should be artificial.  */
       if ((type == basetype && i == vptr_fieldno)
-	  || TYPE_FIELD_ARTIFICIAL (type, i))
+	  || type->field (i).is_artificial ())
 	continue;
 
       if (TYPE_FIELD_PROTECTED (type, i))
@@ -751,7 +751,7 @@ cplus_describe_child (const struct varobj *parent, int index,
 	  while (index >= 0)
 	    {
 	      if ((type == basetype && type_index == vptr_fieldno)
-		  || TYPE_FIELD_ARTIFICIAL (type, type_index))
+		  || type->field (type_index).is_artificial ())
 		; /* ignore vptr */
 	      else if (match_accessibility (type, type_index, acc))
 		    --index;
@@ -815,7 +815,7 @@ cplus_describe_child (const struct varobj *parent, int index,
 	      /* Cast the parent to the base' type.  Note that in gdb,
 		 expression like 
 			 (Base1)d
-		 will create an lvalue, for all appearences, so we don't
+		 will create an lvalue, for all appearances, so we don't
 		 need to use more fancy:
 			 *(Base1*)(&d)
 		 construct.

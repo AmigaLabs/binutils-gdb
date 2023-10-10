@@ -69,6 +69,7 @@ cpu-ia64.c
 cpu-iamcu.c
 cpu-ip2k.c
 cpu-iq2000.c
+cpu-kvx.c
 cpu-lm32.c
 cpu-loongarch.c
 cpu-m10200.c
@@ -263,6 +264,7 @@ elfxx-aarch64.c
 elfxx-aarch64.h
 elfxx-ia64.c
 elfxx-ia64.h
+elfxx-kvx.c
 elfxx-loongarch.c
 elfxx-loongarch.h
 elfxx-mips.c
@@ -273,7 +275,6 @@ elfxx-sparc.c
 elfxx-sparc.h
 elfxx-tilegx.c
 elfxx-tilegx.h
-elfxx-x86.c
 elfxx-x86.c
 elfxx-x86.h
 format.c
@@ -286,7 +287,6 @@ i386bsd.c
 i386lynx.c
 i386msdos.c
 ihex.c
-init.c
 irix-core.c
 libaout.h
 libbfd.c

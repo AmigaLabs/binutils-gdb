@@ -50,11 +50,7 @@
 #include "parser-defs.h"
 #include "language.h"
 #include "p-lang.h"
-#include "bfd.h" /* Required by objfiles.h.  */
-#include "symfile.h" /* Required by objfiles.h.  */
-#include "objfiles.h" /* For have_full_symbols and have_partial_symbols.  */
 #include "block.h"
-#include "completer.h"
 #include "expop.h"
 
 #define parse_type(ps) builtin_type (ps->gdbarch ())
@@ -542,7 +538,7 @@ exp	:	DOLLAR_VARIABLE
 			      value *val
 				= value_of_internalvar (pstate->gdbarch (),
 							intvar);
-			      current_type = value_type (val);
+			      current_type = val->type ();
 			    }
  			}
  	;
@@ -591,7 +587,7 @@ exp	:	THIS
 			  this_val
 			    = value_of_this_silent (pstate->language ());
 			  if (this_val)
-			    this_type = value_type (this_val);
+			    this_type = this_val->type ();
 			  else
 			    this_type = NULL;
 			  if (this_type)
@@ -707,7 +703,7 @@ variable:	name_not_typename
 			      this_val
 				= value_of_this_silent (pstate->language ());
 			      if (this_val)
-				this_type = value_type (this_val);
+				this_type = this_val->type ();
 			      else
 				this_type = NULL;
 			      if (this_type)
@@ -998,14 +994,14 @@ pop_current_type (void)
     }
 }
 
-struct token
+struct p_token
 {
   const char *oper;
   int token;
   enum exp_opcode opcode;
 };
 
-static const struct token tokentab3[] =
+static const struct p_token tokentab3[] =
   {
     {"shr", RSH, OP_NULL},
     {"shl", LSH, OP_NULL},
@@ -1018,7 +1014,7 @@ static const struct token tokentab3[] =
     {"xor", XOR, OP_NULL}
   };
 
-static const struct token tokentab2[] =
+static const struct p_token tokentab2[] =
   {
     {"or", OR, OP_NULL},
     {"<>", NOTEQUAL, OP_NULL},

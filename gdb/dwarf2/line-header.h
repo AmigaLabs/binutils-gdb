@@ -20,8 +20,6 @@
 #ifndef DWARF2_LINE_HEADER_H
 #define DWARF2_LINE_HEADER_H
 
-#include "gdbtypes.h"
-
 /* dir_index is 1-based in DWARF 4 and before, and is 0-based in DWARF 5 and
    later.  */
 typedef int dir_index;
@@ -79,7 +77,7 @@ struct line_header
     : offset_in_dwz {}, m_comp_dir (comp_dir)
   {}
 
-  /* This constructor should only be used to create line_header intances to do
+  /* This constructor should only be used to create line_header instances to do
      hash table lookups.  */
   line_header (sect_offset sect_off, bool offset_in_dwz)
     : sect_off (sect_off),

@@ -21,10 +21,11 @@
 #
 # PR c++/9489.
 
-if { [skip_cplus_tests] } { continue }
-if { [skip_shlib_tests] } { continue }
+require allow_cplus_tests allow_shlib_tests
 
 standard_testfile .cc gdb2384-base.cc
+
+include_file gdb2384-base.h
 
 set sofile [standard_output_file gdb2384-base.so]
 

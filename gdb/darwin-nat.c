@@ -351,7 +351,8 @@ darwin_nat_target::check_new_threads (inferior *inf)
 	  pti->msg_state = DARWIN_RUNNING;
 
 	  /* Add the new thread.  */
-	  add_thread_with_info (this, ptid_t (inf->pid, 0, new_id), pti);
+	  add_thread_with_info (this, ptid_t (inf->pid, 0, new_id),
+				private_thread_info_up (pti));
 	  new_thread_vec.push_back (pti);
 	  new_ix++;
 	  continue;
@@ -360,7 +361,7 @@ darwin_nat_target::check_new_threads (inferior *inf)
 	{
 	  /* A thread was removed.  */
 	  struct thread_info *thr
-	    = find_thread_ptid (this, ptid_t (inf->pid, 0, old_id));
+	    = this->find_thread (ptid_t (inf->pid, 0, old_id));
 	  delete_thread (thr);
 	  kret = mach_port_deallocate (gdb_task, old_id);
 	  MACH_CHECK_ERROR (kret);
@@ -1105,7 +1106,7 @@ darwin_nat_target::decode_message (mach_msg_header_t *hdr,
 	      if (WIFEXITED (wstatus))
 		{
 		  status->set_exited (WEXITSTATUS (wstatus));
-	          inferior_debug (4, _("darwin_wait: pid=%d exit, status=0x%x\n"),
+		  inferior_debug (4, _("darwin_wait: pid=%d exit, status=0x%x\n"),
 				  res_pid, wstatus);
 		}
 	      else if (WIFSTOPPED (wstatus))
@@ -1128,7 +1129,7 @@ darwin_nat_target::decode_message (mach_msg_header_t *hdr,
 		{
 		  status->set_ignore ();
 		  warning (_("Unexpected wait status after MACH_NOTIFY_DEAD_NAME "
-		             "notification: 0x%x"), wstatus);
+			     "notification: 0x%x"), wstatus);
 		  return minus_one_ptid;
 		}
 

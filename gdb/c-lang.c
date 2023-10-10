@@ -36,7 +36,6 @@
 #include <ctype.h>
 #include "gdbcore.h"
 #include "gdbarch.h"
-#include "compile/compile-internal.h"
 #include "c-exp.h"
 
 /* Given a C string type, STR_TYPE, return the corresponding target
@@ -185,8 +184,8 @@ language_defn::printchar (int c, struct type *type,
 /* Print the character string STRING, printing at most LENGTH
    characters.  LENGTH is -1 if the string is nul terminated.  Each
    character is WIDTH bytes long.  Printing stops early if the number
-   hits print_max; repeat counts are printed as appropriate.  Print
-   ellipses at the end if we had to stop before printing LENGTH
+   hits print_max_chars; repeat counts are printed as appropriate.
+   Print ellipses at the end if we had to stop before printing LENGTH
    characters, or if FORCE_ELLIPSES.  */
 
 void
@@ -246,7 +245,7 @@ c_get_string (struct value *value, gdb::unique_xmalloc_ptr<gdb_byte> *buffer,
 {
   int err, width;
   unsigned int fetchlimit;
-  struct type *type = check_typedef (value_type (value));
+  struct type *type = check_typedef (value->type ());
   struct type *element_type = type->target_type ();
   int req_length = *length;
   enum bfd_endian byte_order
@@ -295,14 +294,14 @@ c_get_string (struct value *value, gdb::unique_xmalloc_ptr<gdb_byte> *buffer,
      C struct hack.  So, only do this if either no length was
      specified, or the length is within the existing bounds.  This
      avoids running off the end of the value's contents.  */
-  if ((VALUE_LVAL (value) == not_lval
-       || VALUE_LVAL (value) == lval_internalvar
+  if ((value->lval () == not_lval
+       || value->lval () == lval_internalvar
        || type->code () == TYPE_CODE_ARRAY)
       && fetchlimit != UINT_MAX
       && (*length < 0 || *length <= fetchlimit))
     {
       int i;
-      const gdb_byte *contents = value_contents (value).data ();
+      const gdb_byte *contents = value->contents ().data ();
 
       /* If a length is specified, use that.  */
       if (*length >= 0)
@@ -329,10 +328,10 @@ c_get_string (struct value *value, gdb::unique_xmalloc_ptr<gdb_byte> *buffer,
       CORE_ADDR addr;
       if (type->code () == TYPE_CODE_ARRAY)
 	{
-	  if (VALUE_LVAL (value) != lval_memory)
+	  if (value->lval () != lval_memory)
 	    error (_("Attempt to take address of value "
 		     "not located in memory."));
-	  addr = value_address (value);
+	  addr = value->address ();
 	}
       else
 	addr = value_as_address (value);
@@ -616,9 +615,6 @@ c_string_operation::evaluate (struct type *expect_type,
       internal_error (_("unhandled c_string_type"));
     }
 
-  /* Ensure TYPE_LENGTH is valid for TYPE.  */
-  check_typedef (type);
-
   /* If the caller expects an array of some integral type,
      satisfy them.  If something odder is expected, rely on the
      caller to cast.  */
@@ -653,16 +649,11 @@ c_string_operation::evaluate (struct type *expect_type,
     }
   else
     {
-      int i;
-
-      /* Write the terminating character.  */
-      for (i = 0; i < type->length (); ++i)
-	obstack_1grow (&output, 0);
+      int element_size = type->length ();
 
       if (satisfy_expected)
 	{
 	  LONGEST low_bound, high_bound;
-	  int element_size = type->length ();
 
 	  if (!get_discrete_bounds (expect_type->index_type (),
 				    &low_bound, &high_bound))
@@ -674,13 +665,16 @@ c_string_operation::evaluate (struct type *expect_type,
 	      > (high_bound - low_bound + 1))
 	    error (_("Too many array elements"));
 
-	  result = allocate_value (expect_type);
-	  memcpy (value_contents_raw (result).data (), obstack_base (&output),
+	  result = value::allocate (expect_type);
+	  memcpy (result->contents_raw ().data (), obstack_base (&output),
 		  obstack_object_size (&output));
+	  /* Write the terminating character.  */
+	  memset (result->contents_raw ().data () + obstack_object_size (&output),
+		  0, element_size);
 	}
       else
-	result = value_cstring ((const char *) obstack_base (&output),
-				obstack_object_size (&output),
+	result = value_cstring ((const gdb_byte *) obstack_base (&output),
+				obstack_object_size (&output) / element_size,
 				type);
     }
   return result;
@@ -1003,7 +997,7 @@ public:
 
   /* See language.h.  */
 
-  CORE_ADDR skip_trampoline (frame_info_ptr fi,
+  CORE_ADDR skip_trampoline (const frame_info_ptr &fi,
 			     CORE_ADDR pc) const override
   {
     return cplus_skip_trampoline (fi, pc);

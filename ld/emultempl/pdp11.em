@@ -21,6 +21,7 @@
 fragment <<EOF
 
 /* --- \begin{pdp11.em} */
+#include "libiberty.h"
 #include "getopt.h"
 
 static void
@@ -100,7 +101,7 @@ then
 # Scripts compiled in.
 
 # sed commands to quote an ld script as a C string.
-sc="-f stringify.sed"
+sc="-f ${srcdir}/emultempl/stringify.sed"
 
 fragment <<EOF
 {

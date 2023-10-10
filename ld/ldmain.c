@@ -23,7 +23,6 @@
 #include "bfd.h"
 #include "safe-ctype.h"
 #include "libiberty.h"
-#include "progress.h"
 #include "bfdlink.h"
 #include "ctf-api.h"
 #include "filenames.h"
@@ -212,7 +211,14 @@ write_dependency_file (void)
 static void
 ld_cleanup (void)
 {
-  bfd_cache_close_all ();
+  bfd *ibfd, *inext;
+  if (link_info.output_bfd)
+    bfd_close_all_done (link_info.output_bfd);
+  for (ibfd = link_info.input_bfds; ibfd; ibfd = inext)
+    {
+      inext = ibfd->link.next;
+      bfd_close_all_done (ibfd);
+    }
 #if BFD_SUPPORTS_PLUGINS
   plugin_call_cleanup ();
 #endif
@@ -255,8 +261,6 @@ main (int argc, char **argv)
 
   program_name = argv[0];
   xmalloc_set_program_name (program_name);
-
-  START_PROGRESS (program_name, 0);
 
   expandargv (&argc, &argv);
 
@@ -565,7 +569,9 @@ printf( "%s:%d:Make all stuff excuatbel for aos4!\n", __FILE__, __LINE__ );
     }
   else
     {
-      if (!bfd_close (link_info.output_bfd))
+      bfd *obfd = link_info.output_bfd;
+      link_info.output_bfd = NULL;
+      if (!bfd_close (obfd))
 	einfo (_("%F%P: %s: final close failed: %E\n"), output_filename);
 
       /* If the --force-exe-suffix is enabled, and we're making an
@@ -615,8 +621,6 @@ printf( "%s:%d:Make all stuff excuatbel for aos4!\n", __FILE__, __LINE__ );
 	}
     }
 
-  END_PROGRESS (program_name);
-
   if (config.stats)
     {
       long run_time = get_run_time () - start_time;
@@ -627,7 +631,7 @@ printf( "%s:%d:Make all stuff excuatbel for aos4!\n", __FILE__, __LINE__ );
       fflush (stderr);
     }
 
-  /* Prevent ld_cleanup from doing anything, after a successful link.  */
+  /* Prevent ld_cleanup from deleting the output file.  */
   output_filename = NULL;
 
   xexit (0);
@@ -1396,7 +1400,7 @@ warning_find_reloc (bfd *abfd, asection *sec, void *iarg)
 	  && strcmp (bfd_asymbol_name (*q->sym_ptr_ptr), info->symbol) == 0)
 	{
 	  /* We found a reloc for the symbol we are looking for.  */
-	  einfo ("%P: %C: %s%s\n", abfd, sec, q->address, _("warning: "),
+	  einfo ("%P: %H: %s%s\n", abfd, sec, q->address, _("warning: "),
 		 info->warning);
 	  info->found = true;
 	  break;
@@ -1486,10 +1490,10 @@ undefined_symbol (struct bfd_link_info *info,
       if (error_count < MAX_ERRORS_IN_A_ROW)
 	{
 	  if (error)
-	    einfo (_("%X%P: %C: undefined reference to `%pT'\n"),
+	    einfo (_("%X%P: %H: undefined reference to `%pT'\n"),
 		   abfd, section, address, name);
 	  else
-	    einfo (_("%P: %C: warning: undefined reference to `%pT'\n"),
+	    einfo (_("%P: %H: warning: undefined reference to `%pT'\n"),
 		   abfd, section, address, name);
 	}
       else if (error_count == MAX_ERRORS_IN_A_ROW)

@@ -116,6 +116,7 @@ _bfd_elf_strtab_init (void)
 		  bfd_malloc (table->alloced * amt));
   if (table->array == NULL)
     {
+      bfd_hash_table_free (&table->table);
       free (table);
       return NULL;
     }
@@ -315,7 +316,7 @@ _bfd_elf_strtab_emit (register bfd *abfd, struct elf_strtab_hash *tab)
   bfd_size_type off = 1;
   size_t i;
 
-  if (bfd_bwrite ("", 1, abfd) != 1)
+  if (bfd_write ("", 1, abfd) != 1)
     return false;
 
   for (i = 1; i < tab->size; ++i)
@@ -329,7 +330,7 @@ _bfd_elf_strtab_emit (register bfd *abfd, struct elf_strtab_hash *tab)
 	continue;
 
       str = tab->array[i]->root.string;
-      if (bfd_bwrite (str, len, abfd) != len)
+      if (bfd_write (str, len, abfd) != len)
 	return false;
 
       off += len;

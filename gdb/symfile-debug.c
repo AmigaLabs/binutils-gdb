@@ -34,6 +34,7 @@
 #include "symfile.h"
 #include "block.h"
 #include "filenames.h"
+#include "cli/cli-style.h"
 
 /* We need to save a pointer to the real symbol functions.
    Plus, the debug versions are malloc'd because we have to NULL out the
@@ -155,6 +156,18 @@ objfile::forget_cached_source_info ()
     gdb_printf (gdb_stdlog, "qf->forget_cached_source_info (%s)\n",
 		objfile_debug_name (this));
 
+  for (compunit_symtab *cu : compunits ())
+    {
+      for (symtab *s : cu->filetabs ())
+	{
+	  if (s->fullname != NULL)
+	    {
+	      xfree (s->fullname);
+	      s->fullname = NULL;
+	    }
+	}
+    }
+
   for (const auto &iter : qf_require_partial_symbols ())
     iter->forget_cached_source_info (this);
 }
@@ -248,23 +261,19 @@ objfile::lookup_symbol (block_enum kind, const char *name, domain_enum domain)
     const struct blockvector *bv = stab->blockvector ();
     const struct block *block = bv->block (kind);
 
-    sym = block_find_symbol (block, name, domain,
-			     block_find_non_opaque_type_preferred,
-			     &with_opaque);
+    sym = block_find_symbol (block, lookup_name, domain, &with_opaque);
 
     /* Some caution must be observed with overloaded functions
        and methods, since the index will not contain any overload
        information (but NAME might contain it).  */
 
-    if (sym != NULL
-	&& symbol_matches_search_name (sym, lookup_name))
+    if (sym != nullptr)
       {
 	retval = stab;
 	/* Found it.  */
 	return false;
       }
-    if (with_opaque != NULL
-	&& symbol_matches_search_name (with_opaque, lookup_name))
+    if (with_opaque != nullptr)
       retval = stab;
 
     /* Keep looking through other psymtabs.  */
@@ -534,16 +543,18 @@ objfile::require_partial_symbols (bool verbose)
 	    {
 	      if (verbose && !printed)
 		{
-		  gdb_printf (_("Reading symbols from %s...\n"),
-			      objfile_name (this));
+		  gdb_printf (_("Reading symbols from %ps...\n"),
+			      styled_string (file_name_style.style (),
+					     objfile_name (this)));
 		  printed = true;
 		}
 	      iter->read_partial_symbols (this);
 	    }
 	}
       if (printed && !objfile_has_symbols (this))
-	gdb_printf (_("(No debugging symbols found in %s)\n"),
-		    objfile_name (this));
+	gdb_printf (_("(No debugging symbols found in %ps)\n"),
+		    styled_string (file_name_style.style (),
+				   objfile_name (this)));
     }
 }
 

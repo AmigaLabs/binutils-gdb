@@ -200,8 +200,6 @@ extern void child_terminal_save_inferior (struct target_ops *self);
 
 extern void child_terminal_init (struct target_ops *self);
 
-extern void child_terminal_init_with_pgrp (int pgrp);
-
 extern void child_pass_ctrlc (struct target_ops *self);
 
 extern void child_interrupt (struct target_ops *self);
@@ -224,8 +222,6 @@ extern void setup_inferior (int from_tty);
 extern void post_create_inferior (int from_tty);
 
 extern void attach_command (const char *, int);
-
-extern void set_inferior_args_vector (int, char **);
 
 extern void registers_info (const char *, int);
 
@@ -340,6 +336,41 @@ extern void set_current_inferior (inferior *);
    selected.  */
 extern void switch_to_inferior_no_thread (inferior *inf);
 
+/* Ensure INF is the current inferior.
+
+   If the current inferior was changed, return an RAII object that will
+   restore the original current context.  */
+extern gdb::optional<scoped_restore_current_thread> maybe_switch_inferior
+  (inferior *inf);
+
+/* Info about an inferior's target description.  There's one of these
+   for each inferior.  */
+
+struct target_desc_info
+{
+  /* Returns true if this target description information has been supplied by
+     the user.  */
+  bool from_user_p ()
+  { return !this->filename.empty (); }
+
+  /* A flag indicating that a description has already been fetched
+     from the target, so it should not be queried again.  */
+  bool fetched = false;
+
+  /* The description fetched from the target, or NULL if the target
+     did not supply any description.  Only valid when
+     FETCHED is set.  Only the description initialization
+     code should access this; normally, the description should be
+     accessed through the gdbarch object.  */
+  const struct target_desc *tdesc = nullptr;
+
+  /* If not empty, the filename to read a target description from, as set by
+     "set tdesc filename ...".
+
+     If empty, there is not filename specified by the user.  */
+  std::string filename;
+};
+
 /* GDB represents the state of each program execution with an object
    called an inferior.  An inferior typically corresponds to a process
    but is more general and applies also to targets that do not have a
@@ -431,7 +462,7 @@ public:
 
   /* A map of ptid_t to thread_info*, for average O(1) ptid_t lookup.
      Exited threads do not appear in the map.  */
-  std::unordered_map<ptid_t, thread_info *, hash_ptid> ptid_thread_map;
+  std::unordered_map<ptid_t, thread_info *> ptid_thread_map;
 
   /* Returns a range adapter covering the inferior's threads,
      including exited threads.  Used like this:
@@ -462,9 +493,11 @@ public:
   inline safe_inf_threads_range threads_safe ()
   { return safe_inf_threads_range (this->thread_list.begin ()); }
 
-  /* Delete all threads in the thread list.  If SILENT, exit threads
-     silently.  */
-  void clear_thread_list (bool silent);
+  /* Find (non-exited) thread PTID of this inferior.  */
+  thread_info *find_thread (ptid_t ptid);
+
+  /* Delete all threads in the thread list, silently.  */
+  void clear_thread_list ();
 
   /* Continuations-related methods.  A continuation is an std::function
      to be called to finish the execution of a command when running
@@ -491,6 +524,9 @@ public:
   {
     m_args = std::move (args);
   };
+
+  /* Set the argument string from some strings.  */
+  void set_args (gdb::array_view<char * const> args);
 
   /* Get the argument string to use when running this inferior.
 
@@ -596,7 +632,7 @@ public:
      attach or handling a fork child.  */
   bool in_initial_library_scan = false;
 
-  /* Private data used by the target vector implementation.  */
+  /* Private data used by the process_stratum target.  */
   std::unique_ptr<private_inferior> priv;
 
   /* HAS_EXIT_CODE is true if the inferior exited with an exit code.
@@ -610,7 +646,7 @@ public:
 
   /* Info about an inferior's target description (if it's fetched; the
      user supplied description's filename, if any; etc.).  */
-  target_desc_info *tdesc_info = NULL;
+  target_desc_info tdesc_info;
 
   /* The architecture associated with the inferior through the
      connection to the target.
@@ -668,11 +704,10 @@ extern void delete_inferior (struct inferior *todel);
 /* Delete an existing inferior list entry, due to inferior detaching.  */
 extern void detach_inferior (inferior *inf);
 
+/* Notify observers and interpreters that INF has gone away.  Reset the INF
+   object back to an default, empty, state.  Clear register and frame
+   caches.  */
 extern void exit_inferior (inferior *inf);
-
-extern void exit_inferior_silent (inferior *inf);
-
-extern void exit_inferior_num_silent (int num);
 
 extern void inferior_appeared (struct inferior *inf, int pid);
 
@@ -720,6 +755,35 @@ public:
 
 private:
   inferior *m_saved_inf;
+};
+
+/* When reading memory from an inferior, the global inferior_ptid must
+   also be set.  This class arranges to save and restore the necessary
+   state for reading or writing memory, but without invalidating the
+   frame cache.  */
+
+class scoped_restore_current_inferior_for_memory
+{
+public:
+
+  /* Save the current globals and switch to the given inferior and the
+     inferior's program space.  inferior_ptid is set to point to the
+     inferior's process id (and not to any particular thread).  */
+  explicit scoped_restore_current_inferior_for_memory (inferior *inf)
+    : m_save_ptid (&inferior_ptid)
+  {
+    set_current_inferior (inf);
+    set_current_program_space (inf->pspace);
+    inferior_ptid = ptid_t (inf->pid);
+  }
+
+  DISABLE_COPY_AND_ASSIGN (scoped_restore_current_inferior_for_memory);
+
+private:
+
+  scoped_restore_current_inferior m_save_inferior;
+  scoped_restore_current_program_space m_save_progspace;
+  scoped_restore_tmpl<ptid_t> m_save_ptid;
 };
 
 
@@ -786,5 +850,16 @@ extern void print_selected_inferior (struct ui_out *uiout);
 
 extern void switch_to_inferior_and_push_target
   (inferior *new_inf, bool no_connection, inferior *org_inf);
+
+/* Return true if ID is a valid global inferior number.  */
+
+inline bool
+valid_global_inferior_id (int id)
+{
+  for (inferior *inf : all_inferiors ())
+    if (inf->num == id)
+      return true;
+  return false;
+}
 
 #endif /* !defined (INFERIOR_H) */

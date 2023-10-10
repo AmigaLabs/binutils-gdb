@@ -12,9 +12,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-if { [skip_shlib_tests] || [is_remote target] } {
-    return 0
-}
+require allow_shlib_tests
+require {!is_remote target}
 
 # Library file.
 set libname "info-fun-solib"

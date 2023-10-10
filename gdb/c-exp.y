@@ -43,9 +43,6 @@
 #include "language.h"
 #include "c-lang.h"
 #include "c-support.h"
-#include "bfd.h" /* Required by objfiles.h.  */
-#include "symfile.h" /* Required by objfiles.h.  */
-#include "objfiles.h" /* For have_full_symbols and have_partial_symbols */
 #include "charset.h"
 #include "block.h"
 #include "cp-support.h"
@@ -2450,7 +2447,7 @@ enum token_flag
 };
 DEF_ENUM_FLAGS_TYPE (enum token_flag, token_flags);
 
-struct token
+struct c_token
 {
   const char *oper;
   int token;
@@ -2458,7 +2455,7 @@ struct token
   token_flags flags;
 };
 
-static const struct token tokentab3[] =
+static const struct c_token tokentab3[] =
   {
     {">>=", ASSIGN_MODIFY, BINOP_RSH, 0},
     {"<<=", ASSIGN_MODIFY, BINOP_LSH, 0},
@@ -2466,7 +2463,7 @@ static const struct token tokentab3[] =
     {"...", DOTDOTDOT, OP_NULL, 0}
   };
 
-static const struct token tokentab2[] =
+static const struct c_token tokentab2[] =
   {
     {"+=", ASSIGN_MODIFY, BINOP_ADD, 0},
     {"-=", ASSIGN_MODIFY, BINOP_SUB, 0},
@@ -2497,7 +2494,7 @@ static const struct token tokentab2[] =
    multi-word type names (for example 'double' can appear in 'long
    double') need to be listed here.  type-specifiers that are only ever
    single word (like 'char') are handled by the classify_name function.  */
-static const struct token ident_tokens[] =
+static const struct c_token ident_tokens[] =
   {
     {"unsigned", UNSIGNED, OP_NULL, 0},
     {"template", TEMPLATE, OP_NULL, FLAG_CXX},
@@ -3003,7 +3000,7 @@ lex_one_token (struct parser_state *par_state, bool *is_quoted_name)
 }
 
 /* An object of this type is pushed on a FIFO by the "outer" lexer.  */
-struct token_and_value
+struct c_token_and_value
 {
   int token;
   YYSTYPE value;
@@ -3011,7 +3008,7 @@ struct token_and_value
 
 /* A FIFO of tokens that have been read but not yet returned to the
    parser.  */
-static std::vector<token_and_value> token_fifo;
+static std::vector<c_token_and_value> token_fifo;
 
 /* Non-zero if the lexer should return tokens from the FIFO.  */
 static int popping;
@@ -3233,7 +3230,7 @@ classify_inner_name (struct parser_state *par_state,
 static int
 yylex (void)
 {
-  token_and_value current;
+  c_token_and_value current;
   int first_was_coloncolon, last_was_coloncolon;
   struct type *context_type = NULL;
   int last_to_examine, next_to_examine, checkpoint;
@@ -3309,7 +3306,7 @@ yylex (void)
 
   while (next_to_examine <= last_to_examine)
     {
-      token_and_value next;
+      c_token_and_value next;
 
       next = token_fifo[next_to_examine];
       ++next_to_examine;
@@ -3406,7 +3403,7 @@ c_parse (struct parser_state *par_state)
     = make_scoped_restore (&expression_macro_scope, macro_scope.get ());
 
   scoped_restore restore_yydebug = make_scoped_restore (&yydebug,
-							parser_debug);
+							par_state->debug);
 
   /* Initialize some state used by the lexer.  */
   last_was_structop = false;

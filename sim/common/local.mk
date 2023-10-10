@@ -16,25 +16,22 @@
 ## along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Parts of the common/ sim code that have been unified.
-## Most still lives in common/Make-common.in.
 
 AM_CPPFLAGS += \
 	-I$(srcdir)/%D% \
-	-DSIM_COMMON_BUILD
+	-DSIM_TOPDIR_BUILD
+AM_CPPFLAGS_%C% = -DSIM_COMMON_BUILD
 AM_CPPFLAGS_FOR_BUILD += -I$(srcdir)/%D%
-
-## This makes sure common parts are available before building the arch-subdirs
-## which will refer to these.
-SIM_ALL_RECURSIVE_DEPS += \
-	%D%/libcommon.a
 
 ## NB: libcommon.a isn't used directly by ports.  We need a target for common
 ## objects to be a part of, and ports use the individual objects directly.
+## We can delete this once ppc/Makefile.in is merged into ppc/local.mk.
 noinst_LIBRARIES += %D%/libcommon.a
 %C%_libcommon_a_SOURCES = \
 	%D%/callback.c \
 	%D%/portability.c \
 	%D%/sim-load.c \
+	%D%/sim-signal.c \
 	%D%/syscall.c \
 	%D%/target-newlib-errno.c \
 	%D%/target-newlib-open.c \
@@ -50,6 +47,15 @@ noinst_LIBRARIES += %D%/libcommon.a
 
 CLEANFILES += \
 	%D%/version.c %D%/version.c-stamp
+
+## NB: This is a bit of a hack.  If we can generalize the common/ files, we can
+## turn this from an arch-specific %/test-hw-events into a common/test-hw-events
+## program.
+.PRECIOUS: %/test-hw-events.o
+%/test-hw-events.o: common/hw-events.c
+	$(AM_V_CC)$(COMPILE) -DMAIN -c -o $@ $<
+%/test-hw-events: %/test-hw-events.o %/libsim.a
+	$(AM_V_CCLD)$(LINK) -o $@ $^ $(SIM_COMMON_LIBS) $(LIBS)
 
 ##
 ## For subdirs.
@@ -90,14 +96,11 @@ SIM_NEW_COMMON_OBJS = \
 	sim-profile.o \
 	sim-reason.o \
 	sim-reg.o \
-	sim-signal.o \
 	sim-stop.o \
 	sim-syscall.o \
 	sim-trace.o \
 	sim-utils.o \
 	sim-watch.o
-
-AM_MAKEFLAGS += SIM_NEW_COMMON_OBJS_="$(SIM_NEW_COMMON_OBJS)"
 
 SIM_HW_DEVICES = cfi core pal glue
 
@@ -105,8 +108,6 @@ if SIM_ENABLE_HW
 SIM_NEW_COMMON_OBJS += \
 	$(SIM_COMMON_HW_OBJS) \
 	$(SIM_HW_SOCKSER)
-
-AM_MAKEFLAGS += SIM_HW_DEVICES_="$(SIM_HW_DEVICES)"
 endif
 
 # FIXME This is one very simple-minded way of generating the file hw-config.h.
@@ -126,9 +127,40 @@ endif
 	touch $@
 .PRECIOUS: %/stamp-hw
 
-%C%_HW_CONFIG_H_TARGETS = $(patsubst %,%/hw-config.h,$(SIM_ENABLED_ARCHES))
-MOSTLYCLEANFILES += $(%C%_HW_CONFIG_H_TARGETS) $(patsubst %,%/stamp-hw,$(SIM_ENABLED_ARCHES))
-SIM_ALL_RECURSIVE_DEPS += $(%C%_HW_CONFIG_H_TARGETS)
+MOSTLYCLEANFILES += $(SIM_ENABLED_ARCHES:%=%/hw-config.h) $(SIM_ENABLED_ARCHES:%=%/stamp-hw)
+
+## See sim_pre_argv_init and sim_module_install in sim-module.c for more details.
+## TODO: Switch this to xxx_SOURCES once projects build objects in local.mk.
+am_arch_d = $(subst -,_,$(@D))
+GEN_MODULES_C_SRCS = \
+	$(wildcard \
+		$(patsubst %,$(srcdir)/%,$($(am_arch_d)_libsim_a_SOURCES)) \
+		$(patsubst %.o,$(srcdir)/%.c,$($(am_arch_d)_libsim_a_OBJECTS) $($(am_arch_d)_libsim_a_LIBADD)) \
+		$(filter-out %.o,$(patsubst $(@D)/%.o,$(srcdir)/common/%.c,$($(am_arch_d)_libsim_a_LIBADD))))
+%/modules.c: %/stamp-modules ; @true
+%/stamp-modules: Makefile
+	$(AM_V_GEN)set -e; \
+	LANG=C ; export LANG; \
+	LC_ALL=C ; export LC_ALL; \
+	sed -n -e '/^sim_install_/{s/^\(sim_install_[a-z_0-9A-Z]*\).*/\1/;p}' $(GEN_MODULES_C_SRCS) | sort >$@.l-tmp; \
+	( \
+	echo '/* Do not modify this file.  */'; \
+	echo '/* It is created automatically by the Makefile.  */'; \
+	echo '#include "libiberty.h"'; \
+	echo '#include "sim-module.h"'; \
+	sed -e 's:\(.*\):extern MODULE_INIT_FN \1;:' $@.l-tmp; \
+	echo 'MODULE_INSTALL_FN * const sim_modules_detected[] = {'; \
+	sed -e 's:\(.*\):  \1,:' $@.l-tmp; \
+	echo '};'; \
+	echo 'const int sim_modules_detected_len = ARRAY_SIZE (sim_modules_detected);'; \
+	) >$@.tmp; \
+	$(SHELL) $(srcroot)/move-if-change $@.tmp $(@D)/modules.c; \
+	rm -f $@.l-tmp; \
+	touch $@
+.PRECIOUS: %/stamp-modules
+
+## NB: The ppc port doesn't currently utilize the modules API, so skip it.
+MOSTLYCLEANFILES += $(SIM_ENABLED_ARCHES:%=%/modules.c) $(SIM_ENABLED_ARCHES:%=%/stamp-modules)
 
 LIBIBERTY_LIB = ../libiberty/libiberty.a
 BFD_LIB = ../bfd/libbfd.la
@@ -146,7 +178,7 @@ SIM_COMMON_LIBS = \
 ##
 
 ## If the local tree has a bundled copy of guile, use that.
-GUILE = $(or $(wildcard ../guile/libguile/guile),guile)
+GUILE = guile
 CGEN = "$(GUILE) -l $(cgendir)/guile.scm -s"
 CGENFLAGS = -v
 CGEN_CPU_DIR = $(cgendir)/cpu

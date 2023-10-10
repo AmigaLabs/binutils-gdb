@@ -1169,6 +1169,7 @@ linux_process_target::attach (unsigned long pid)
   /* Don't ignore the initial SIGSTOP if we just attached to this
      process.  It will be collected by wait shortly.  */
   initial_thread = find_thread_ptid (ptid_t (pid, pid));
+  gdb_assert (initial_thread != nullptr);
   initial_thread->last_resume_kind = resume_stop;
 
   /* We must attach to every LWP.  If /proc is mounted, use that to
@@ -1198,6 +1199,7 @@ linux_process_target::attach (unsigned long pid)
       gdb_assert (lwpid > 0);
 
       lwp = find_lwp_pid (ptid_t (lwpid));
+      gdb_assert (lwp != nullptr);
 
       if (!WIFSTOPPED (wstat) || WSTOPSIG (wstat) != SIGSTOP)
 	{
@@ -1572,6 +1574,7 @@ linux_process_target::detach (process_info *process)
     });
 
   main_lwp = find_lwp_pid (ptid_t (process->pid));
+  gdb_assert (main_lwp != nullptr);
   detach_one_lwp (main_lwp);
 
   mourn (process);
@@ -2463,7 +2466,12 @@ linux_process_target::resume_stopped_resumed_lwps (thread_info *thread)
       int step = 0;
 
       if (thread->last_resume_kind == resume_step)
-	step = maybe_hw_step (thread);
+	{
+	  if (supports_software_single_step ())
+	    install_software_single_step_breakpoints (lp);
+
+	  step = maybe_hw_step (thread);
+	}
 
       threads_debug_printf ("resuming stopped-resumed LWP %s at %s: step=%d",
 			    target_pid_to_str (ptid_of (thread)).c_str (),
@@ -2507,6 +2515,7 @@ linux_process_target::wait_for_event_filtered (ptid_t wait_ptid,
   else if (filter_ptid != null_ptid)
     {
       requested_child = find_lwp_pid (filter_ptid);
+      gdb_assert (requested_child != nullptr);
 
       if (stopping_threads == NOT_STOPPING_THREADS
 	  && requested_child->status_pending_p
@@ -3540,7 +3549,7 @@ linux_process_target::wait_1 (ptid_t ptid, target_waitstatus *ourstatus,
   else
     {
       /* The LWP stopped due to a plain signal or a syscall signal.  Either way,
-         event_chid->waitstatus wasn't filled in with the details, so look at
+	 event_child->waitstatus wasn't filled in with the details, so look at
 	 the wait status W.  */
       if (WSTOPSIG (w) == SYSCALL_SIGTRAP)
 	{
@@ -5377,21 +5386,26 @@ proc_xfer_memory (CORE_ADDR memaddr, unsigned char *readbuf,
     {
       int bytes;
 
-      /* If pread64 is available, use it.  It's faster if the kernel
-	 supports it (only one syscall), and it's 64-bit safe even on
-	 32-bit platforms (for instance, SPARC debugging a SPARC64
-	 application).  */
+      /* Use pread64/pwrite64 if available, since they save a syscall
+	 and can handle 64-bit offsets even on 32-bit platforms (for
+	 instance, SPARC debugging a SPARC64 application).  But only
+	 use them if the offset isn't so high that when cast to off_t
+	 it'd be negative, as seen on SPARC64.  pread64/pwrite64
+	 outright reject such offsets.  lseek does not.  */
 #ifdef HAVE_PREAD64
-      bytes = (readbuf != nullptr
-	       ? pread64 (fd, readbuf, len, memaddr)
-	       : pwrite64 (fd, writebuf, len, memaddr));
-#else
-      bytes = -1;
-      if (lseek (fd, memaddr, SEEK_SET) != -1)
+      if ((off_t) memaddr >= 0)
 	bytes = (readbuf != nullptr
-		 ? read (fd, readbuf, len)
-		 ? write (fd, writebuf, len));
+		 ? pread64 (fd, readbuf, len, memaddr)
+		 : pwrite64 (fd, writebuf, len, memaddr));
+      else
 #endif
+	{
+	  bytes = -1;
+	  if (lseek (fd, memaddr, SEEK_SET) != -1)
+	    bytes = (readbuf != nullptr
+		     ? read (fd, readbuf, len)
+		     : write (fd, writebuf, len));
+	}
 
       if (bytes < 0)
 	return errno;
@@ -5483,12 +5497,11 @@ linux_process_target::supports_read_auxv ()
    to debugger memory starting at MYADDR.  */
 
 int
-linux_process_target::read_auxv (CORE_ADDR offset, unsigned char *myaddr,
-				 unsigned int len)
+linux_process_target::read_auxv (int pid, CORE_ADDR offset,
+				 unsigned char *myaddr, unsigned int len)
 {
   char filename[PATH_MAX];
   int fd, n;
-  int pid = lwpid_of (current_thread);
 
   xsnprintf (filename, sizeof filename, "/proc/%d/auxv", pid);
 
@@ -6742,38 +6755,38 @@ linux_process_target::disable_btrace (btrace_target_info *tinfo)
 /* Encode an Intel Processor Trace configuration.  */
 
 static void
-linux_low_encode_pt_config (struct buffer *buffer,
+linux_low_encode_pt_config (std::string *buffer,
 			    const struct btrace_data_pt_config *config)
 {
-  buffer_grow_str (buffer, "<pt-config>\n");
+  *buffer += "<pt-config>\n";
 
   switch (config->cpu.vendor)
     {
     case CV_INTEL:
-      buffer_xml_printf (buffer, "<cpu vendor=\"GenuineIntel\" family=\"%u\" "
-			 "model=\"%u\" stepping=\"%u\"/>\n",
-			 config->cpu.family, config->cpu.model,
-			 config->cpu.stepping);
+      string_xml_appendf (*buffer, "<cpu vendor=\"GenuineIntel\" family=\"%u\" "
+			  "model=\"%u\" stepping=\"%u\"/>\n",
+			  config->cpu.family, config->cpu.model,
+			  config->cpu.stepping);
       break;
 
     default:
       break;
     }
 
-  buffer_grow_str (buffer, "</pt-config>\n");
+  *buffer += "</pt-config>\n";
 }
 
 /* Encode a raw buffer.  */
 
 static void
-linux_low_encode_raw (struct buffer *buffer, const gdb_byte *data,
+linux_low_encode_raw (std::string *buffer, const gdb_byte *data,
 		      unsigned int size)
 {
   if (size == 0)
     return;
 
   /* We use hex encoding - see gdbsupport/rsp-low.h.  */
-  buffer_grow_str (buffer, "<raw>\n");
+  *buffer += "<raw>\n";
 
   while (size-- > 0)
     {
@@ -6782,17 +6795,17 @@ linux_low_encode_raw (struct buffer *buffer, const gdb_byte *data,
       elem[0] = tohex ((*data >> 4) & 0xf);
       elem[1] = tohex (*data++ & 0xf);
 
-      buffer_grow (buffer, elem, 2);
+      buffer->append (elem, 2);
     }
 
-  buffer_grow_str (buffer, "</raw>\n");
+  *buffer += "</raw>\n";
 }
 
 /* See to_read_btrace target method.  */
 
 int
 linux_process_target::read_btrace (btrace_target_info *tinfo,
-				   buffer *buffer,
+				   std::string *buffer,
 				   enum btrace_read_type type)
 {
   struct btrace_data btrace;
@@ -6802,9 +6815,9 @@ linux_process_target::read_btrace (btrace_target_info *tinfo,
   if (err != BTRACE_ERR_NONE)
     {
       if (err == BTRACE_ERR_OVERFLOW)
-	buffer_grow_str0 (buffer, "E.Overflow.");
+	*buffer += "E.Overflow.";
       else
-	buffer_grow_str0 (buffer, "E.Generic Error.");
+	*buffer += "E.Generic Error.";
 
       return -1;
     }
@@ -6812,36 +6825,36 @@ linux_process_target::read_btrace (btrace_target_info *tinfo,
   switch (btrace.format)
     {
     case BTRACE_FORMAT_NONE:
-      buffer_grow_str0 (buffer, "E.No Trace.");
+      *buffer += "E.No Trace.";
       return -1;
 
     case BTRACE_FORMAT_BTS:
-      buffer_grow_str (buffer, "<!DOCTYPE btrace SYSTEM \"btrace.dtd\">\n");
-      buffer_grow_str (buffer, "<btrace version=\"1.0\">\n");
+      *buffer += "<!DOCTYPE btrace SYSTEM \"btrace.dtd\">\n";
+      *buffer += "<btrace version=\"1.0\">\n";
 
       for (const btrace_block &block : *btrace.variant.bts.blocks)
-	buffer_xml_printf (buffer, "<block begin=\"0x%s\" end=\"0x%s\"/>\n",
-			   paddress (block.begin), paddress (block.end));
+	string_xml_appendf (*buffer, "<block begin=\"0x%s\" end=\"0x%s\"/>\n",
+			    paddress (block.begin), paddress (block.end));
 
-      buffer_grow_str0 (buffer, "</btrace>\n");
+      *buffer += "</btrace>\n";
       break;
 
     case BTRACE_FORMAT_PT:
-      buffer_grow_str (buffer, "<!DOCTYPE btrace SYSTEM \"btrace.dtd\">\n");
-      buffer_grow_str (buffer, "<btrace version=\"1.0\">\n");
-      buffer_grow_str (buffer, "<pt>\n");
+      *buffer += "<!DOCTYPE btrace SYSTEM \"btrace.dtd\">\n";
+      *buffer += "<btrace version=\"1.0\">\n";
+      *buffer += "<pt>\n";
 
       linux_low_encode_pt_config (buffer, &btrace.variant.pt.config);
 
       linux_low_encode_raw (buffer, btrace.variant.pt.data,
 			    btrace.variant.pt.size);
 
-      buffer_grow_str (buffer, "</pt>\n");
-      buffer_grow_str0 (buffer, "</btrace>\n");
+      *buffer += "</pt>\n";
+      *buffer += "</btrace>\n";
       break;
 
     default:
-      buffer_grow_str0 (buffer, "E.Unsupported Trace Format.");
+      *buffer += "E.Unsupported Trace Format.";
       return -1;
     }
 
@@ -6852,12 +6865,12 @@ linux_process_target::read_btrace (btrace_target_info *tinfo,
 
 int
 linux_process_target::read_btrace_conf (const btrace_target_info *tinfo,
-					buffer *buffer)
+					std::string *buffer)
 {
   const struct btrace_config *conf;
 
-  buffer_grow_str (buffer, "<!DOCTYPE btrace-conf SYSTEM \"btrace-conf.dtd\">\n");
-  buffer_grow_str (buffer, "<btrace-conf version=\"1.0\">\n");
+  *buffer += "<!DOCTYPE btrace-conf SYSTEM \"btrace-conf.dtd\">\n";
+  *buffer += "<btrace-conf version=\"1.0\">\n";
 
   conf = linux_btrace_conf (tinfo);
   if (conf != NULL)
@@ -6868,20 +6881,20 @@ linux_process_target::read_btrace_conf (const btrace_target_info *tinfo,
 	  break;
 
 	case BTRACE_FORMAT_BTS:
-	  buffer_xml_printf (buffer, "<bts");
-	  buffer_xml_printf (buffer, " size=\"0x%x\"", conf->bts.size);
-	  buffer_xml_printf (buffer, " />\n");
+	  string_xml_appendf (*buffer, "<bts");
+	  string_xml_appendf (*buffer, " size=\"0x%x\"", conf->bts.size);
+	  string_xml_appendf (*buffer, " />\n");
 	  break;
 
 	case BTRACE_FORMAT_PT:
-	  buffer_xml_printf (buffer, "<pt");
-	  buffer_xml_printf (buffer, " size=\"0x%x\"", conf->pt.size);
-	  buffer_xml_printf (buffer, "/>\n");
+	  string_xml_appendf (*buffer, "<pt");
+	  string_xml_appendf (*buffer, " size=\"0x%x\"", conf->pt.size);
+	  string_xml_appendf (*buffer, "/>\n");
 	  break;
 	}
     }
 
-  buffer_grow_str0 (buffer, "</btrace-conf>\n");
+  *buffer += "</btrace-conf>\n";
   return 0;
 }
 #endif /* HAVE_LINUX_BTRACE */
@@ -6982,14 +6995,15 @@ linux_get_pc_64bit (struct regcache *regcache)
 /* See linux-low.h.  */
 
 int
-linux_get_auxv (int wordsize, CORE_ADDR match, CORE_ADDR *valp)
+linux_get_auxv (int pid, int wordsize, CORE_ADDR match, CORE_ADDR *valp)
 {
   gdb_byte *data = (gdb_byte *) alloca (2 * wordsize);
   int offset = 0;
 
   gdb_assert (wordsize == 4 || wordsize == 8);
 
-  while (the_target->read_auxv (offset, data, 2 * wordsize) == 2 * wordsize)
+  while (the_target->read_auxv (pid, offset, data, 2 * wordsize)
+	 == 2 * wordsize)
     {
       if (wordsize == 4)
 	{
@@ -7019,20 +7033,20 @@ linux_get_auxv (int wordsize, CORE_ADDR match, CORE_ADDR *valp)
 /* See linux-low.h.  */
 
 CORE_ADDR
-linux_get_hwcap (int wordsize)
+linux_get_hwcap (int pid, int wordsize)
 {
   CORE_ADDR hwcap = 0;
-  linux_get_auxv (wordsize, AT_HWCAP, &hwcap);
+  linux_get_auxv (pid, wordsize, AT_HWCAP, &hwcap);
   return hwcap;
 }
 
 /* See linux-low.h.  */
 
 CORE_ADDR
-linux_get_hwcap2 (int wordsize)
+linux_get_hwcap2 (int pid, int wordsize)
 {
   CORE_ADDR hwcap2 = 0;
-  linux_get_auxv (wordsize, AT_HWCAP2, &hwcap2);
+  linux_get_auxv (pid, wordsize, AT_HWCAP2, &hwcap2);
   return hwcap2;
 }
 

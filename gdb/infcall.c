@@ -38,6 +38,7 @@
 #include "event-top.h"
 #include "observable.h"
 #include "top.h"
+#include "ui.h"
 #include "interps.h"
 #include "thread-fsm.h"
 #include <algorithm>
@@ -181,7 +182,7 @@ value_arg_coerce (struct gdbarch *gdbarch, struct value *arg,
 		  struct type *param_type, int is_prototyped)
 {
   const struct builtin_type *builtin = builtin_type (gdbarch);
-  struct type *arg_type = check_typedef (value_type (arg));
+  struct type *arg_type = check_typedef (arg->type ());
   struct type *type
     = param_type ? check_typedef (param_type) : arg_type;
 
@@ -278,7 +279,7 @@ find_function_addr (struct value *function,
 		    struct type **retval_type,
 		    struct type **function_type)
 {
-  struct type *ftype = check_typedef (value_type (function));
+  struct type *ftype = check_typedef (function->type ());
   struct gdbarch *gdbarch = ftype->arch ();
   struct type *value_type = NULL;
   /* Initialize it just to avoid a GCC false warning.  */
@@ -290,7 +291,7 @@ find_function_addr (struct value *function,
   /* Determine address to call.  */
   if (ftype->code () == TYPE_CODE_FUNC
       || ftype->code () == TYPE_CODE_METHOD)
-    funaddr = value_address (function);
+    funaddr = function->address ();
   else if (ftype->code () == TYPE_CODE_PTR)
     {
       funaddr = value_as_address (function);
@@ -343,7 +344,7 @@ find_function_addr (struct value *function,
 	  int found_descriptor = 0;
 
 	  funaddr = 0;	/* pacify "gcc -Werror" */
-	  if (VALUE_LVAL (function) == lval_memory)
+	  if (function->lval () == lval_memory)
 	    {
 	      CORE_ADDR nfunaddr;
 
@@ -466,7 +467,7 @@ get_call_return_value (struct call_return_meta_info *ri)
   bool stack_temporaries = thread_stack_temporaries_enabled_p (thr);
 
   if (ri->value_type->code () == TYPE_CODE_VOID)
-    retval = allocate_value (ri->value_type);
+    retval = value::allocate (ri->value_type);
   else if (ri->struct_return_p)
     {
       if (stack_temporaries)
@@ -492,7 +493,7 @@ get_call_return_value (struct call_return_meta_info *ri)
 	     requiring GDB to evaluate the "this" pointer.  To evaluate
 	     the this pointer, GDB needs the memory address of the
 	     value.  */
-	  value_force_lval (retval, ri->struct_addr);
+	  retval->force_lval (ri->struct_addr);
 	  push_thread_stack_temporary (thr, retval);
 	}
     }
@@ -562,11 +563,23 @@ call_thread_fsm::should_stop (struct thread_info *thread)
 	 registers are restored to what they were before the
 	 call..  */
       return_value = get_call_return_value (&return_meta_info);
+    }
 
-      /* Break out of wait_sync_command_done.  */
+  /* We are always going to stop this thread, but we might not be planning
+     to call call normal_stop, which is only done if should_notify_stop
+     returns true.
+
+     As normal_stop is responsible for calling async_enable_stdin, which
+     would break us out of wait_sync_command_done, then, if we don't plan
+     to call normal_stop, we should call async_enable_stdin here instead.
+
+     Unlike normal_stop, we only call async_enable_stdin on WAITING_UI, but
+     that is sufficient for wait_sync_command_done.  */
+  if (!this->should_notify_stop ())
+    {
       scoped_restore save_ui = make_scoped_restore (&current_ui, waiting_ui);
-      target_terminal::ours ();
-      waiting_ui->prompt_state = PROMPT_NEEDED;
+      gdb_assert (current_ui->prompt_state == PROMPT_BLOCKED);
+      async_enable_stdin ();
     }
 
   return true;
@@ -577,10 +590,28 @@ call_thread_fsm::should_stop (struct thread_info *thread)
 bool
 call_thread_fsm::should_notify_stop ()
 {
+  INFCALL_SCOPED_DEBUG_ENTER_EXIT;
+
   if (finished_p ())
     {
       /* Infcall succeeded.  Be silent and proceed with evaluating the
 	 expression.  */
+      infcall_debug_printf ("inferior call has finished, don't notify");
+      return false;
+    }
+
+  infcall_debug_printf ("inferior call didn't complete fully");
+
+  if (stopped_by_random_signal && unwind_on_signal_p)
+    {
+      infcall_debug_printf ("unwind-on-signal is on, don't notify");
+      return false;
+    }
+
+  if (stop_stack_dummy == STOP_STD_TERMINATE
+      && unwind_on_terminating_exception_p)
+    {
+      infcall_debug_printf ("unwind-on-terminating-exception is on, don't notify");
       return false;
     }
 
@@ -660,14 +691,32 @@ run_inferior_call (std::unique_ptr<call_thread_fsm> sm,
   infcall_debug_printf ("thread is now: %s",
 			inferior_ptid.to_string ().c_str ());
 
-  /* If GDB has the prompt blocked before, then ensure that it remains
-     so.  normal_stop calls async_enable_stdin, so reset the prompt
-     state again here.  In other cases, stdin will be re-enabled by
-     inferior_event_handler, when an exception is thrown.  */
+  /* After the inferior call finished, async_enable_stdin has been
+     called, either from normal_stop or from
+     call_thread_fsm::should_stop, and the prompt state has been
+     restored by the scoped_restore in the try block above.
+
+     If the inferior call finished successfully, then we should
+     disable stdin as we don't know yet whether the inferior will be
+     stopping.  Calling async_disable_stdin restores things to how
+     they were when this function was called.
+
+     If the inferior call didn't complete successfully, then
+     normal_stop has already been called, and we know for sure that we
+     are going to present this stop to the user.  In this case, we
+     call async_enable_stdin.  This changes the prompt state to
+     PROMPT_NEEDED.
+
+     If the previous prompt state was PROMPT_NEEDED, then as
+     async_enable_stdin has already been called, nothing additional
+     needs to be done here.  */
   if (current_ui->prompt_state == PROMPT_BLOCKED)
-    current_ui->unregister_file_handler ();
-  else
-    current_ui->register_file_handler ();
+    {
+      if (call_thread->thread_fsm ()->finished_p ())
+	async_disable_stdin ();
+      else
+	async_enable_stdin ();
+    }
 
   /* If the infcall does NOT succeed, normal_stop will have already
      finished the thread states.  However, on success, normal_stop
@@ -842,7 +891,6 @@ call_function_by_hand_dummy (struct value *function,
   bool stack_temporaries = thread_stack_temporaries_enabled_p (call_thread.get ());
 
   frame = get_current_frame ();
-  frame.prepare_reinflate ();
   gdbarch = get_frame_arch (frame);
 
   if (!gdbarch_push_dummy_call_p (gdbarch))
@@ -857,8 +905,6 @@ call_function_by_hand_dummy (struct value *function,
     error (_("Cannot call the function '%s' which does not follow the "
 	     "target calling convention."),
 	   get_function_name (funaddr, name_buf, sizeof (name_buf)));
-
-  frame.reinflate ();
 
   if (values_type == NULL || values_type->is_stub ())
     values_type = default_return_type;
@@ -965,7 +1011,7 @@ call_function_by_hand_dummy (struct value *function,
 	lastval = get_last_thread_stack_temporary (call_thread.get ());
 	if (lastval != NULL)
 	  {
-	    CORE_ADDR lastval_addr = value_address (lastval);
+	    CORE_ADDR lastval_addr = lastval->address ();
 
 	    if (gdbarch_inner_than (gdbarch, 1, 2))
 	      {
@@ -975,7 +1021,7 @@ call_function_by_hand_dummy (struct value *function,
 	    else
 	      {
 		gdb_assert (sp <= lastval_addr);
-		sp = lastval_addr + value_type (lastval)->length ();
+		sp = lastval_addr + lastval->type ()->length ();
 	      }
 
 	    if (gdbarch_frame_align_p (gdbarch))
@@ -1133,7 +1179,7 @@ call_function_by_hand_dummy (struct value *function,
       if (info.trivially_copy_constructible)
 	{
 	  int length = param_type->length ();
-	  write_memory (addr, value_contents (args[i]).data (), length);
+	  write_memory (addr, args[i]->contents ().data (), length);
 	}
       else
 	{
@@ -1214,7 +1260,7 @@ call_function_by_hand_dummy (struct value *function,
   if (return_method == return_method_hidden_param)
     {
       /* Add the new argument to the front of the argument list.  */
-      new_args.reserve (args.size ());
+      new_args.reserve (1 + args.size ());
       new_args.push_back
 	(value_from_pointer (lookup_pointer_type (values_type), struct_addr));
       new_args.insert (new_args.end (), args.begin (), args.end ());
@@ -1296,6 +1342,15 @@ call_function_by_hand_dummy (struct value *function,
   /* Register a clean-up for unwind_on_terminating_exception_breakpoint.  */
   SCOPE_EXIT { delete_std_terminate_breakpoint (); };
 
+  /* The stopped_by_random_signal variable is global.  If we are here
+     as part of a breakpoint condition check then the global will have
+     already been setup as part of the original breakpoint stop.  By
+     making the inferior call the global will be changed when GDB
+     handles the stop after the inferior call.  Avoid confusion by
+     restoring the current value after the inferior call.  */
+  scoped_restore restore_stopped_by_random_signal
+    = make_scoped_restore (&stopped_by_random_signal, 0);
+
   /* - SNIP - SNIP - SNIP - SNIP - SNIP - SNIP - SNIP - SNIP - SNIP -
      If you're looking to implement asynchronous dummy-frames, then
      just below is the place to chop this function in two..  */
@@ -1354,7 +1409,7 @@ call_function_by_hand_dummy (struct value *function,
 	    /* Get the return value.  */
 	    retval = sm->return_value;
 
-	    /* Restore the original FSM and clean up / destroh the call FSM.
+	    /* Restore the original FSM and clean up / destroy the call FSM.
 	       Doing it in this order ensures that if the call to clean_up
 	       throws, the original FSM is properly restored.  */
 	    {
@@ -1484,6 +1539,11 @@ When the function is done executing, GDB will silently stop."),
 	    {
 	      /* The user wants the context restored.  */
 
+	      /* Capture details of the signal so we can include them in
+		 the error message.  Calling dummy_frame_pop will restore
+		 the previous stop signal details.  */
+	      gdb_signal stop_signal = call_thread->stop_signal ();
+
 	      /* We must get back to the frame we were before the
 		 dummy call.  */
 	      dummy_frame_pop (dummy_id, call_thread.get ());
@@ -1495,11 +1555,13 @@ When the function is done executing, GDB will silently stop."),
 	      /* FIXME: Insert a bunch of wrap_here; name can be very
 		 long if it's a C++ name with arguments and stuff.  */
 	      error (_("\
-The program being debugged was signaled while in a function called from GDB.\n\
-GDB has restored the context to what it was before the call.\n\
-To change this behavior use \"set unwindonsignal off\".\n\
-Evaluation of the expression containing the function\n\
-(%s) will be abandoned."),
+The program being debugged received signal %s, %s\n\
+while in a function called from GDB.  GDB has restored the context\n\
+to what it was before the call.  To change this behavior use\n\
+\"set unwindonsignal off\".  Evaluation of the expression containing\n\
+the function (%s) will be abandoned."),
+		     gdb_signal_to_name (stop_signal),
+		     gdb_signal_to_string (stop_signal),
 		     name.c_str ());
 	    }
 	  else

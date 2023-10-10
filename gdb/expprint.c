@@ -24,7 +24,7 @@
 #include "value.h"
 #include "language.h"
 #include "parser-defs.h"
-#include "user-regs.h"		/* For user_reg_map_regnum_to_name.  */
+#include "user-regs.h"
 #include "target.h"
 #include "block.h"
 #include "objfiles.h"
@@ -35,29 +35,6 @@
 #include "ada-exp.h"
 
 #include <ctype.h>
-
-/* Default name for the standard operator OPCODE (i.e., one defined in
-   the definition of enum exp_opcode).  */
-
-const char *
-op_name (enum exp_opcode opcode)
-{
-  switch (opcode)
-    {
-    default:
-      {
-	static char buf[30];
-
-	xsnprintf (buf, sizeof (buf), "<unknown %d>", opcode);
-	return buf;
-      }
-#define OP(name)	\
-    case name:		\
-      return #name ;
-#include "std-operator.def"
-#undef OP
-    }
-}
 
 /* Meant to be used in debug sessions, so don't export it in a header file.  */
 extern void ATTRIBUTE_USED debug_exp (struct expression *exp);
@@ -75,10 +52,32 @@ debug_exp (struct expression *exp)
 namespace expr
 {
 
+bool
+check_objfile (const struct block *block, struct objfile *objfile)
+{
+  return check_objfile (block->objfile (), objfile);
+}
+
 void
 dump_for_expression (struct ui_file *stream, int depth, enum exp_opcode op)
 {
-  gdb_printf (stream, _("%*sOperation: %s\n"), depth, "", op_name (op));
+  gdb_printf (stream, _("%*sOperation: "), depth, "");
+
+  switch (op)
+    {
+    default:
+      gdb_printf (stream, "<unknown %d>", op);
+      break;
+
+#define OP(name)	\
+    case name:		\
+      gdb_puts (#name, stream); \
+      break;
+#include "std-operator.def"
+#undef OP
+    }
+
+  gdb_puts ("\n", stream);
 }
 
 void
@@ -100,6 +99,12 @@ dump_for_expression (struct ui_file *stream, int depth, CORE_ADDR addr)
 {
   gdb_printf (stream, _("%*sConstant: %s\n"), depth, "",
 	      core_addr_to_string (addr));
+}
+
+void
+dump_for_expression (struct ui_file *stream, int depth, const gdb_mpz &val)
+{
+  gdb_printf (stream, _("%*sConstant: %s\n"), depth, "", val.str ().c_str ());
 }
 
 void

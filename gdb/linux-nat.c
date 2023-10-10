@@ -39,13 +39,13 @@
 #include "inf-child.h"
 #include "inf-ptrace.h"
 #include "auxv.h"
-#include <sys/procfs.h>		/* for elf_gregset etc.  */
-#include "elf-bfd.h"		/* for elfcore_write_* */
-#include "gregset.h"		/* for gregset */
-#include "gdbcore.h"		/* for get_exec_file */
-#include <ctype.h>		/* for isdigit */
-#include <sys/stat.h>		/* for struct stat */
-#include <fcntl.h>		/* for O_RDONLY */
+#include <sys/procfs.h>
+#include "elf-bfd.h"
+#include "gregset.h"
+#include "gdbcore.h"
+#include <ctype.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include "inf-loop.h"
 #include "gdbsupport/event-loop.h"
 #include "event-top.h"
@@ -60,7 +60,6 @@
 #include "symfile.h"
 #include "gdbsupport/agent.h"
 #include "tracepoint.h"
-#include "gdbsupport/buffer.h"
 #include "target-descriptions.h"
 #include "gdbsupport/filestuff.h"
 #include "objfiles.h"
@@ -254,6 +253,19 @@ static bool
 is_leader (lwp_info *lp)
 {
   return lp->ptid.pid () == lp->ptid.lwp ();
+}
+
+/* Convert an LWP's pending status to a std::string.  */
+
+static std::string
+pending_status_str (lwp_info *lp)
+{
+  gdb_assert (lwp_status_pending_p (lp));
+
+  if (lp->waitstatus.kind () != TARGET_WAITKIND_IGNORE)
+    return lp->waitstatus.to_string ();
+  else
+    return status_to_str (lp->status);
 }
 
 
@@ -891,16 +903,10 @@ linux_nat_switch_fork (ptid_t new_ptid)
 static void
 exit_lwp (struct lwp_info *lp)
 {
-  struct thread_info *th = find_thread_ptid (linux_target, lp->ptid);
+  struct thread_info *th = linux_target->find_thread (lp->ptid);
 
   if (th)
-    {
-      if (print_thread_events)
-	gdb_printf (_("[%s exited]\n"),
-		    target_pid_to_str (lp->ptid).c_str ());
-
-      delete_thread (th);
-    }
+    delete_thread (th);
 
   delete_lwp (lp->ptid);
 }
@@ -1220,14 +1226,14 @@ get_detach_signal (struct lwp_info *lp)
     signo = gdb_signal_from_host (WSTOPSIG (lp->status));
   else
     {
-      struct thread_info *tp = find_thread_ptid (linux_target, lp->ptid);
+      thread_info *tp = linux_target->find_thread (lp->ptid);
 
       if (target_is_non_stop_p () && !tp->executing ())
 	{
 	  if (tp->has_pending_waitstatus ())
 	    {
 	      /* If the thread has a pending event, and it was stopped with a
-	         signal, use that signal to resume it.  If it has a pending
+		 signal, use that signal to resume it.  If it has a pending
 		 event of another kind, it was not stopped with a signal, so
 		 resume it without a signal.  */
 	      if (tp->pending_waitstatus ().kind () == TARGET_WAITKIND_STOPPED)
@@ -1281,6 +1287,11 @@ get_detach_signal (struct lwp_info *lp)
 static void
 detach_one_lwp (struct lwp_info *lp, int *signo_p)
 {
+  LINUX_NAT_SCOPED_DEBUG_ENTER_EXIT;
+
+  linux_nat_debug_printf ("lwp %s (stopped = %d)",
+			  lp->ptid.to_string ().c_str (), lp->stopped);
+
   int lwpid = lp->ptid.lwp ();
   int signo;
 
@@ -1313,7 +1324,7 @@ detach_one_lwp (struct lwp_info *lp, int *signo_p)
 
 
   /* Check in thread_info::pending_waitstatus.  */
-  thread_info *tp = find_thread_ptid (linux_target, lp->ptid);
+  thread_info *tp = linux_target->find_thread (lp->ptid);
   if (tp->has_pending_waitstatus ())
     {
       const target_waitstatus &ws = tp->pending_waitstatus ();
@@ -1351,6 +1362,10 @@ detach_one_lwp (struct lwp_info *lp, int *signo_p)
   else
     signo = *signo_p;
 
+  linux_nat_debug_printf ("preparing to resume lwp %s (stopped = %d)",
+			  lp->ptid.to_string ().c_str (),
+			  lp->stopped);
+
   /* Preparing to resume may try to write registers, and fail if the
      lwp is zombie.  If that happens, ignore the error.  We'll handle
      it below, when detach fails with ESRCH.  */
@@ -1383,6 +1398,8 @@ detach_callback (struct lwp_info *lp)
 void
 linux_nat_target::detach (inferior *inf, int from_tty)
 {
+  LINUX_NAT_SCOPED_DEBUG_ENTER_EXIT;
+
   struct lwp_info *main_lwp;
   int pid = inf->pid;
 
@@ -1527,7 +1544,7 @@ resume_lwp (struct lwp_info *lp, int step, enum gdb_signal signo)
 
       if (inf->vfork_child != NULL)
 	{
-	  linux_nat_debug_printf ("Not resuming %s (vfork parent)",
+	  linux_nat_debug_printf ("Not resuming sibling %s (vfork parent)",
 				  lp->ptid.to_string ().c_str ());
 	}
       else if (!lwp_status_pending_p (lp))
@@ -1567,7 +1584,7 @@ linux_nat_resume_callback (struct lwp_info *lp, struct lwp_info *except)
     {
       struct thread_info *thread;
 
-      thread = find_thread_ptid (linux_target, lp->ptid);
+      thread = linux_target->find_thread (lp->ptid);
       if (thread != NULL)
 	{
 	  signo = thread->stop_signal ();
@@ -1648,8 +1665,8 @@ linux_nat_target::resume (ptid_t scope_ptid, int step, enum gdb_signal signo)
 	 this thread with a signal?  */
       gdb_assert (signo == GDB_SIGNAL_0);
 
-      linux_nat_debug_printf ("Short circuiting for status 0x%x",
-			      lp->status);
+      linux_nat_debug_printf ("Short circuiting for status %s",
+			      pending_status_str (lp).c_str ());
 
       if (target_can_async_p ())
 	{
@@ -1705,7 +1722,7 @@ linux_handle_syscall_trap (struct lwp_info *lp, int stopping)
 {
   struct target_waitstatus *ourstatus = &lp->waitstatus;
   struct gdbarch *gdbarch = target_thread_architecture (lp->ptid);
-  thread_info *thread = find_thread_ptid (linux_target, lp->ptid);
+  thread_info *thread = linux_target->find_thread (lp->ptid);
   int syscall_number = (int) gdbarch_get_syscall_number (gdbarch, thread);
 
   if (stopping)
@@ -2984,7 +3001,7 @@ linux_nat_filter_event (int lwpid, int status)
       if (!lp->step
 	  && WSTOPSIG (status) && sigismember (&pass_mask, WSTOPSIG (status))
 	  && (WSTOPSIG (status) != SIGSTOP
-	      || !find_thread_ptid (linux_target, lp->ptid)->stop_requested)
+	      || !linux_target->find_thread (lp->ptid)->stop_requested)
 	  && !linux_wstatus_maybe_breakpoint (status))
 	{
 	  linux_resume_one_lwp (lp, lp->step, signo);
@@ -3110,12 +3127,12 @@ static ptid_t
 linux_nat_wait_1 (ptid_t ptid, struct target_waitstatus *ourstatus,
 		  target_wait_flags target_options)
 {
+  LINUX_NAT_SCOPED_DEBUG_ENTER_EXIT;
+
   sigset_t prev_mask;
   enum resume_kind last_resume_kind;
   struct lwp_info *lp;
   int status;
-
-  linux_nat_debug_printf ("enter");
 
   /* The first time we get here after starting a new inferior, we may
      not have added it to the LWP list yet - this is the earliest
@@ -3138,7 +3155,7 @@ linux_nat_wait_1 (ptid_t ptid, struct target_waitstatus *ourstatus,
   if (lp != NULL)
     {
       linux_nat_debug_printf ("Using pending wait status %s for %s.",
-			      status_to_str (lp->status).c_str (),
+			      pending_status_str (lp).c_str (),
 			      lp->ptid.to_string ().c_str ());
     }
 
@@ -3216,7 +3233,7 @@ linux_nat_wait_1 (ptid_t ptid, struct target_waitstatus *ourstatus,
 
       if (target_options & TARGET_WNOHANG)
 	{
-	  linux_nat_debug_printf ("exit (ignore)");
+	  linux_nat_debug_printf ("no interesting events found");
 
 	  ourstatus->set_ignore ();
 	  restore_child_signals_mask (&prev_mask);
@@ -3302,7 +3319,7 @@ linux_nat_wait_1 (ptid_t ptid, struct target_waitstatus *ourstatus,
   else
     *ourstatus = host_status_to_waitstatus (status);
 
-  linux_nat_debug_printf ("exit");
+  linux_nat_debug_printf ("event found");
 
   restore_child_signals_mask (&prev_mask);
 
@@ -3334,6 +3351,8 @@ linux_nat_wait_1 (ptid_t ptid, struct target_waitstatus *ourstatus,
 static int
 resume_stopped_resumed_lwps (struct lwp_info *lp, const ptid_t wait_ptid)
 {
+  inferior *inf = find_inferior_ptid (linux_target, lp->ptid);
+
   if (!lp->stopped)
     {
       linux_nat_debug_printf ("NOT resuming LWP %s, not stopped",
@@ -3347,6 +3366,11 @@ resume_stopped_resumed_lwps (struct lwp_info *lp, const ptid_t wait_ptid)
   else if (lwp_status_pending_p (lp))
     {
       linux_nat_debug_printf ("NOT resuming LWP %s, has pending status",
+			      lp->ptid.to_string ().c_str ());
+    }
+  else if (inf->vfork_child != nullptr)
+    {
+      linux_nat_debug_printf ("NOT resuming LWP %s (vfork parent)",
 			      lp->ptid.to_string ().c_str ());
     }
   else
@@ -3391,6 +3415,8 @@ ptid_t
 linux_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,
 			target_wait_flags target_options)
 {
+  LINUX_NAT_SCOPED_DEBUG_ENTER_EXIT;
+
   ptid_t event_ptid;
 
   linux_nat_debug_printf ("[%s], [%s]", ptid.to_string ().c_str (),
@@ -3570,6 +3596,8 @@ linux_nat_target::kill ()
 void
 linux_nat_target::mourn_inferior ()
 {
+  LINUX_NAT_SCOPED_DEBUG_ENTER_EXIT;
+
   int pid = inferior_ptid.pid ();
 
   purge_lwp_list (pid);
@@ -3897,18 +3925,26 @@ linux_proc_xfer_memory_partial_fd (int fd, int pid,
 
   gdb_assert (fd != -1);
 
-  /* Use pread64/pwrite64 if available, since they save a syscall and can
-     handle 64-bit offsets even on 32-bit platforms (for instance, SPARC
-     debugging a SPARC64 application).  */
+  /* Use pread64/pwrite64 if available, since they save a syscall and
+     can handle 64-bit offsets even on 32-bit platforms (for instance,
+     SPARC debugging a SPARC64 application).  But only use them if the
+     offset isn't so high that when cast to off_t it'd be negative, as
+     seen on SPARC64.  pread64/pwrite64 outright reject such offsets.
+     lseek does not.  */
 #ifdef HAVE_PREAD64
-  ret = (readbuf ? pread64 (fd, readbuf, len, offset)
-	 : pwrite64 (fd, writebuf, len, offset));
-#else
-  ret = lseek (fd, offset, SEEK_SET);
-  if (ret != -1)
-    ret = (readbuf ? read (fd, readbuf, len)
-	   : write (fd, writebuf, len));
+  if ((off_t) offset >= 0)
+    ret = (readbuf != nullptr
+	   ? pread64 (fd, readbuf, len, offset)
+	   : pwrite64 (fd, writebuf, len, offset));
+  else
 #endif
+    {
+      ret = lseek (fd, offset, SEEK_SET);
+      if (ret != -1)
+	ret = (readbuf != nullptr
+	       ? read (fd, readbuf, len)
+	       : write (fd, writebuf, len));
+    }
 
   if (ret == -1)
     {
@@ -3956,7 +3992,7 @@ linux_proc_xfer_memory_partial (int pid, gdb_byte *readbuf,
    return true if so.  It wasn't writable before Linux 2.6.39, but
    there's no way to know whether the feature was backported to older
    kernels.  So we check to see if it works.  The result is cached,
-   and this is garanteed to be called once early during inferior
+   and this is guaranteed to be called once early during inferior
    startup, so that any warning is printed out consistently between
    GDB invocations.  Note we don't call it during GDB startup instead
    though, because then we might warn with e.g. just "gdb --version"
@@ -4114,9 +4150,7 @@ linux_nat_target::static_tracepoint_markers_by_strid (const char *strid)
   /* Pause all */
   target_stop (ptid);
 
-  memcpy (s, "qTfSTM", sizeof ("qTfSTM"));
-  s[sizeof ("qTfSTM")] = 0;
-
+  strcpy (s, "qTfSTM");
   agent_run_command (pid, s, strlen (s) + 1);
 
   /* Unpause all.  */
@@ -4133,8 +4167,7 @@ linux_nat_target::static_tracepoint_markers_by_strid (const char *strid)
 	}
       while (*p++ == ',');	/* comma-separated list */
 
-      memcpy (s, "qTsSTM", sizeof ("qTsSTM"));
-      s[sizeof ("qTsSTM")] = 0;
+      strcpy (s, "qTsSTM");
       agent_run_command (pid, s, strlen (s) + 1);
       p = s;
     }
@@ -4269,7 +4302,7 @@ linux_nat_stop_lwp (struct lwp_info *lwp)
 
       if (debug_linux_nat)
 	{
-	  if (find_thread_ptid (linux_target, lwp->ptid)->stop_requested)
+	  if (linux_target->find_thread (lwp->ptid)->stop_requested)
 	    linux_nat_debug_printf ("already stopped/stop_requested %s",
 				    lwp->ptid.to_string ().c_str ());
 	  else

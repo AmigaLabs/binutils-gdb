@@ -1,4 +1,4 @@
-# Copyright 2022 Free Software Foundation, Inc.
+# Copyright 2022-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,10 +18,8 @@
 import functools
 import gdb
 import queue
-import signal
 import threading
 import traceback
-from contextlib import contextmanager
 import sys
 
 
@@ -33,40 +31,26 @@ _gdb_thread = threading.current_thread()
 _dap_thread = None
 
 
-@contextmanager
-def blocked_signals():
-    """A helper function that blocks and unblocks signals."""
-    if not hasattr(signal, "pthread_sigmask"):
-        yield
-        return
-
-    to_block = {signal.SIGCHLD, signal.SIGINT, signal.SIGALRM, signal.SIGWINCH}
-    signal.pthread_sigmask(signal.SIG_BLOCK, to_block)
-    try:
-        yield None
-    finally:
-        signal.pthread_sigmask(signal.SIG_UNBLOCK, to_block)
-
-
 def start_thread(name, target, args=()):
     """Start a new thread, invoking TARGET with *ARGS there.
     This is a helper function that ensures that any GDB signals are
     correctly blocked."""
-    # GDB requires that these be delivered to the gdb thread.  We
-    # do this here to avoid any possible race with the creation of
-    # the new thread.  The thread mask is inherited by new
-    # threads.
-    with blocked_signals():
-        result = threading.Thread(target=target, args=args, daemon=True)
-        result.start()
-        return result
+    result = gdb.Thread(name=name, target=target, args=args, daemon=True)
+    result.start()
 
 
 def start_dap(target):
     """Start the DAP thread and invoke TARGET there."""
-    global _dap_thread
     exec_and_log("set breakpoint pending on")
-    _dap_thread = start_thread("DAP", target)
+
+    # Functions in this thread contain assertions that check for this
+    # global, so we must set it before letting these functions run.
+    def really_start_dap():
+        global _dap_thread
+        _dap_thread = threading.current_thread()
+        target()
+
+    start_thread("DAP", really_start_dap)
 
 
 def in_gdb_thread(func):

@@ -32,7 +32,6 @@
 #include "inferior.h"
 #include "infrun.h"
 #include "regcache.h"
-#include "gdbthread.h"
 #include "observable.h"
 
 #include "solist.h"
@@ -374,7 +373,7 @@ struct svr4_info
      probes-based interface.
 
      The namespace is represented by the address of its corresponding
-     r_debug[_ext] object.  We get the namespace id as agrument to the
+     r_debug[_ext] object.  We get the namespace id as argument to the
      'reloc_complete' probe but we don't get it when scanning the load map
      on attach.
 
@@ -1908,11 +1907,11 @@ solist_update_incremental (svr4_info *info, CORE_ADDR debug_base,
 	return 0;
 
       /* Get the so list from the target.  We replace the list in the
-         target response so we can easily check that the response only
-         covers one namespace.
+	 target response so we can easily check that the response only
+	 covers one namespace.
 
 	 We expect gdbserver to provide updates for the namespace that
-	 contains LM, which whould be this namespace...  */
+	 contains LM, which would be this namespace...  */
       so_list *sos = nullptr;
       if (library_list.solib_lists.find (debug_base)
 	  != library_list.solib_lists.end ())
@@ -1977,17 +1976,22 @@ svr4_handle_solib_event (void)
   if (info->probes_table == NULL)
     return;
 
+  pc = regcache_read_pc (get_current_regcache ());
+  pa = solib_event_probe_at (info, pc);
+  if (pa == nullptr)
+    {
+      /* When some solib ops sits above us, it can respond to a solib event
+	 by calling in here.  This is done assuming that if the current event
+	 is not an SVR4 solib event, calling here should be a no-op.  */
+      return;
+    }
+
   /* If anything goes wrong we revert to the original linker
      interface.  */
   auto cleanup = make_scope_exit ([info] ()
     {
       disable_probes_interface (info);
     });
-
-  pc = regcache_read_pc (get_current_regcache ());
-  pa = solib_event_probe_at (info, pc);
-  if (pa == NULL)
-    return;
 
   action = solib_event_probe_action (pa);
   if (action == PROBES_INTERFACE_FAILED)
@@ -2112,16 +2116,16 @@ svr4_update_solib_event_breakpoint (struct breakpoint *b)
       return false;
     }
 
-  for (bp_location *loc : b->locations ())
+  for (bp_location &loc : b->locations ())
     {
       struct svr4_info *info;
       struct probe_and_action *pa;
 
-      info = solib_svr4_pspace_data.get (loc->pspace);
+      info = solib_svr4_pspace_data.get (loc.pspace);
       if (info == NULL || info->probes_table == NULL)
 	continue;
 
-      pa = solib_event_probe_at (info, loc->address);
+      pa = solib_event_probe_at (info, loc.address);
       if (pa == NULL)
 	continue;
 
@@ -2146,8 +2150,8 @@ svr4_update_solib_event_breakpoint (struct breakpoint *b)
 static void
 svr4_update_solib_event_breakpoints (void)
 {
-  for (breakpoint *bp : all_breakpoints_safe ())
-    svr4_update_solib_event_breakpoint (bp);
+  for (breakpoint &bp : all_breakpoints_safe ())
+    svr4_update_solib_event_breakpoint (&bp);
 }
 
 /* Create and register solib event breakpoints.  PROBES is an array
@@ -2296,14 +2300,6 @@ svr4_create_solib_event_breakpoints (svr4_info *info, struct gdbarch *gdbarch,
     }
 }
 
-/* Helper function for gdb_bfd_lookup_symbol.  */
-
-static int
-cmp_name_and_sec_flags (const asymbol *sym, const void *data)
-{
-  return (strcmp (sym->name, (const char *) data) == 0
-	  && (sym->section->flags & (SEC_CODE | SEC_DATA)) != 0);
-}
 /* Arrange for dynamic linker to hit breakpoint.
 
    Both the SunOS and the SVR4 dynamic linkers have, as part of their
@@ -2315,7 +2311,7 @@ cmp_name_and_sec_flags (const asymbol *sym, const void *data)
    set to 1.  When the dynamic linker sees this flag set, it will set
    a breakpoint at a location known only to itself, after saving the
    original contents of that place and the breakpoint address itself,
-   in it's own internal structures.  When we resume the inferior, it
+   in its own internal structures.  When we resume the inferior, it
    will eventually take a SIGTRAP when it runs into the breakpoint.
    We handle this (in a different place) by restoring the contents of
    the breakpointed location (which is only known after it stops),
@@ -2428,7 +2424,7 @@ enable_break (struct svr4_info *info, int from_tty)
       CORE_ADDR load_addr = 0;
       int load_addr_found = 0;
       int loader_found_in_list = 0;
-      struct target_ops *tmp_bfd_target;
+      target_ops_up tmp_bfd_target;
 
       sym_addr = 0;
 
@@ -2485,8 +2481,8 @@ enable_break (struct svr4_info *info, int from_tty)
 	    if (addr_bit < (sizeof (CORE_ADDR) * HOST_CHAR_BIT))
 	      {
 		CORE_ADDR space_size = (CORE_ADDR) 1 << addr_bit;
-		CORE_ADDR tmp_entry_point = exec_entry_point (tmp_bfd.get (),
-							      tmp_bfd_target);
+		CORE_ADDR tmp_entry_point
+		  = exec_entry_point (tmp_bfd.get (), tmp_bfd_target.get ());
 
 		gdb_assert (load_addr < space_size);
 
@@ -2515,7 +2511,8 @@ enable_break (struct svr4_info *info, int from_tty)
 					inferior_ptid, target_gdbarch ());
 
 	  load_addr = (regcache_read_pc (regcache)
-		       - exec_entry_point (tmp_bfd.get (), tmp_bfd_target));
+		       - exec_entry_point (tmp_bfd.get (),
+					   tmp_bfd_target.get ()));
 	}
 
       if (!loader_found_in_list)
@@ -2548,9 +2545,15 @@ enable_break (struct svr4_info *info, int from_tty)
       /* Now try to set a breakpoint in the dynamic linker.  */
       for (bkpt_namep = solib_break_names; *bkpt_namep != NULL; bkpt_namep++)
 	{
-	  sym_addr = gdb_bfd_lookup_symbol (tmp_bfd.get (),
-					    cmp_name_and_sec_flags,
-					    *bkpt_namep);
+	  sym_addr
+	    = (gdb_bfd_lookup_symbol
+	       (tmp_bfd.get (),
+		[=] (const asymbol *sym)
+		{
+		  return (strcmp (sym->name, *bkpt_namep) == 0
+			  && ((sym->section->flags & (SEC_CODE | SEC_DATA))
+			      != 0));
+		}));
 	  if (sym_addr != 0)
 	    break;
 	}
@@ -2561,12 +2564,7 @@ enable_break (struct svr4_info *info, int from_tty)
 	   target, this will always produce an unrelocated value.  */
 	sym_addr = gdbarch_convert_from_func_ptr_addr (target_gdbarch (),
 						       sym_addr,
-						       tmp_bfd_target);
-
-      /* We're done with both the temporary bfd and target.  Closing
-	 the target closes the underlying bfd, because it holds the
-	 only remaining reference.  */
-      target_close (tmp_bfd_target);
+						       tmp_bfd_target.get ());
 
       if (sym_addr != 0)
 	{
@@ -2635,7 +2633,7 @@ read_program_headers_from_bfd (bfd *abfd)
 
   gdb::byte_vector buf (phdrs_size);
   if (bfd_seek (abfd, ehdr->e_phoff, SEEK_SET) != 0
-      || bfd_bread (buf.data (), phdrs_size, abfd) != phdrs_size)
+      || bfd_read (buf.data (), phdrs_size, abfd) != phdrs_size)
     return {};
 
   return buf;
@@ -2681,7 +2679,7 @@ read_program_headers_from_bfd (bfd *abfd)
      whose e_type member in the ELF header is not ET_DYN.  There may
      be a time in the future when it is desirable to do relocations
      on other types of files as well in which case this condition
-     should either be removed or modified to accomodate the new file
+     should either be removed or modified to accommodate the new file
      type.  - Kevin, Nov 2000. ]  */
 
 static int

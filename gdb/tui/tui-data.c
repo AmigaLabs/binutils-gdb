@@ -152,6 +152,17 @@ tui_prev_win (struct tui_win_info *cur_win)
   return *iter;
 }
 
+/* See tui-data.h.  */
+
+void
+tui_win_info::set_title (std::string &&new_title)
+{
+  if (m_title != new_title)
+    {
+      m_title = new_title;
+      check_and_display_highlight_if_needed ();
+    }
+}
 
 void
 tui_win_info::rerender ()

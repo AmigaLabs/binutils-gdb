@@ -15,7 +15,8 @@
 
 # This file is part of the gdb testsuite.
 
-if {[skip_cplus_tests]} { return }
+require allow_cplus_tests
+require {have_compile_flag -std=c++17}
 
 standard_testfile .cc
 

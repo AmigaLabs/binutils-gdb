@@ -228,7 +228,7 @@ esac])
 ac_default_ld_warn_rwx_segments=unset
 AC_ARG_ENABLE(warn-rwx-segments,
 	      AS_HELP_STRING([--enable-warn-rwx-segments],
-	      [enable warnings when creating segements with RWX permissions]),
+	      [enable warnings when creating segments with RWX permissions]),
 [case "${enableval}" in
   yes) ac_default_ld_warn_rwx_segments=1 ;;
   no)  ac_default_ld_warn_rwx_segments=0 ;;
@@ -371,7 +371,7 @@ AC_CHECK_FUNCS(close glob lseek mkstemp open realpath waitpid)
 
 BFD_BINARY_FOPEN
 
-AC_CHECK_DECLS([asprintf, environ])
+AC_CHECK_DECLS([asprintf, environ, stpcpy])
 
 AC_FUNC_MMAP
 
@@ -391,25 +391,6 @@ fi
 # compressed debug sections.
 AM_ZLIB
 AC_ZSTD
-
-# When converting linker scripts into strings for use in emulation
-# files, use astring.sed if the compiler supports ANSI string
-# concatenation, or ostring.sed otherwise.  This is to support the
-# broken Microsoft MSVC compiler, which limits the length of string
-# constants, while still supporting pre-ANSI compilers which do not
-# support string concatenation.
-AC_MSG_CHECKING([whether ANSI C string concatenation works])
-AC_CACHE_VAL(ld_cv_string_concatenation,
-[AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [char *a = "a" "a";])],
-  ld_cv_string_concatenation=yes,
-  ld_cv_string_concatenation=no)])
-AC_MSG_RESULT($ld_cv_string_concatenation)
-if test "$ld_cv_string_concatenation" = "yes"; then
-  STRINGIFY=astring.sed
-else
-  STRINGIFY=ostring.sed
-fi
-AC_SUBST(STRINGIFY)
 
 # target-specific stuff:
 

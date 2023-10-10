@@ -28,9 +28,6 @@
 
 #include "i386-opc.h"
 
-#include <libintl.h>
-#define _(String) gettext (String)
-
 /* Build-time checks are preferrable over runtime ones.  Use this construct
    in preference where possible.  */
 #define static_assert(e) ((void)sizeof (struct { int _:1 - 2 * !(e); }))
@@ -64,13 +61,13 @@ static const dependency isa_dependencies[] =
   { "P4",
     "P3|Clflush|SSE2" },
   { "NOCONA",
-    "GENERIC64|FISTTP|SSE3|CX16" },
+    "GENERIC64|FISTTP|SSE3|MONITOR|CX16" },
   { "CORE",
-    "P4|FISTTP|SSE3|CX16" },
+    "P4|FISTTP|SSE3|MONITOR|CX16" },
   { "CORE2",
     "NOCONA|SSSE3" },
   { "COREI7",
-    "CORE2|SSE4_2|Rdtscp" },
+    "CORE2|SSE4_2|Rdtscp|LAHF_SAHF" },
   { "K6",
     "186|286|386|486|586|SYSCALL|387|MMX" },
   { "K6_2",
@@ -80,9 +77,9 @@ static const dependency isa_dependencies[] =
   { "K8",
     "ATHLON|Rdtscp|SSE2|LM" },
   { "AMDFAM10",
-    "K8|FISTTP|SSE4A|ABM" },
+    "K8|FISTTP|SSE4A|ABM|MONITOR" },
   { "BDVER1",
-    "GENERIC64|FISTTP|Rdtscp|CX16|XOP|ABM|LWP|SVME|AES|PCLMUL|PRFCHW" },
+    "GENERIC64|FISTTP|Rdtscp|MONITOR|CX16|LAHF_SAHF|XOP|ABM|LWP|SVME|AES|PCLMULQDQ|PRFCHW" },
   { "BDVER2",
     "BDVER1|FMA|BMI|TBM|F16C" },
   { "BDVER3",
@@ -90,7 +87,7 @@ static const dependency isa_dependencies[] =
   { "BDVER4",
     "BDVER3|AVX2|Movbe|BMI2|RdRnd|MWAITX" },
   { "ZNVER1",
-    "GENERIC64|FISTTP|Rdtscp|CX16|AVX2|SSE4A|ABM|SVME|AES|PCLMUL|PRFCHW|FMA|BMI|F16C|Xsaveopt|FSGSBase|Movbe|BMI2|RdRnd|ADX|RdSeed|SMAP|SHA|XSAVEC|XSAVES|ClflushOpt|CLZERO|MWAITX" },
+    "GENERIC64|FISTTP|Rdtscp|MONITOR|CX16|LAHF_SAHF|AVX2|SSE4A|ABM|SVME|AES|PCLMULQDQ|PRFCHW|FMA|BMI|F16C|Xsaveopt|FSGSBase|Movbe|BMI2|RdRnd|ADX|RdSeed|SMAP|SHA|XSAVEC|XSAVES|ClflushOpt|CLZERO|MWAITX" },
   { "ZNVER2",
     "ZNVER1|CLWB|RDPID|RDPRU|MCOMMIT|WBNOINVD" },
   { "ZNVER3",
@@ -98,9 +95,9 @@ static const dependency isa_dependencies[] =
   { "ZNVER4",
     "ZNVER3|AVX512F|AVX512DQ|AVX512IFMA|AVX512CD|AVX512BW|AVX512VL|AVX512_BF16|AVX512VBMI|AVX512_VBMI2|AVX512_VNNI|AVX512_BITALG|AVX512_VPOPCNTDQ|GFNI|RMPQUERY" },
   { "BTVER1",
-    "GENERIC64|FISTTP|CX16|Rdtscp|SSSE3|SSE4A|ABM|PRFCHW|CX16|Clflush|FISTTP|SVME" },
+    "GENERIC64|FISTTP|MONITOR|CX16|LAHF_SAHF|Rdtscp|SSSE3|SSE4A|ABM|PRFCHW|Clflush|FISTTP|SVME" },
   { "BTVER2",
-    "BTVER1|AVX|BMI|F16C|AES|PCLMUL|Movbe|Xsaveopt|PRFCHW" },
+    "BTVER1|AVX|BMI|F16C|AES|PCLMULQDQ|Movbe|Xsaveopt|PRFCHW" },
   { "286",
     "186" },
   { "386",
@@ -135,7 +132,7 @@ static const dependency isa_dependencies[] =
     "XSAVE" },
   { "AES",
     "SSE2" },
-  { "PCLMUL",
+  { "PCLMULQDQ",
     "SSE2" },
   { "FMA",
     "AVX" },
@@ -165,8 +162,12 @@ static const dependency isa_dependencies[] =
     "AVX2" },
   { "AVX_VNNI_INT8",
     "AVX2" },
+  { "AVX_VNNI_INT16",
+    "AVX2" },
   { "AVX_NE_CONVERT",
     "AVX2" },
+  { "FRED",
+    "LKGS" },
   { "AVX512F",
     "AVX2" },
   { "AVX512CD",
@@ -213,6 +214,12 @@ static const dependency isa_dependencies[] =
     "XSAVE" },
   { "SHA",
     "SSE2" },
+  { "SHA512",
+    "AVX2" },
+  { "SM3",
+    "AVX" },
+  { "SM4",
+    "AVX2" },
   { "XSAVES",
     "XSAVEC" },
   { "XSAVEC",
@@ -222,9 +229,12 @@ static const dependency isa_dependencies[] =
   { "GFNI",
     "SSE2" },
   { "VAES",
-    "AVX2" },
+    "AVX2|AES" },
   { "VPCLMULQDQ",
-    "AVX2" },
+    "AVX2|PCLMULQDQ" },
+  { "AVX10_1",
+    "AVX512VL|AVX512DQ|AVX512CD|AVX512VBMI|AVX512_VBMI2|AVX512IFMA"
+    "|AVX512_VNNI|AVX512_BF16|AVX512_FP16|AVX512_VPOPCNTDQ|AVX512_BITALG" },
   { "SEV_ES",
     "SVME" },
   { "SNP",
@@ -243,6 +253,8 @@ static const dependency isa_dependencies[] =
     "AMX_TILE" },
   { "AMX_FP16",
     "AMX_TILE" },
+  { "AMX_COMPLEX",
+    "AMX_TILE" },
   { "KL",
     "SSE2" },
   { "WIDEKL",
@@ -250,7 +262,7 @@ static const dependency isa_dependencies[] =
 };
 
 /* This array is populated as process_i386_initializers() walks cpu_flags[].  */
-static unsigned char isa_reverse_deps[Cpu64][Cpu64];
+static unsigned char isa_reverse_deps[CpuMax][CpuMax];
 
 typedef struct bitfield
 {
@@ -306,16 +318,16 @@ static bitfield cpu_flags[] =
   BITFIELD (Xsave),
   BITFIELD (Xsaveopt),
   BITFIELD (AES),
-  BITFIELD (PCLMUL),
+  BITFIELD (PCLMULQDQ),
   BITFIELD (FMA),
   BITFIELD (FMA4),
   BITFIELD (XOP),
   BITFIELD (LWP),
   BITFIELD (BMI),
   BITFIELD (TBM),
-  BITFIELD (LM),
   BITFIELD (Movbe),
   BITFIELD (CX16),
+  BITFIELD (LAHF_SAHF),
   BITFIELD (EPT),
   BITFIELD (Rdtscp),
   BITFIELD (FSGSBase),
@@ -324,6 +336,7 @@ static bitfield cpu_flags[] =
   BITFIELD (BMI2),
   BITFIELD (LZCNT),
   BITFIELD (POPCNT),
+  BITFIELD (MONITOR),
   BITFIELD (HLE),
   BITFIELD (RTM),
   BITFIELD (INVPCID),
@@ -333,6 +346,9 @@ static bitfield cpu_flags[] =
   BITFIELD (PRFCHW),
   BITFIELD (SMAP),
   BITFIELD (SHA),
+  BITFIELD (SHA512),
+  BITFIELD (SM3),
+  BITFIELD (SM4),
   BITFIELD (ClflushOpt),
   BITFIELD (XSAVES),
   BITFIELD (XSAVEC),
@@ -356,11 +372,14 @@ static bitfield cpu_flags[] =
   BITFIELD (PREFETCHI),
   BITFIELD (AVX_IFMA),
   BITFIELD (AVX_VNNI_INT8),
+  BITFIELD (AVX_VNNI_INT16),
   BITFIELD (CMPCCXADD),
   BITFIELD (WRMSRNS),
   BITFIELD (MSRLIST),
   BITFIELD (AVX_NE_CONVERT),
   BITFIELD (RAO_INT),
+  BITFIELD (FRED),
+  BITFIELD (LKGS),
   BITFIELD (MWAITX),
   BITFIELD (CLZERO),
   BITFIELD (OSPKE),
@@ -373,12 +392,14 @@ static bitfield cpu_flags[] =
   BITFIELD (VPCLMULQDQ),
   BITFIELD (WBNOINVD),
   BITFIELD (PCONFIG),
+  BITFIELD (PBNDKB),
   BITFIELD (WAITPKG),
   BITFIELD (UINTR),
   BITFIELD (CLDEMOTE),
   BITFIELD (AMX_INT8),
   BITFIELD (AMX_BF16),
   BITFIELD (AMX_FP16),
+  BITFIELD (AMX_COMPLEX),
   BITFIELD (AMX_TILE),
   BITFIELD (MOVDIRI),
   BITFIELD (MOVDIR64B),
@@ -433,9 +454,7 @@ static bitfield opcode_modifiers[] =
   BITFIELD (Vex),
   BITFIELD (VexVVVV),
   BITFIELD (VexW),
-  BITFIELD (OpcodeSpace),
   BITFIELD (OpcodePrefix),
-  BITFIELD (VexSources),
   BITFIELD (SIB),
   BITFIELD (SSE2AVX),
   BITFIELD (EVex),
@@ -444,6 +463,7 @@ static bitfield opcode_modifiers[] =
   BITFIELD (StaticRounding),
   BITFIELD (SAE),
   BITFIELD (Disp8MemShift),
+  BITFIELD (Vsz),
   BITFIELD (Optimize),
   BITFIELD (ATTMnemonic),
   BITFIELD (ATTSyntax),
@@ -557,7 +577,7 @@ fail (const char *message, ...)
   va_list args;
 
   va_start (args, message);
-  fprintf (stderr, _("%s: error: "), program_name);
+  fprintf (stderr, "%s: error: ", program_name);
   vfprintf (stderr, message, args);
   va_end (args);
   xexit (1);
@@ -683,9 +703,9 @@ set_bitfield (char *f, bitfield *array, int value,
     }
 
   if (lineno != -1)
-    fail (_("%s: %d: unknown bitfield: %s\n"), filename, lineno, f);
+    fail ("%s: %d: unknown bitfield: %s\n", filename, lineno, f);
   else
-    fail (_("unknown bitfield: %s\n"), f);
+    fail ("unknown bitfield: %s\n", f);
 }
 
 static void
@@ -695,7 +715,8 @@ add_isa_dependencies (bitfield *flags, const char *f, int value,
   unsigned int i;
   char *str = NULL;
   const char *isa = f;
-  bool is_isa = false, is_avx = false;
+  static bool is_avx;
+  bool is_isa = false, orig_is_avx = is_avx;
 
   /* Need to find base entry for references to auxiliary ones.  */
   if (strchr (f, ':'))
@@ -704,7 +725,10 @@ add_isa_dependencies (bitfield *flags, const char *f, int value,
       *strchr (str, ':') = '\0';
       isa = str;
     }
-  for (i = 0; i < Cpu64; ++i)
+  /* isa_dependencies[] prefers "LM" over "64".  */
+  else if (!strcmp (f, "LM"))
+    isa = "64";
+  for (i = 0; i < CpuMax; ++i)
     if (strcasecmp (flags[i].name, isa) == 0)
       {
 	flags[i].value = value;
@@ -715,7 +739,7 @@ add_isa_dependencies (bitfield *flags, const char *f, int value,
 	    && reverse > Cpu686)
 	  isa_reverse_deps[i][reverse] = 1;
 	is_isa = true;
-	if (i == CpuAVX || i == CpuXOP)
+	if (i == CpuAVX || i == CpuXOP || i == CpuVAES || i == CpuVPCLMULQDQ)
 	  is_avx = true;
 	break;
       }
@@ -723,7 +747,10 @@ add_isa_dependencies (bitfield *flags, const char *f, int value,
 
   /* Do not turn off dependencies.  */
   if (is_isa && !value)
-    return;
+    {
+      is_avx = orig_is_avx;
+      return;
+    }
 
   for (i = 0; i < ARRAY_SIZE (isa_dependencies); ++i)
     if (strcasecmp (isa_dependencies[i].name, f) == 0)
@@ -748,30 +775,53 @@ add_isa_dependencies (bitfield *flags, const char *f, int value,
 	if (reverse < ARRAY_SIZE (isa_reverse_deps[0]))
 	  isa_reverse_deps[reverse][reverse] = 1;
 
+	is_avx = orig_is_avx;
 	return;
       }
 
   if (!is_isa)
-    fail (_("unknown bitfield: %s\n"), f);
+    fail ("unknown bitfield: %s\n", f);
+
+  is_avx = orig_is_avx;
 }
 
 static void
 output_cpu_flags (FILE *table, bitfield *flags, unsigned int size,
-		  int macro, const char *comma, const char *indent)
+		  int macro, const char *comma, const char *indent, int lineno)
 {
-  unsigned int i;
+  unsigned int i = 0, j = 0;
 
   memset (&active_cpu_flags, 0, sizeof(active_cpu_flags));
 
   fprintf (table, "%s{ { ", indent);
 
-  for (i = 0; i < size - 1; i++)
+  if (!macro)
     {
-      if (((i + 1) % 20) != 0)
+      for (j = ~0u; i < CpuAttrEnums; i++)
+	{
+	  if (!flags[i].value)
+	    continue;
+
+	  if (j < ~0u)
+	    fail ("%s: %d: invalid combination of CPU identifiers\n",
+		  filename, lineno);
+	  j = i;
+	  active_cpu_flags.array[i / 32] |= 1U << (i % 32);
+	}
+
+	/* Write 0 to indicate "no associated flag".  */
+	fprintf (table, "%u, ", j + 1);
+
+	j = 1;
+    }
+
+  for (; i < size - 1; i++, j++)
+    {
+      if (((j + 1) % 20) != 0)
 	fprintf (table, "%d, ", flags[i].value);
       else
 	fprintf (table, "%d,", flags[i].value);
-      if (((i + 1) % 20) == 0)
+      if (((j + 1) % 20) == 0)
 	{
 	  /* We need \\ for macro.  */
 	  if (macro)
@@ -817,17 +867,17 @@ process_i386_cpu_flag (FILE *table, char *flag,
 	  last -= 1;
 	  next = flag + 2;
 	  if (*last != ')')
-	    fail (_("%s: %d: missing `)' in bitfield: %s\n"), filename,
+	    fail ("%s: %d: missing `)' in bitfield: %s\n", filename,
 		  lineno, flag);
 	  *last = '\0';
 	}
       else
 	next = flag + 1;
 
-      /* First we turn on everything except for cpu64, cpuno64, and - if
+      /* First we turn on everything except for cpuno64 and - if
          present - the padding field.  */
       for (i = 0; i < ARRAY_SIZE (flags); i++)
-	if (flags[i].position < Cpu64)
+	if (flags[i].position < CpuNo64)
 	  flags[i].value = 1;
 
       /* Turn off selective bits.  */
@@ -882,7 +932,7 @@ process_i386_cpu_flag (FILE *table, char *flag,
     }
 
   output_cpu_flags (table, flags, ARRAY_SIZE (flags), name != NULL,
-		    comma, indent);
+		    comma, indent, lineno);
 }
 
 static void
@@ -917,7 +967,7 @@ get_element_size (char **opnd, int lineno)
   while (full != NULL && strstr(full, "BaseIndex") == NULL)
     full = *++opnd;
   if (full == NULL)
-    fail (_("%s: %d: no memory operand\n"), filename, lineno);
+    fail ("%s: %d: no memory operand\n", filename, lineno);
 
   op = xstrdup (full);
   last = op + strlen (op);
@@ -953,17 +1003,31 @@ get_element_size (char **opnd, int lineno)
   free (op);
 
   if (elem_size == INT_MAX)
-    fail (_("%s: %d: unknown element size: %s\n"), filename, lineno, full);
+    fail ("%s: %d: unknown element size: %s\n", filename, lineno, full);
 
   return elem_size;
 }
 
 static void
 process_i386_opcode_modifier (FILE *table, char *mod, unsigned int space,
-			      unsigned int prefix, char **opnd, int lineno)
+			      unsigned int prefix, const char *extension_opcode,
+			      char **opnd, int lineno)
 {
   char *str, *next, *last;
   bitfield modifiers [ARRAY_SIZE (opcode_modifiers)];
+  static const char *const spaces[] = {
+#define SPACE(n) [SPACE_##n] = #n
+    SPACE(BASE),
+    SPACE(0F),
+    SPACE(0F38),
+    SPACE(0F3A),
+    SPACE(EVEXMAP5),
+    SPACE(EVEXMAP6),
+    SPACE(XOP08),
+    SPACE(XOP09),
+    SPACE(XOP0A),
+#undef SPACE
+  };
 
   active_isstring = 0;
 
@@ -981,6 +1045,34 @@ process_i386_opcode_modifier (FILE *table, char *mod, unsigned int space,
 	  if (str)
 	    {
 	      int val = 1;
+
+	      if (strncmp(str, "OpcodeSpace", 11) == 0)
+		{
+		  char *end;
+
+		  if (str[11] != '=')
+		    fail ("%s:%d: Missing value for `OpcodeSpace'\n",
+			  filename, lineno);
+
+		  val = strtol (str + 12, &end, 0);
+		  if (*end)
+		    fail ("%s:%d: Bogus value `%s' for `OpcodeSpace'\n",
+			  filename, lineno, end);
+
+		  if (space)
+		    {
+		      if (val != space)
+			fail ("%s:%d: Conflicting opcode space specifications\n",
+			      filename, lineno);
+		      fprintf (stderr,
+			       "%s:%d: Warning: redundant opcode space specification\n",
+			       filename, lineno);
+		    }
+
+		  space = val;
+		  continue;
+		}
+
 	      if (strcasecmp(str, "Broadcast") == 0)
 		val = get_element_size (opnd, lineno) + BYTE_BROADCAST;
 	      else if (strcasecmp(str, "Disp8MemShift") == 0)
@@ -1005,29 +1097,16 @@ process_i386_opcode_modifier (FILE *table, char *mod, unsigned int space,
 	    }
 	}
 
-      if (space)
-	{
-	  if (!modifiers[OpcodeSpace].value)
-	    modifiers[OpcodeSpace].value = space;
-	  else if (modifiers[OpcodeSpace].value != space)
-	    fail (_("%s:%d: Conflicting opcode space specifications\n"),
-		  filename, lineno);
-	  else
-	    fprintf (stderr,
-		     _("%s:%d: Warning: redundant opcode space specification\n"),
-		     filename, lineno);
-	}
-
       if (prefix)
 	{
 	  if (!modifiers[OpcodePrefix].value)
 	    modifiers[OpcodePrefix].value = prefix;
 	  else if (modifiers[OpcodePrefix].value != prefix)
-	    fail (_("%s:%d: Conflicting prefix specifications\n"),
+	    fail ("%s:%d: Conflicting prefix specifications\n",
 		  filename, lineno);
 	  else
 	    fprintf (stderr,
-		     _("%s:%d: Warning: redundant prefix specification\n"),
+		     "%s:%d: Warning: redundant prefix specification\n",
 		     filename, lineno);
 	}
 
@@ -1041,6 +1120,13 @@ process_i386_opcode_modifier (FILE *table, char *mod, unsigned int space,
 		 "%s: %d: W modifier without Word/Dword/Qword operand(s)\n",
 		 filename, lineno);
     }
+
+  if (space >= ARRAY_SIZE (spaces) || !spaces[space])
+    fail ("%s:%d: Unknown opcode space %u\n", filename, lineno, space);
+
+  fprintf (table, " SPACE_%s, %s,\n",
+	   spaces[space], extension_opcode ? extension_opcode : "None");
+
   output_opcode_modifier (table, modifiers, ARRAY_SIZE (modifiers));
 }
 
@@ -1146,12 +1232,26 @@ process_i386_operand_type (FILE *table, char *op, enum stage stage,
 		       stage, indent);
 }
 
+static char *mkident (const char *mnem)
+{
+  char *ident = xstrdup (mnem), *p = ident;
+
+  do
+    {
+      if (!ISALNUM (*p))
+	*p = '_';
+    }
+  while (*++p);
+
+  return ident;
+}
+
 static void
 output_i386_opcode (FILE *table, const char *name, char *str,
 		    char *last, int lineno)
 {
   unsigned int i, length, prefix = 0, space = 0;
-  char *base_opcode, *extension_opcode, *end;
+  char *base_opcode, *extension_opcode, *end, *ident;
   char *cpu_flags, *opcode_modifier, *operand_types [MAX_OPERANDS];
   unsigned long long opcode;
 
@@ -1236,21 +1336,22 @@ output_i386_opcode (FILE *table, const char *name, char *str,
 	}
 
       if (space != SPACE_0F && --length == 1)
-	fail (_("%s:%d: %s: unrecognized opcode encoding space\n"),
+	fail ("%s:%d: %s: unrecognized opcode encoding space\n",
 	      filename, lineno, name);
       opcode &= (1ULL << (8 * --length)) - 1;
     }
 
   if (length > 2)
-    fail (_("%s:%d: %s: residual opcode (0x%0*llx) too large\n"),
+    fail ("%s:%d: %s: residual opcode (0x%0*llx) too large\n",
 	  filename, lineno, name, 2 * length, opcode);
 
-  fprintf (table, "  { \"%s\", 0x%0*llx%s, %lu, %s,\n",
-	   name, 2 * (int)length, opcode, end, i,
-	   extension_opcode ? extension_opcode : "None");
+  ident = mkident (name);
+  fprintf (table, "  { MN_%s, 0x%0*llx%s, %u,",
+	   ident, 2 * (int)length, opcode, end, i);
+  free (ident);
 
   process_i386_opcode_modifier (table, opcode_modifier, space, prefix,
-				operand_types, lineno);
+				extension_opcode, operand_types, lineno);
 
   process_i386_cpu_flag (table, cpu_flags, NULL, ",", "    ", lineno, CpuMax);
 
@@ -1277,10 +1378,13 @@ output_i386_opcode (FILE *table, const char *name, char *str,
 
 struct opcode_hash_entry
 {
-  struct opcode_hash_entry *next;
-  char *name;
-  char *opcode;
-  int lineno;
+  const char *name;
+  struct opcode_entry
+  {
+    struct opcode_entry *next;
+    char *opcode;
+    int lineno;
+  } entry;
 };
 
 /* Calculate the hash value of an opcode hash entry P.  */
@@ -1416,7 +1520,8 @@ expand_templates (char *name, const char *str, htab_t opcode_hash_table,
 {
   static unsigned int idx, opcode_array_size;
   struct opcode_hash_entry **opcode_array = *opcode_array_p;
-  struct opcode_hash_entry **hash_slot, **entry;
+  struct opcode_hash_entry **hash_slot;
+  struct opcode_entry *entry;
   char *ptr1 = strchr(name, '<'), *ptr2;
 
   if (ptr1 == NULL)
@@ -1442,26 +1547,25 @@ expand_templates (char *name, const char *str, htab_t opcode_hash_table,
 
 	  opcode_array[idx] = (struct opcode_hash_entry *)
 	    xmalloc (sizeof (struct opcode_hash_entry));
-	  opcode_array[idx]->next = NULL;
 	  opcode_array[idx]->name = xstrdup (name);
-	  opcode_array[idx]->opcode = xstrdup (str);
-	  opcode_array[idx]->lineno = lineno;
 	  *hash_slot = opcode_array[idx];
+	  entry = &opcode_array[idx]->entry;
 	  idx++;
 	}
       else
 	{
 	  /* Append it to the existing one.  */
-	  entry = hash_slot;
-	  while ((*entry) != NULL)
-	    entry = &(*entry)->next;
-	  *entry = (struct opcode_hash_entry *)
-	    xmalloc (sizeof (struct opcode_hash_entry));
-	  (*entry)->next = NULL;
-	  (*entry)->name = (*hash_slot)->name;
-	  (*entry)->opcode = xstrdup (str);
-	  (*entry)->lineno = lineno;
+	  struct opcode_entry **entryp = &(*hash_slot)->entry.next;
+
+	  while (*entryp != NULL)
+	    entryp = &(*entryp)->next;
+	  entry = (struct opcode_entry *)xmalloc (sizeof (struct opcode_entry));
+	  *entryp = entry;
 	}
+
+      entry->next = NULL;
+      entry->opcode = xstrdup (str);
+      entry->lineno = lineno;
     }
   else if ((ptr2 = strchr(ptr1 + 1, '>')) == NULL)
     fail ("%s: %d: missing '>'\n", filename, lineno);
@@ -1560,13 +1664,30 @@ expand_templates (char *name, const char *str, htab_t opcode_hash_table,
   return idx;
 }
 
+static int mnemonic_cmp(const void *p1, const void *p2)
+{
+  const struct opcode_hash_entry *const *e1 = p1, *const *e2 = p2;
+  const char *s1 = (*e1)->name, *s2 = (*e2)->name;
+  unsigned int i;
+  size_t l1 = strlen (s1), l2 = strlen (s2);
+
+  for (i = 1; i <= l1 && i <= l2; ++i)
+    {
+      if (s1[l1 - i] != s2[l2 - i])
+	return (unsigned char)s1[l1 - i] - (unsigned char)s2[l2 - i];
+    }
+
+  return (int)(l1 - l2);
+}
+
 static void
 process_i386_opcodes (FILE *table)
 {
   FILE *fp;
   char buf[2048];
-  unsigned int i, j, nr;
-  char *str, *p, *last, *name;
+  unsigned int i, j, nr, offs;
+  size_t l;
+  char *str, *p, *last;
   htab_t opcode_hash_table;
   struct opcode_hash_entry **opcode_array = NULL;
   int lineno = 0, marker = 0;
@@ -1579,12 +1700,15 @@ process_i386_opcodes (FILE *table)
 					 opcode_hash_eq, NULL,
 					 xcalloc, free);
 
+  fprintf (table, "\n#include \"i386-mnem.h\"\n");
   fprintf (table, "\n/* i386 opcode table.  */\n\n");
   fprintf (table, "static const insn_template i386_optab[] =\n{\n");
 
   /* Put everything on opcode array.  */
   while (!feof (fp))
     {
+      char *name;
+
       if (fgets (buf, sizeof (buf), fp) == NULL)
 	break;
 
@@ -1609,7 +1733,7 @@ process_i386_opcodes (FILE *table)
 	  if (!j || buf[j - 1] != '+')
 	    break;
 	  if (j >= sizeof (buf) - 1)
-	    fail (_("%s: %d: (continued) line too long\n"), filename, lineno);
+	    fail ("%s: %d: (continued) line too long\n", filename, lineno);
 
 	  if (fgets (buf + j - 1, sizeof (buf) - j + 1, fp) == NULL)
 	    {
@@ -1666,11 +1790,11 @@ process_i386_opcodes (FILE *table)
   /* Process opcode array.  */
   for (j = 0; j < i; j++)
     {
-      struct opcode_hash_entry *next;
+      const char *name = opcode_array[j]->name;
+      struct opcode_entry *next;
 
-      for (next = opcode_array[j]; next; next = next->next)
+      for (next = &opcode_array[j]->entry; next; next = next->next)
 	{
-	  name = next->name;
 	  str = next->opcode;
 	  lineno = next->lineno;
 	  last = str + strlen (str);
@@ -1689,7 +1813,7 @@ process_i386_opcodes (FILE *table)
 
   for (nr = j = 0; j < i; j++)
     {
-      struct opcode_hash_entry *next = opcode_array[j];
+      struct opcode_entry *next = &opcode_array[j]->entry;
 
       do
 	{
@@ -1701,6 +1825,54 @@ process_i386_opcodes (FILE *table)
     }
 
   fprintf (table, "};\n");
+
+  /* Emit mnemonics and associated #define-s.  */
+  qsort (opcode_array, i, sizeof (*opcode_array), mnemonic_cmp);
+
+  fp = fopen ("i386-mnem.h", "w");
+  if (fp == NULL)
+    fail ("can't create i386-mnem.h, errno = %s\n",
+	  xstrerror (errno));
+
+  process_copyright (fp);
+
+  fprintf (table, "\n/* i386 mnemonics table.  */\n\n");
+  fprintf (table, "const char i386_mnemonics[] =\n");
+  fprintf (fp, "\nextern const char i386_mnemonics[];\n\n");
+
+  str = NULL;
+  for (l = strlen (opcode_array[offs = j = 0]->name); j < i; j++)
+    {
+      const char *name = opcode_array[j]->name;
+      const char *next = NULL;
+      size_t l1 = j + 1 < i ? strlen(next = opcode_array[j + 1]->name) : 0;
+
+      if (str == NULL)
+	str = mkident (name);
+      if (l < l1 && !strcmp(name, next + l1 - l))
+	{
+	  fprintf (fp, "#define MN_%s ", str);
+	  free (str);
+	  str = mkident (next);
+	  fprintf (fp, "(MN_%s + %zu)\n", str, l1 - l);
+	}
+      else
+	{
+	  fprintf (table, "  \"\\0\"\"%s\"\n", name);
+	  fprintf (fp, "#define MN_%s %#x\n", str, offs + 1);
+	  offs += strlen (name) + 1;
+	  free (str);
+	  str = NULL;
+	}
+      l = l1;
+    }
+
+  fprintf (table, "  \"\\0\"\".insn\"\n");
+  fprintf (fp, "#define MN__insn %#x\n", offs + 1);
+
+  fprintf (table, ";\n");
+
+  fclose (fp);
 }
 
 static void
@@ -1716,7 +1888,7 @@ process_i386_registers (FILE *table)
   filename = "i386-reg.tbl";
   fp = fopen (filename, "r");
   if (fp == NULL)
-    fail (_("can't find i386-reg.tbl for reading, errno = %s\n"),
+    fail ("can't find i386-reg.tbl for reading, errno = %s\n",
 	  xstrerror (errno));
 
   fprintf (table, "\n/* i386 register table.  */\n\n");
@@ -1793,12 +1965,12 @@ process_i386_initializers (void)
   FILE *fp = fopen ("i386-init.h", "w");
 
   if (fp == NULL)
-    fail (_("can't create i386-init.h, errno = %s\n"),
+    fail ("can't create i386-init.h, errno = %s\n",
 	  xstrerror (errno));
 
   process_copyright (fp);
 
-  for (i = 0; i < Cpu64; i++)
+  for (i = 0; i < CpuMax; i++)
     process_i386_cpu_flag (fp, "0", cpu_flags[i].name, "", "  ", -1, i);
 
   for (i = 0; i < ARRAY_SIZE (isa_dependencies); i++)
@@ -1908,7 +2080,7 @@ main (int argc, char **argv)
 
   if (srcdir != NULL)
     if (chdir (srcdir) != 0)
-      fail (_("unable to change directory to \"%s\", errno = %s\n"),
+      fail ("unable to change directory to \"%s\", errno = %s\n",
 	    srcdir, xstrerror (errno));
 
   /* cpu_flags isn't sorted by position.  */
@@ -1922,16 +2094,26 @@ main (int argc, char **argv)
   static_assert (ARRAY_SIZE (cpu_flags) == CpuMax + 2);
 
   if ((cpumax - 1) != CpuMax)
-    fail (_("CpuMax != %d!\n"), cpumax);
+    fail ("CpuMax != %d!\n", cpumax);
 #else
   static_assert (ARRAY_SIZE (cpu_flags) == CpuMax + 1);
 
   if (cpumax != CpuMax)
-    fail (_("CpuMax != %d!\n"), cpumax);
+    fail ("CpuMax != %d!\n", cpumax);
 
   c = CpuNumOfBits - CpuMax - 1;
   if (c)
-    fail (_("%d unused bits in i386_cpu_flags.\n"), c);
+    fail ("%d unused bits in i386_cpu_flags.\n", c);
+#endif
+
+  /* If this triggers, CpuIsaBits needs to be increased.  */
+  static_assert (CpuAttrEnums <= (1u << CpuIsaBits));
+
+  /* Check the unused bitfield in i386_cpu_attr.  */
+#ifndef CpuAttrUnused
+  c = CpuAttrNumOfBits - (CpuIsaBits + CpuMax + 1 - CpuAttrEnums);
+  if (c)
+    fail ("%d unused bits in i386_cpu_attr.\n", c);
 #endif
 
   static_assert (ARRAY_SIZE (opcode_modifiers) == Opcode_Modifier_Num);
@@ -1946,7 +2128,7 @@ main (int argc, char **argv)
 
   c = OTNumOfBits - OTNum;
   if (c)
-    fail (_("%d unused bits in i386_operand_type.\n"), c);
+    fail ("%d unused bits in i386_operand_type.\n", c);
 #endif
 
   qsort (cpu_flags, ARRAY_SIZE (cpu_flags), sizeof (cpu_flags [0]),
@@ -1960,7 +2142,7 @@ main (int argc, char **argv)
 
   table = fopen ("i386-tbl.h", "w");
   if (table == NULL)
-    fail (_("can't create i386-tbl.h, errno = %s\n"),
+    fail ("can't create i386-tbl.h, errno = %s\n",
 	  xstrerror (errno));
 
   process_copyright (table);
