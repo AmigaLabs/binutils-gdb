@@ -2,6 +2,7 @@
 . ${srcdir}/emulparams/plt_unwind.sh
 
 TEMPLATE_NAME=elf
+EXTRA_EM_FILE=ppc32elf
 SCRIPT_NAME=amigaos
 OUTPUT_FORMAT="elf32-powerpc-amigaos"
 MAXPAGESIZE="CONSTANT (MAXPAGESIZE)"
@@ -25,4 +26,4 @@ GOT=".got          ${RELOCATING-0} : SPECIAL { *(.got) }"
 PLT=".plt          ${RELOCATING-0} :  { *(.plt) }"
 # GOTPLT="${PLT}"
 OTHER_TEXT_SECTIONS="*(.glink)"
-EXTRA_EM_FILE=ppc32elf
+ENABLE_INITFINI_ARRAY=no
