@@ -24,7 +24,7 @@
 #include "target/waitstatus.h"
 
 struct bpstat;
-struct so_list;
+struct shobj;
 struct objfile;
 struct thread_info;
 struct inferior;
@@ -99,13 +99,12 @@ extern observable<inferior */* parent_inf */, inferior */* child_inf */,
 /* The shared library specified by SOLIB has been loaded.  Note that
    when gdb calls this observer, the library's symbols probably
    haven't been loaded yet.  */
-extern observable<struct so_list */* solib */> solib_loaded;
+extern observable<shobj &/* solib */> solib_loaded;
 
 /* The shared library SOLIB has been unloaded from program space PSPACE.
    Note  when gdb calls this observer, the library's symbols have not
    been unloaded yet, and thus are still available.  */
-extern observable<struct program_space */* pspace */, struct so_list */* solib */>
-  solib_unloaded;
+extern observable<program_space *, const shobj &/* solib */> solib_unloaded;
 
 /* The symbol file specified by OBJFILE has been loaded.  */
 extern observable<struct objfile */* objfile */> new_objfile;
@@ -153,10 +152,9 @@ extern observable<struct breakpoint */* b */> breakpoint_deleted;
    is the modified breakpoint.  */
 extern observable<struct breakpoint */* b */> breakpoint_modified;
 
-/* INF's architecture has changed.  The argument NEWARCH is a
-   pointer to the new architecture.  */
-extern observable<inferior */* inf */, struct gdbarch */* newarch */>
-  architecture_changed;
+/* GDB has instantiated a new architecture, NEWARCH is a pointer to the new
+   architecture.  */
+extern observable<struct gdbarch */* newarch */> new_architecture;
 
 /* The thread's ptid has changed.  The OLD_PTID parameter specifies
    the old value, and NEW_PTID specifies the new value.  */
