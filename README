@@ -4,3 +4,9 @@ mkdir cross-build
 cd cross-build
 ../configure --enable-plugins --target=ppc-amigaos --prefix=/usr/local/amiga
 make 
+
+To build native os4 version download repo, cd in, and:
+mkdir native-build
+cd native-build
+../configure --disable-gdb --disable-plugins --disable-nls --host=ppc-amigaos --target=ppc-amigaos --prefix=/os4_native
+make -j4
