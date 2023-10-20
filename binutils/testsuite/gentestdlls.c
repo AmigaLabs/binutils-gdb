@@ -25,7 +25,9 @@
    See:
    https://www.ecma-international.org/publications/files/ECMA-ST/ECMA-335.pdf  */
 
+#ifndef __amigaos4__
 #include <memory.h>
+#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
