@@ -45,6 +45,9 @@
 #include <time.h>
 #include <zlib.h>
 #ifdef HAVE_ZSTD
+#ifdef __amigaos4__
+#undef HAVE_FSEEKO64
+#endif
 #include <zstd.h>
 #endif
 #include <wchar.h>
