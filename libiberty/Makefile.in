@@ -143,7 +143,7 @@ CFILES = alloca.c argv.c asprintf.c atexit.c				\
 	objalloc.c obstack.c						\
 	partition.c pexecute.c						\
 	 pex-common.c pex-djgpp.c pex-msdos.c pex-one.c			\
-	 pex-unix.c pex-win32.c						\
+	 pex-unix.c pex-win32.c	pex-amigaos.c			\
          physmem.c putenv.c						\
 	random.c regex.c rename.c rindex.c				\
 	rust-demangle.c							\
@@ -216,7 +216,7 @@ CONFIGURED_OFILES = ./asprintf.$(objext) ./atexit.$(objext)		\
 	./memmem.$(objext) ./memmove.$(objext)				\
 	 ./mempcpy.$(objext) ./memset.$(objext) ./mkstemps.$(objext)	\
 	./pex-djgpp.$(objext) ./pex-msdos.$(objext)			\
-	 ./pex-unix.$(objext) ./pex-win32.$(objext)			\
+	 ./pex-unix.$(objext) ./pex-win32.$(objext)	./pex-amigaos.$(objext)		\
 	 ./putenv.$(objext)						\
 	./random.$(objext) ./rename.$(objext) ./rindex.$(objext)	\
 	./setenv.$(objext) 						\
@@ -1164,6 +1164,16 @@ $(CONFIGURED_OFILES): stamp-picdir stamp-noasandir
 	  $(COMPILE.c) $(PICFLAG) $(NOASANFLAG) $(srcdir)/pex-unix.c -o noasan/$@; \
 	else true; fi
 	$(COMPILE.c) $(srcdir)/pex-unix.c $(OUTPUT_OPTION)
+
+./pex-amigaos.$(objext): $(srcdir)/pex-amigaos.c config.h $(INCDIR)/ansidecl.h \
+	$(INCDIR)/libiberty.h $(srcdir)/pex-common.h
+	if [ x"$(PICFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(srcdir)/pex-amigaos.c -o pic/$@; \
+	else true; fi
+	if [ x"$(NOASANFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(NOASANFLAG) $(srcdir)/pex-amigaos.c -o noasan/$@; \
+	else true; fi
+	$(COMPILE.c) $(srcdir)/pex-amigaos.c $(OUTPUT_OPTION)
 
 ./pex-win32.$(objext): $(srcdir)/pex-win32.c config.h $(INCDIR)/ansidecl.h \
 	$(INCDIR)/libiberty.h $(srcdir)/pex-common.h
