@@ -19,6 +19,11 @@
    along with Readline.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifdef __amigaos4__
+#undef NEW_TTY_DRIVER
+#define TERMIOS_TTY_DRIVER
+#endif
+
 #if !defined (_RLTTY_H_)
 #define _RLTTY_H_
 
