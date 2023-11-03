@@ -45,9 +45,6 @@
 #include <time.h>
 #include <zlib.h>
 #ifdef HAVE_ZSTD
-#ifdef __amigaos4__
-#undef HAVE_FSEEKO64
-#endif
 #include <zstd.h>
 #endif
 #include <wchar.h>
@@ -73,6 +70,9 @@
 #include "elf/external.h"
 #include "elf/internal.h"
 
+#ifdef __amigaos4__
+#undef HAVE_FSEEKO64
+#endif
 
 /* Included here, before RELOC_MACROS_GEN_FUNC is defined, so that
    we can obtain the H8 reloc numbers.  We need these for the
