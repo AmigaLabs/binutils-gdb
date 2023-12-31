@@ -1299,7 +1299,15 @@ write_archive (bfd *iarch)
   if (!bfd_set_archive_head (obfd, contents_head))
     bfd_fatal (old_name);
 
-  tmpfd = dup (tmpfd);
+#ifdef __amigaos4__											/* AMIGAOS PPC */
+	#pragma warn Check if these changes are exclusively for clib=newlib !!!
+tmpfd = open (new_name, O_RDONLY | O_BINARY);
+  if (tmpfd < 0)
+    xexit (1);
+#elif
+tmpfd = dup (tmpfd);
+#endif
+
   if (!bfd_close (obfd))
     bfd_fatal (old_name);
 
