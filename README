@@ -5,8 +5,9 @@ cd cross-build
 ../configure --enable-plugins --target=ppc-amigaos --prefix=/usr/local/amiga
 make 
 
-To build native AmigaOS4 version, download the repo, cd in, and:
+To build native AmigaOS4 version, download the repo, use the @nativeOS4-build-newlib@ branch, cd in, and:
 mkdir native-build
 cd native-build
-CFLAGS="-Wno-sign-compare" LDFLAGS="-lunix" ../configure --disable-gdb --disable-plugins --host=ppc-amigaos --target=ppc-amigaos --prefix=/os4_native
-make -j4
+CFLAGS="-mcrt=newlib -Wno-sign-compare" ../configure --disable-gdb --disable-plugins --disable-sim --host=ppc-amigaos --target=ppc-amigaos --prefix=../dist
+make -j 4
+make install
