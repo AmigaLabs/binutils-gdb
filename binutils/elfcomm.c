@@ -35,6 +35,18 @@
 
 extern char *program_name;
 
+/* Restore commit 546cb2d85eddba4f56dfbcb0288db68243e3a0fd for AmigaOS4 with clib clib4 */
+#if defined(__amigaos4__) && defined(__CLIB4__)
+/* FIXME:  This definition really ought to be in ansidecl.h.  */
+#ifndef ATTRIBUTE_WEAK
+#define ATTRIBUTE_WEAK __attribute__((weak))
+#endif
+
+/* Allow the following two functions to be overridden if desired.  */
+void error (const char *, ...) ATTRIBUTE_WEAK;
+void warn (const char *, ...) ATTRIBUTE_WEAK;
+#endif
+
 void
 error (const char *message, ...)
 {
