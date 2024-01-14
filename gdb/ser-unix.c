@@ -34,6 +34,10 @@
 #include <termios.h>
 #include "gdbsupport/scoped_ignore_sigttou.h"
 
+#if defined(__amigaos4__) && defined(__NEWLIB__)							/* AMIGAOS PPC */
+#define EXTB 2
+#endif
+
 struct hardwire_ttystate
   {
     struct termios termios;

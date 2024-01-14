@@ -42,7 +42,36 @@ pipe (int fd[2])
     }
   return result;
 }
+# elif defined(__amigaos4__) && defined(__NEWLIB__)							/* AMIGAOS PPC */
+#include <proto/dos.h>
+#include <proto/exec.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
 
+int pipenum = 0;
+
+int pipe(int fd[2]) {
+    char pipe_name[1024] = {0};
+
+    snprintf(pipe_name, sizeof(pipe_name), "PIPE:%x%lu/32768/0", pipenum++, ((struct Process *) IExec->FindTask(NULL))->pr_ProcessID);
+
+    fd[1] = open(pipe_name, O_WRONLY | O_CREAT);
+    fd[0] = open(pipe_name, O_RDONLY);
+
+    if (fd[0] == -1 || fd[1] == -1) {
+        if (fd[0] != -1)
+            close(fd[0]);
+        if (fd[1] != -1)
+            close(fd[1]);
+
+        errno = EINVAL;
+
+        return -1;
+    }
+
+    return 0;
+}
 #else
 
 # error "This platform lacks a pipe function, and Gnulib doesn't provide a replacement. This is a bug in Gnulib."

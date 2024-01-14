@@ -29,6 +29,12 @@
 #include <fcntl.h>
 #include "gdbsupport/gdb_select.h"
 
+#if defined(__amigaos4__) && defined(__NEWLIB__)							/* AMIGAOS PPC */
+#undef HAVE_TERMIOS_H
+#undef HAVE_TERMIOS
+#define HAVE_TERMIO 1
+#endif
+
 #include "gdbcmd.h"
 #ifdef HAVE_TERMIOS_H
 #include <termios.h>

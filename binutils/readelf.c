@@ -70,7 +70,7 @@
 #include "elf/external.h"
 #include "elf/internal.h"
 
-#ifdef __amigaos4__
+#if defined(__amigaos4__) && defined(__NEWLIB__)							/* AMIGAOS PPC */
 #undef HAVE_FSEEKO64
 #endif
 

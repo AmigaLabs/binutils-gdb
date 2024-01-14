@@ -7,6 +7,8 @@
 cross-build/
 native-build/
 dist/
+dist-newlib/
+dist-clib4/
 
 *~
 .#*

@@ -22,6 +22,11 @@
 #include <errno.h> /* get program_invocation_name declaration */
 #include <stdlib.h> /* get __argv declaration */
 
+#if defined(__amigaos4__) && defined(__NEWLIB__)							/* AMIGAOS PPC */
+#include <proto/dos.h>
+#include <stdio.h>
+#endif
+
 #ifdef _AIX
 # include <unistd.h>
 # include <procinfo.h>
@@ -93,6 +98,30 @@ getprogname (void)
 #  else
   return p && p[0] ? p : "?";
 #  endif
+# elif defined(__amigaos4__) && defined(__NEWLIB__)							/* AMIGAOS PPC */
+// TODO: increase buffer if name gets truncated
+	char buffer[4096]; 
+	if( IDOS->GetCliProgramName( buffer, sizeof( buffer ) ) == DOSFALSE )
+	{
+		printf( "%s:%d %s: CliProgramName called from task!?\n",__FILE__,__LINE__,__func__ );
+	
+		return "?";
+	}
+
+	if( IDOS->IoErr() == ERROR_LINE_TOO_LONG )
+	{
+		printf( "%s:%d %s: CliProgramName got truncated\n",__FILE__,__LINE__,__func__ );
+
+		return "?";
+	}
+
+	printf( "%s:%d %s: CliProgramName '%s'\n",__FILE__,__LINE__,__func__,buffer );
+
+	char *progname = IDOS->FilePart( buffer );
+
+	printf( "%s:%d %s: LastFilePart '%s'\n",__FILE__,__LINE__,__func__,progname );
+
+	return strdup( progname );
 # elif _AIX                                                 /* AIX */
   /* Idea by Bastien ROUCARIÈS,
      https://lists.gnu.org/r/bug-gnulib/2010-12/msg00095.html
