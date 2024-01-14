@@ -102,12 +102,16 @@ static char *term_string_buffer = (char *)NULL;
 
 static int tcap_initialized;
 
-#if !defined (__linux__) && !defined (NCURSES_VERSION)
+/* Ignore this code if targeting AmigaOS4 with clib clib4, because
+   the clib4 clib provided it own fnmatch implementation */
+#if !(defined(__amigaos4__) && defined(__CLIB4__))
+# if !defined (__linux__) && !defined (NCURSES_VERSION) 
 #  if defined (__EMX__) || defined (NEED_EXTERN_PC)
 extern 
-#  endif /* __EMX__ || NEED_EXTERN_PC */
+#   endif /* __EMX__ || NEED_EXTERN_PC */
 char PC, *BC, *UP;
-#endif /* !__linux__ && !NCURSES_VERSION */
+# endif /* !__linux__ && !NCURSES_VERSION */
+#endif  /* not (AMIGAOS and CLIB4) $*/
 
 /* Some strings to control terminal actions.  These are output by tputs (). */
 char *_rl_term_clreol;

@@ -19,6 +19,11 @@
    along with Readline.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#if defined(__amigaos4__) && defined(__CLIB4__)
+#undef NEW_TTY_DRIVER
+#define TERMIOS_TTY_DRIVER
+#endif
+
 #if !defined (_RLTTY_H_)
 #define _RLTTY_H_
 
@@ -36,7 +41,7 @@
 #endif /* TERMIO_TTY_DRIVER */
 
 /* Other (BSD) machines use sgtty. */
-#if defined (NEW_TTY_DRIVER)
+#if defined (NEW_TTY_DRIVER) 
 #  include <sgtty.h>
 #endif
 
