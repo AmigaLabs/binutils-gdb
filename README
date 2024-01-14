@@ -5,9 +5,26 @@ cd cross-build
 ../configure --enable-plugins --target=ppc-amigaos --prefix=/usr/local/amiga
 make 
 
-To build native AmigaOS4 version, download the repo, use the @nativeOS4-build-newlib@ branch, cd in, and:
+h2. AmigaOS4 native builds
+
+There are tow development branches targing native builds for AmigaOS4 based on the released binutils version 2.40
+
+h3. Using newlib
+
+The @nativeOS4-build-newlib@ branch is for the native AmigaOS4 version using *newlib* as c library, download the repo, checkout the branch, cd in, and:
+
 mkdir native-build
 cd native-build
-CFLAGS="-mcrt=newlib -Wno-sign-compare" LDFLAGS="-lunix" ../configure --disable-gdb --disable-plugins --disable-sim --host=ppc-amigaos --target=ppc-amigaos --prefix=../dist
+CFLAGS="-mcrt=newlib -Wno-sign-compare" LDFLAGS="-lunix" ../configure --disable-gdb --disable-plugins --disable-sim --host=ppc-amigaos --target=ppc-amigaos --prefix=<absolut-path-to>/dist
+make -j 4
+make install
+
+h3. Using clib4 
+
+The @nativeOS4-build-clib4@ branch is for the native AmigaOS4 version using *clib4* as c library, download the repo, checkout the branch, cd in, and:
+
+mkdir native-build
+cd native-build
+CFLAGS="-mcrt=clib4 -DHAVE_POSIX_SIGNALS -Wno-sign-compare" ../configure --disable-gdb --disable-plugins --disable-sim --host=ppc-amigaos --target=ppc-amigaos --prefix=<absolut-path-to>/dist
 make -j 4
 make install
