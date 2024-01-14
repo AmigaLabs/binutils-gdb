@@ -47,6 +47,10 @@ Boston, MA 02110-1301, USA.  */
 #include <fnmatch.h>
 #include <safe-ctype.h>
 
+/* Ignore all this code if targeting AmigaOS4 with clib clib4, because
+   the clib4 clib provided it own fnmatch implementation */
+#if !(defined(__amigaos4__) && defined(__CLIB4__))
+
 /* Comment out all this code if we are using the GNU C Library, and are not
    actually compiling the library itself.  This code is part of the GNU C
    Library, but also included in many other GNU distributions.  Compiling
@@ -54,7 +58,6 @@ Boston, MA 02110-1301, USA.  */
    (especially if it is a shared library).  Rather than having every GNU
    program understand `configure --with-gnu-libc' and omit the object files,
    it is simpler to just do this in the source for each such file.  */
-
 #if defined (_LIBC) || !defined (__GNU_LIBRARY__)
 
 
@@ -218,3 +221,4 @@ fnmatch (const char *pattern, const char *string, int flags)
 }
 
 #endif	/* _LIBC or not __GNU_LIBRARY__.  */
+#endif  /* not (AMIGAOS and CLIB4) $*/
