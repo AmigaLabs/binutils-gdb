@@ -25,6 +25,6 @@ The @nativeOS4-build-clib4@ branch is for the native AmigaOS4 version using *cli
 
 mkdir native-build
 cd native-build
-CFLAGS="-mcrt=clib4 -DHAVE_POSIX_SIGNALS -Wno-sign-compare" ../configure --disable-gdb --disable-plugins --disable-sim --host=ppc-amigaos --target=ppc-amigaos --prefix=<absolut-path-to>/dist
+CFLAGS="-mcrt=clib4 -DHAVE_POSIX_SIGNALS -DHAVE_STRUCT_TIMEVAL -DREPLACE_STRUCT_TIMEVAL=0 -Wno-sign-compare -gstabs -lpthread -athread=native" CXXFLAGS="-mcrt=clib4 -DHAVE_POSIX_SIGNALS -DHAVE_STRUCT_TIMEVAL -DREPLACE_STRUCT_TIMEVAL=0 -Wno-sign-compare -gstabs -lpthread -athread=native" ../configure --disable-plugins --disable-sim --host=ppc-amigaos --target=ppc-amigaos --prefix=<absolut-path-to>/dist
 make -j 4
 make install
