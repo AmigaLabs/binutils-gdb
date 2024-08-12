@@ -36,5 +36,18 @@ print_version (const char *name)
 This program is free software; you may redistribute it under the terms of\n\
 the GNU General Public License version 3 or (at your option) any later version.\n\
 This program has absolutely no warranty.\n"));
+
+#if defined(__amigaos4__)
+# if defined( __NEWLIB__)
+  printf (_("AmigaOS native (ppc-amigaos,newlib).\n"));
+# elif defined( __CLIB4__)
+  printf (_("AmigaOS native (ppc-amigaos,clib4).\n"));
+# elif defined( __CLIB2__ )
+  printf (_("AmigaOS native (ppc-amigaos,clib2).\n"));
+# else
+ printf (_("AmigaOS native (ppc-amigaos,unknown).\n"));
+# endif
+#endif
+
   exit (0);
 }
