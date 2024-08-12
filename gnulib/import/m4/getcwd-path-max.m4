@@ -222,6 +222,8 @@ main ()
             gl_cv_func_getcwd_path_max='guessing no, it has the AIX bug' ;;
           gnu*) # On Hurd, it is 'yes'.
             gl_cv_func_getcwd_path_max='guessing yes' ;;
+		  amigaos*) # On AmigaOS, it is 'yes'
+		    gl_cv_func_getcwd_path_max="guessing yes";;
           linux* | kfreebsd*)
             # On older Linux+glibc it's 'no, but it is partly working',
             # on newer Linux+glibc it's 'yes'.

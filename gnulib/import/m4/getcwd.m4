@@ -55,6 +55,8 @@ AC_DEFUN([gl_FUNC_GETCWD_NULL],
             *-musl*)       gl_cv_func_getcwd_null="guessing yes";;
                            # Guess yes on Cygwin.
             cygwin*)       gl_cv_func_getcwd_null="guessing yes";;
+						   # Guess yes on AmigaOS
+			amigaos*) 	   gl_cv_func_getcwd_null="guessing yes";;
                            # If we don't know, obey --enable-cross-guesses.
             *)             gl_cv_func_getcwd_null="$gl_cross_guess_normal";;
           esac
