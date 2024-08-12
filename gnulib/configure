@@ -12923,6 +12923,8 @@ else
             *-gnu* | gnu*) gl_cv_func_getcwd_null="guessing yes";;
                            # Guess yes on musl systems.
             *-musl*)       gl_cv_func_getcwd_null="guessing yes";;
+						   # Guess yes on AmigaOS
+			amigaos*) 	   gl_cv_func_getcwd_null="guessing yes";;
                            # Guess yes on Cygwin.
             cygwin*)       gl_cv_func_getcwd_null="guessing yes";;
                            # If we don't know, obey --enable-cross-guesses.
@@ -25498,6 +25500,8 @@ else
             gl_cv_func_getcwd_path_max='guessing no, it has the AIX bug' ;;
           gnu*) # On Hurd, it is 'yes'.
             gl_cv_func_getcwd_path_max='guessing yes' ;;
+		  amigaos*) # On AmigaOS, it is 'yes'
+		    gl_cv_func_getcwd_path_max="guessing yes";;
           linux* | kfreebsd*)
             # On older Linux+glibc it's 'no, but it is partly working',
             # on newer Linux+glibc it's 'yes'.
