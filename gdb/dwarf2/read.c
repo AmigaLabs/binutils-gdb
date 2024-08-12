@@ -2858,26 +2858,26 @@ dw2_get_file_names (dwarf2_per_cu_data *this_cu,
 
 static const char *
 dw2_get_real_path (dwarf2_per_objfile *per_objfile,
-		   struct quick_file_names *qfn, int index)
+		   struct quick_file_names *qfn, int i)
 {
   if (qfn->real_names == NULL)
     qfn->real_names = OBSTACK_CALLOC (&per_objfile->per_bfd->obstack,
 				      qfn->num_file_names, const char *);
 
-  if (qfn->real_names[index] == NULL)
+  if (qfn->real_names[i] == NULL)
     {
       const char *dirname = nullptr;
 
-      if (!IS_ABSOLUTE_PATH (qfn->file_names[index]))
+      if (!IS_ABSOLUTE_PATH (qfn->file_names[i]))
 	dirname = qfn->comp_dir;
 
       gdb::unique_xmalloc_ptr<char> fullname;
-      fullname = find_source_or_rewrite (qfn->file_names[index], dirname);
+      fullname = find_source_or_rewrite (qfn->file_names[i], dirname);
 
-      qfn->real_names[index] = fullname.release ();
+      qfn->real_names[i] = fullname.release ();
     }
 
-  return qfn->real_names[index];
+  return qfn->real_names[i];
 }
 
 struct symtab *
@@ -11171,13 +11171,13 @@ try_open_dwop_file (dwarf2_per_objfile *per_objfile,
     {
       if (!debug_file_directory.empty ())
 	{
-	  search_path_holder.reset (concat (".", dirname_separator_string,
+	  search_path_holder.reset (concat ("", dirname_separator_string,
 					    debug_file_directory.c_str (),
 					    (char *) NULL));
 	  search_path = search_path_holder.get ();
 	}
       else
-	search_path = ".";
+	search_path = "";
     }
   else
     search_path = debug_file_directory.c_str ();
