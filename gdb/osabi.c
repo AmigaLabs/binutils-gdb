@@ -82,6 +82,7 @@ static const struct osabi_names gdb_osabi_names[] =
   { "Newlib", NULL },
   { "SDE", NULL },
   { "PikeOS", NULL },
+  { "AmigaOS", NULL },
 
   { "<invalid>", NULL }
 };
@@ -610,6 +611,26 @@ generic_elf_osabi_sniffer (bfd *abfd)
 		  "FreeBSD", sizeof ("FreeBSD")) == 0)
 	osabi = GDB_OSABI_FREEBSD;
     }
+
+  if (osabi == GDB_OSABI_UNKNOWN)
+	{
+	  /* AmigaOS has a symbol __amigaos4__ which marks the ELF */
+	  if (bfd_get_symtab_upper_bound (abfd) > 0 )
+	  {
+		asymbol **symbol_table = (asymbol **)xmalloc (bfd_get_symtab_upper_bound (abfd));
+		if (symbol_table)
+		{
+		  for (int i = 0; i < bfd_canonicalize_symtab(abfd, symbol_table); i++) {
+        	if (strcmp("__amigaos4__", bfd_asymbol_name(symbol_table[i])) == 0) {
+              osabi = GDB_OSABI_AMIGAOS;
+              break;
+			}
+          }
+		  
+		  xfree (symbol_table);
+		}
+	  }
+	}
 
   return osabi;
 }
