@@ -161,14 +161,19 @@ sh_get_home_dir (void)
     return (home_dir);
 
   home_dir = (char *)NULL;
-#if defined (HAVE_GETPWUID)
-#  if defined (__TANDEM)
+
+#if defined (__amigaos4__)
+    home_dir = "PROGDIR:";
+#else
+#  if defined (HAVE_GETPWUID)
+#    if defined (__TANDEM)
   entry = getpwnam (getlogin ());
-#  else
+#    else
   entry = getpwuid (getuid ());
-#  endif
+#    endif
   if (entry)
     home_dir = savestring (entry->pw_dir);
+#  endif
 #endif
 
 #if defined (HAVE_GETPWENT)
