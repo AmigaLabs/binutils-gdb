@@ -232,6 +232,7 @@ struct gdbarch
   gdbarch_auto_wide_charset_ftype *auto_wide_charset = default_auto_wide_charset;
   const char * solib_symbols_extension = 0;
   int has_dos_based_file_system = 0;
+  int has_amiga_based_file_system = 0;
   gdbarch_gen_return_address_ftype *gen_return_address = default_gen_return_address;
   gdbarch_info_proc_ftype *info_proc = nullptr;
   gdbarch_core_info_proc_ftype *core_info_proc = nullptr;
@@ -1274,6 +1275,9 @@ gdbarch_dump (struct gdbarch *gdbarch, struct ui_file *file)
   gdb_printf (file,
 	      "gdbarch_dump: has_dos_based_file_system = %s\n",
 	      plongest (gdbarch->has_dos_based_file_system));
+  gdb_printf (file,
+	      "gdbarch_dump: has_amiga_based_file_system = %s\n",
+	      plongest (gdbarch->has_amiga_based_file_system));
   gdb_printf (file,
 	      "gdbarch_dump: gen_return_address = <%s>\n",
 	      host_address_to_string (gdbarch->gen_return_address));
@@ -4901,6 +4905,28 @@ set_gdbarch_has_dos_based_file_system (struct gdbarch *gdbarch,
 				       int has_dos_based_file_system)
 {
   gdbarch->has_dos_based_file_system = has_dos_based_file_system;
+
+  if( has_dos_based_file_system )
+	set_gdbarch_has_amiga_based_file_system( gdbarch,0 );
+}
+
+int gdbarch_has_amiga_based_file_system (struct gdbarch *gdbarch)
+{
+  gdb_assert (gdbarch != NULL);
+  /* Skip verify of has_amiga_based_file_system, invalid_p == 0 */
+  if (gdbarch_debug >= 2)
+    gdb_printf (gdb_stdlog, "gdbarch_has_amiga_based_file_system called\n");
+  return gdbarch->has_amiga_based_file_system;
+}
+
+void
+set_gdbarch_has_amiga_based_file_system (struct gdbarch *gdbarch,
+				       int has_amiga_based_file_system)
+{
+  gdbarch->has_amiga_based_file_system = has_amiga_based_file_system;
+
+  if( has_amiga_based_file_system )
+	set_gdbarch_has_dos_based_file_system( gdbarch,0 );
 }
 
 void

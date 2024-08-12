@@ -74,10 +74,30 @@ dos_lbasename (const char *name)
 }
 
 const char *
+amiga_lbasename (const char *name)
+{
+  const char *base = name;
+
+  /* Skip over a possible disk name.  */
+  if (HAS_AMIGOS_DRIVE_SPEC (name)) {
+    base = STRIP_DRIVE_SPEC (name);
+  };
+
+  /* Strip any directories */
+  for (; *name; name++)
+    if (IS_AMIGOS_DIR_SEPARATOR (*name))
+      base = name + 1;
+
+  return base;
+}
+
+const char *
 lbasename (const char *name)
 {
 #if defined (HAVE_DOS_BASED_FILE_SYSTEM)
   return dos_lbasename (name);
+#elif defined (HAVE_AMIGA_BASED_FILE_SYSTEM)
+  return amiga_lbasename (name);
 #else
   return unix_lbasename (name);
 #endif

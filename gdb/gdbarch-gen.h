@@ -1485,6 +1485,13 @@ extern void set_gdbarch_solib_symbols_extension (struct gdbarch *gdbarch, const 
 extern int gdbarch_has_dos_based_file_system (struct gdbarch *gdbarch);
 extern void set_gdbarch_has_dos_based_file_system (struct gdbarch *gdbarch, int has_dos_based_file_system);
 
+/* If true, the target OS has AMIGA-based file system semantics.  That
+   is, absolute paths include a drive name, and the slash is
+   considered a directory separator. */
+
+extern int gdbarch_has_amiga_based_file_system (struct gdbarch *gdbarch);
+extern void set_gdbarch_has_amiga_based_file_system (struct gdbarch *gdbarch, int has_dos_based_file_system);
+
 /* Generate bytecodes to collect the return address in a frame.
    Since the bytecodes run on the target, possibly with GDB not even
    connected, the full unwinding machinery is not available, and

@@ -127,6 +127,11 @@ extern const char *lbasename (const char *) ATTRIBUTE_RETURNS_NONNULL ATTRIBUTE_
 
 extern const char *dos_lbasename (const char *) ATTRIBUTE_RETURNS_NONNULL ATTRIBUTE_NONNULL(1);
 
+/* Same, but assumes AMIGA semantics (drive name, slash is also a
+   dir separator) regardless of host.  */
+
+extern const char *amiga_lbasename (const char *) ATTRIBUTE_RETURNS_NONNULL ATTRIBUTE_NONNULL(1);
+
 /* Same, but assumes Unix semantics (absolute paths always start with
    a slash, only forward slash is accepted as dir separator)
    regardless of host.  */
