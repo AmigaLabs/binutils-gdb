@@ -507,6 +507,12 @@ powerpc*-*-linux*)
 			linux-record.o \
 			arch/ppc-linux-common.o"
 	;;
+powerpc-*-amigaos*)
+	# Target: PowerPC running AmigaOS
+	gdb_target_obs="rs6000-tdep.o ppc-sysv-tdep.o \
+			ppc-amigaos-tdep.o \
+			ravenscar-thread.o ppc-ravenscar-thread.o"
+	;;	
 powerpc-*-lynx*178)
 	# Target: PowerPC running Lynx178.
 	gdb_target_obs="rs6000-tdep.o rs6000-lynx178-tdep.o \
@@ -799,6 +805,7 @@ m68*-*-openbsd* | m88*-*-openbsd* | vax-*-openbsd*) ;;
 *-*-mingw*)	gdb_osabi=GDB_OSABI_WINDOWS ;;
 *-*-cygwin*)	gdb_osabi=GDB_OSABI_CYGWIN ;;
 *-*-dicos*)	gdb_osabi=GDB_OSABI_DICOS ;;
+powerpc-*-amigaos*)	gdb_osabi=GDB_OSABI_AMIGAOS ;;
 powerpc-*-aix* | rs6000-*-* | powerpc64-*-aix*)
                 gdb_osabi=GDB_OSABI_AIX ;;
 esac

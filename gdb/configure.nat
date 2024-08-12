@@ -112,6 +112,14 @@ case ${gdb_host} in
 		;;
 	esac
 	;;
+    amigaos)
+	case ${gdb_host_cpu} in
+	    powerpc)
+		# Host: Big-endian PowerPC running AmigaOS
+		NATDEPFILES="${NATDEPFILES} ppc-amigaos-nat.o"
+		;;
+	esac
+	;;
     alpha-linux)
 	case ${gdb_host_cpu} in
 	    alpha)
