@@ -71,7 +71,11 @@ static int _rl_char_search_callback PARAMS((_rl_callback_generic_arg *));
    rl_insert_text.  Text blocks larger than this are divided. */
 #define TEXT_COUNT_MAX	1024
 
-int _rl_optimize_typeahead = 1;	/* rl_insert tries to read typeahead */
+#ifndef __amigaos4__
+int _rl_optimize_typeahead = 1; /* rl_insert tries to read typeahead */
+#else
+int _rl_optimize_typeahead = 0; /* set it to 0 until we find why echo is not on */
+#endif
 
 /* **************************************************************** */
 /*								    */

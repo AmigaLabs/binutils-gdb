@@ -1336,6 +1336,17 @@ bind_arrow_keys_internal (Keymap map)
   rl_bind_keyseq_if_unbound ("\033[0B", rl_backward_char);
   rl_bind_keyseq_if_unbound ("\033[0C", rl_forward_char);
   rl_bind_keyseq_if_unbound ("\033[0D", rl_get_next_history);
+#elif defined(__amigaos4__)
+    rl_bind_keyseq_if_unbound("\233A", rl_get_previous_history);
+    rl_bind_keyseq_if_unbound("\233B", rl_get_next_history);
+    rl_bind_keyseq_if_unbound("\233C", rl_forward_char);
+    rl_bind_keyseq_if_unbound("\233D", rl_backward_char);
+    rl_bind_keyseq_if_unbound("\23344~", (rl_command_func_t *)0x0); //rl_beg_of_line); disable for now
+    rl_bind_keyseq_if_unbound("\23345~", (rl_command_func_t *)0x0); //rl_end_of_line); disable for now
+    rl_bind_keyseq_if_unbound("\23341~", (rl_command_func_t *)0x0); //Next Page
+    rl_bind_keyseq_if_unbound("\23342~", (rl_command_func_t *)0x0); //Previous Page
+    rl_bind_keyseq_if_unbound("\177", rl_delete);
+    rl_bind_keyseq_if_unbound("\23340", rl_overwrite_mode);  
 #endif
 
   rl_bind_keyseq_if_unbound ("\033[A", rl_get_previous_history);

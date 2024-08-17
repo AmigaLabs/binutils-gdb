@@ -79,3 +79,6 @@ stamp-*
 /mpc*
 /gmp*
 /isl*
+
+.vscode
+.idea

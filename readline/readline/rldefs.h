@@ -40,12 +40,19 @@
 #  if defined (HAVE_TERMIO_H)
 #    define TERMIO_TTY_DRIVER
 #  else
-#    if !defined (__MINGW32__)
+#    if !defined (__MINGW32__) && !defined(__amigaos4__)
 #      define NEW_TTY_DRIVER
 #    else
 #      define NO_TTY_DRIVER
 #    endif
 #  endif
+#endif
+
+#ifdef __amigaos4__
+#undef DEFAULT_INPUTRC
+#undef SYS_INPUTRC
+#define DEFAULT_INPUTRC "PROGDIR:inputrc"
+#define SYS_INPUTRC "ENVARC:inputrc"
 #endif
 
 /* Posix macro to check file in statbuf for directory-ness.
