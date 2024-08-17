@@ -993,9 +993,13 @@ _rl_read_init_file (const char *filename, int include_level)
   current_readline_init_file = filename;
   current_readline_init_include_level = include_level;
 
-  openname = tilde_expand (filename);
-  buffer = _rl_read_file (openname, &file_size);
-  xfree (openname);
+#ifndef __amigaos4__
+  openname = tilde_expand(filename);
+  buffer = _rl_read_file(openname, &file_size);
+  xfree(openname);
+#else
+  buffer = _rl_read_file((char *)filename, &file_size);
+#endif
 
   RL_CHECK_SIGNALS ();
   if (buffer == 0)
