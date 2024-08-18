@@ -61,6 +61,7 @@
 
 /* The definition of _GL_WARN_ON_USE is copied here.  */
 
+#ifndef __amigaos4__
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -84,6 +85,7 @@ struct timeval
 
 #ifdef __cplusplus
 }
+#endif
 #endif
 
 #if @GNULIB_GETTIMEOFDAY@
