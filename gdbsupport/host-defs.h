@@ -50,6 +50,15 @@
 # define DIRNAME_SEPARATOR ';'
 #endif
 
+#if defined(__amigaos4__) 
+# define CANT_FORK
+# undef HAVE_SIGPROCMASK
+# undef HAVE_SIGTIMEDWAIT
+# undef HAVE_POLL
+# undef HAVE_SOCKETPAIR
+# define DIRNAME_SEPARATOR ';'
+#endif
+
 #ifndef DIRNAME_SEPARATOR
 #define DIRNAME_SEPARATOR ':'
 #endif
