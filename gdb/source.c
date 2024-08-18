@@ -831,7 +831,11 @@ openp (const char *path, openp_flags opts, const char *string,
     }
 
   if (!path)
+  #if defined(__amigaos4__) 
+    path = "\"\"";
+  #elif
     path = ".";
+  #endif
 
   mode |= O_BINARY;
 
@@ -878,7 +882,7 @@ openp (const char *path, openp_flags opts, const char *string,
       size_t len = strlen (dir);
       int reg_file_errno;
 
-      if (strcmp (dir, "$cwd") == 0)
+      if (strcmp (dir, "$cwd") == 0 || strcmp (dir, "") == 0)
 	{
 	  /* Name is $cwd -- insert current directory name instead.  */
 	  int newlen;

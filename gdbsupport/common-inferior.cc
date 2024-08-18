@@ -39,6 +39,11 @@ construct_inferior_arguments (gdb::array_view<char * const> argv)
 	 Windows shells.  */
       static const char special[] = "\"!&*|[]{}<>?`~^=;, \t\n";
       static const char quote = '"';
+#elif __amigaos4__
+      /* This holds all the characters considered special to the
+	 Amiga shells. Currently copy of unix */
+      static const char special[] = "\"!#$&*()\\|[]{}<>?'`~^; \t\n";
+      static const char quote = '"';
 #else
       /* This holds all the characters considered special to the
 	 typical Unix shells.  We include `^' because the SunOS
