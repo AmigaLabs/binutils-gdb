@@ -21,6 +21,7 @@
 #define COMMON_COMMON_DEFS_H
 
 #include <gdbsupport/config.h>
+#include <gdbsupport/host-defs.h>
 
 #undef PACKAGE_NAME
 #undef PACKAGE
