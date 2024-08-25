@@ -59,7 +59,7 @@ struct amigaos_debug_hook_data
     struct MsgPort		*debugger_port;
 };
 
-/* The type of Message sent by IDebug->AddDebugHook () */
+/* The type of Message sent by IExec->AddDebugHook () */
 struct KernelDebugMessage
 {
   uint32 type;
@@ -847,11 +847,11 @@ VOID amigaos_debug_suspend( struct Hook *amigaos_debug_hook )
 {
 	struct Task *current = IExec->FindTask (NULL);
 
-	printf ("[GDB] %s inferiorer %p started by kernel, suspending myself and installing debug hook: %p\n",__func__,current,amigaos_debug_hook);
+	IExec->DebugPrintF("[GDB] %s inferiorer %p started by kernel, suspending myself and installing debug hook: %p\n",__func__,current,amigaos_debug_hook);
 	
 	IExec->SuspendTask (current,0);
 
-	printf ("[GDB] %s inferiorer %p started by gdb\n",__func__,current);
+	IExec->DebugPrintF("[GDB] %s inferiorer %p started by gdb\n",__func__,current);
 }
 
 ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct KernelDebugMessage *dbgmsg )
@@ -861,18 +861,18 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 	
 	if( (struct Task *)data->current_process != currentTask )
 	{
-		printf ("[GDB] Task: %p ('%s'), task NOT under our observation\n",currentTask,currentTask->tc_Node.ln_Name);
+		IExec->DebugPrintF ("[GDB] Task: %p ('%s'), task NOT under our observation\n",currentTask,currentTask->tc_Node.ln_Name);
 
 		return 0;
 	}
-	printf ("[GDB] Task: %p ('%s'), task IS under our observation\n",currentTask,currentTask->tc_Node.ln_Name);
+	IExec->DebugPrintF ("[GDB] Task: %p ('%s'), task IS under our observation\n",currentTask,currentTask->tc_Node.ln_Name);
 
 
 	switch( dbgmsg->type ) 
 	{
 		case DBHMT_EXCEPTION:
 		{
-			printf ("[GDB] Task: %p ('%s'),Exception ooccured (DBHMT_EXCEPTION)\n",currentTask,currentTask->tc_Node.ln_Name);
+			IExec->DebugPrintF ("[GDB] Task: %p ('%s'),Exception ooccured (DBHMT_EXCEPTION)\n",currentTask,currentTask->tc_Node.ln_Name);
 
 			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);
 			message->flags	= 0;
@@ -896,7 +896,7 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 		}
 		case DBHMT_REMTASK:
 		{
-			printf ("[GDB] Task: %p ('%s'), (DBHMT_REMTASK), Task removed\n",currentTask,currentTask->tc_Node.ln_Name);
+			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_REMTASK), Task removed\n",currentTask,currentTask->tc_Node.ln_Name);
 
 			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);
 			message->flags	= DM_FLAGS_TASK_TERMINATED;
@@ -908,7 +908,7 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 		}
 		case DBHMT_OPENLIB:
 		{
-			printf ("[GDB] Task: %p ('%s'), (DBHMT_OPENLIB), Task opened library '%s'\n",currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString);
+			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_OPENLIB), Task opened library '%s'\n",currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString);
 
 			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);
 			message->flags		= DM_FLAGS_TASK_OPENLIB;
@@ -921,7 +921,7 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 		}
 		case DBHMT_CLOSELIB:
 		{
-			printf ("[GDB] Task: %p ('%s'), (DBHMT_CLOSELIB), Task closed library '%s'\n",currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString);
+			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_CLOSELIB), Task closed library '%s'\n",currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString);
 
 			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);	
 			message->flags		= DM_FLAGS_TASK_CLOSELIB;
@@ -934,17 +934,17 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 		}
 		case DBHMT_SHAREDOBJECTOPEN:
 		{
-			printf ("[GDB] Task: %p ('%s'), (DBHMT_SHAREDOBJECTOPEN), Task opened shared object '%s'\n",currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString);
+			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_SHAREDOBJECTOPEN), Task opened shared object '%s'\n",currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString);
 			break;
 		}
 		case DBHMT_SHAREDOBJECTCLOSE:
 		{
-			printf ("[GDB] Task: %p ('%s'), (DBHMT_SHAREDOBJECTCLOSE), Task closed shared object '%s'\n",currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString);
+			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_SHAREDOBJECTCLOSE), Task closed shared object '%s'\n",currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString);
 			break;
 		}
 		default:
 		{
-			printf ("[GDB] Task: %p ('%s'), (DBHMT_UNKNOWN), Task unknown message type %lu\n",currentTask,currentTask->tc_Node.ln_Name,dbgmsg->type);
+			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_UNKNOWN), Task unknown message type %lu\n",currentTask,currentTask->tc_Node.ln_Name,dbgmsg->type);
 		}
 	}
 
@@ -954,67 +954,67 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 static int
 trap_to_signal(struct ExceptionContext *context, uint32 flags)
 {
-	printf( "[GDB] trap_to_signal ( flags: 0x%lx )\n",flags );
+	IExec->DebugPrintF( "[GDB] trap_to_signal ( flags: 0x%lx )\n",flags );
 
 	if (!context || (flags & DM_FLAGS_TASK_TERMINATED)) {
-		printf( "[GDB] Return GDB_SIGNAL_QUIT )\n" );
+		IExec->DebugPrintF( "[GDB] Return GDB_SIGNAL_QUIT )\n" );
 	
 		return GDB_SIGNAL_QUIT;
 	}
 
-	printf( "[GDB] traptype: 0x%lx\n",context->Traptype );
+	IExec->DebugPrintF( "[GDB] traptype: 0x%lx\n",context->Traptype );
 
 	switch (context->Traptype)
 	{
 	case TRAP_MCE:
 	case TRAP_DSI:
-		printf( "[GDB] Return ( GDB_SIGNAL_SEGV )\n" );
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_SEGV )\n" );
 		return GDB_SIGNAL_SEGV;
 	case TRAP_ISI:
 	case TRAP_ALIGN:
-		printf( "[GDB] Return ( GDB_SIGNAL_BUS )\n" );
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_BUS )\n" );
 		return GDB_SIGNAL_BUS;
 	case TRAP_EXTERN:
-		printf( "[GDB] Return ( GDB_SIGNAL_INT )\n" );
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_INT )\n" );
 		return GDB_SIGNAL_INT;
 	case TRAP_PROG: 
 		if (context->msr & EXC_FPE) {
-			printf( "[GDB] Return ( GDB_SIGNAL_FPE )\n" );
+			IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_FPE )\n" );
 			return GDB_SIGNAL_FPE;
 		}
 		else if (context->msr & EXC_ILLEGAL) {
-			printf( "[GDB] Return ( GDB_SIGNAL_ILL )\n" );
+			IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_ILL )\n" );
 			return GDB_SIGNAL_ILL;
 		}
 		else if (context->msr & EXC_PRIV) {
-			printf( "[GDB] Return ( GDB_SIGNAL_ILL )\n" );
+			IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_ILL )\n" );
 			return GDB_SIGNAL_ILL;
 		}
 		else {
-			printf( "[GDB] Return ( GDB_SIGNAL_TRAP )\n" );
+			IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_TRAP )\n" );
 			return GDB_SIGNAL_TRAP;
 		}
 	case TRAP_FPU:
-		printf( "[GDB] Return ( GDB_SIGNAL_FPE )\n" );
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_FPE )\n" );
 		return GDB_SIGNAL_FPE;
 	case TRAP_DEC:
-		printf( "[GDB] Return ( GDB_SIGNAL_ALRM )\n" );
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_ALRM )\n" );
 		return GDB_SIGNAL_ALRM;
 	case TRAP_RESERVEDA:
 	case TRAP_RESERVEDB:
-		printf( "[GDB] Return ( GDB_SIGNAL_ILL )\n" );
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_ILL )\n" );
 		return GDB_SIGNAL_ILL;
 	case TRAP_SYSCALL:
-		printf( "[GDB] Return ( GDB_SIGNAL_CHLD )\n" );
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_CHLD )\n" );
 		return GDB_SIGNAL_CHLD;
 	case TRAP_TRACEI:
-		printf( "[GDB] Return ( GDB_SIGNAL_TRAP )\n" );
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_TRAP )\n" );
 		return GDB_SIGNAL_TRAP;
 	case TRAP_FPA:
-		printf( "[GDB] Return ( GDB_SIGNAL_FPE )\n" );
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_FPE )\n" );
 		return GDB_SIGNAL_FPE;
 	default:
-		printf( "[GDB] Return ( -1 )\n" );
+		IExec->DebugPrintF( "[GDB] Return ( -1 )\n" );
 		return -1;
 	}
 }
