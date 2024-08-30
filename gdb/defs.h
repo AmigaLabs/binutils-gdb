@@ -34,6 +34,9 @@
 #undef PACKAGE_TARNAME
 
 #include <config.h>
+#if defined(__amigaos4__) 
+# undef HAVE_SOCKETPAIR
+#endif
 #include "bfd.h"
 
 #include <sys/types.h>
