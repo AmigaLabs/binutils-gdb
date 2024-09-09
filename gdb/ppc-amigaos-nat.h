@@ -22,6 +22,8 @@
 
 #include <exec/ports.h>
 
+#define PPC_AMIGAOS_SIZEOF_VRREGSET 532
+
 // Chapter Interrupt Reference union from different ppc32 cpus
 #define TRAP_RESET 			0x0100 /* System reset */
 #define TRAP_MCE   			0x0200 /* Machine check */

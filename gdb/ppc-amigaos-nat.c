@@ -24,6 +24,7 @@
 #include "symtab.h"
 #include "exec.h"
 #include "inferior.h"
+#include "regset.h"
 #include "regcache.h"
 #include "inf-child.h"
 #include "ppc-tdep.h"
@@ -44,6 +45,21 @@
 #include <dos/dostags.h>
 #include <dos/dosextens.h>
 
+
+struct regcache_map_entry ppc_amigaos_vrregmap[] =
+{
+	{ 1,	PPC_VSCR_REGNUM,	16 },
+	{ 32,	PPC_VR0_REGNUM,		16 },
+	{ 1,	PPC_VRSAVE_REGNUM,	 4 },
+	{ 0 }
+};
+
+const struct regset ppc_amigaos_vrregset = 
+{
+	ppc_amigaos_vrregmap,
+	regcache_supply_regset,
+	regcache_collect_regset
+};
 
 // From clib4 , bucket list to clear up 
 extern struct Library *ElfBase;
@@ -557,6 +573,11 @@ ppc_amigaos_nat_target::fetch_registers (struct regcache *regcache, int regno)
 		regcache->raw_supply (tdep->ppc_ctr_regnum, (void *)&context.ctr);
 		regcache->raw_supply (tdep->ppc_xer_regnum, (void *)&context.xer);
 		regcache->raw_supply (tdep->ppc_fpscr_regnum, (void *)&context.fpscr);			
+
+		if (tdep->ppc_vr0_regnum != -1 && tdep->ppc_vrsave_regnum != -1)
+		{
+			ppc_amigaos_vrregset.supply_regset( &ppc_amigaos_vrregset,regcache,regno,(void *)&context.vscr,PPC_AMIGAOS_SIZEOF_VRREGSET );
+		}
 	}
 	else 
 	{
@@ -564,8 +585,13 @@ ppc_amigaos_nat_target::fetch_registers (struct regcache *regcache, int regno)
 		{			
 			regcache->raw_supply (regno, (void*)&context.ip);
 		}
-		else if (regno >= 0 && regno <= 31) {
+		else if (regno >= 0 && regno <= 31) 
+		{
 			regcache->raw_supply (regno, (void*)&context.gpr[regno]);
+		}
+		else if (altivec_register_p (gdbarch, regno))
+		{
+			ppc_amigaos_vrregset.supply_regset( &ppc_amigaos_vrregset,regcache,regno,(void *)&context.vscr,PPC_AMIGAOS_SIZEOF_VRREGSET );
 		}
 		else if (regno >= 32 && regno <= 64)
 			regcache->raw_supply (regno, (void*)&context.fpr[regno]);
@@ -581,6 +607,10 @@ ppc_amigaos_nat_target::fetch_registers (struct regcache *regcache, int regno)
 			regcache->raw_supply (tdep->ppc_xer_regnum, (void *)&context.xer);
 		else if (regno == tdep->ppc_fpscr_regnum)
 			regcache->raw_supply (tdep->ppc_fpscr_regnum, (void *)&context.fpscr);		
+		else if (regno == tdep->ppc_vr0_regnum)
+			regcache->raw_supply (tdep->ppc_vr0_regnum, (void *)&context.vr );		
+		else if (regno == tdep->ppc_vrsave_regnum)
+			regcache->raw_supply (tdep->ppc_vrsave_regnum, (void *)&context.vrsave );		
 		else
 		{
 			internal_error (_("fetch_registers: unexpected register: '%s'"),gdbarch_register_name ( gdbarch,regno ));
