@@ -561,7 +561,11 @@ rl_getc (FILE *stream)
       /* If zero characters are returned, then the file that we are
 	 reading from is empty!  Return EOF in that case. */
       if (result == 0)
-	return (EOF);
+#ifndef __amigaos4__
+        return (EOF);
+#else
+        continue;
+#endif
 
 #if defined (__BEOS__)
       if (errno == EINTR)
