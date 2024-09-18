@@ -156,6 +156,8 @@ choose_tmpdir (void)
       tmpdir[len] = DIR_SEPARATOR;
       tmpdir[len+1] = '\0';
       memoized_tmpdir = tmpdir;
+#elif __amigaos4__
+    memoized_tmpdir = xstrdup ("T:");
 #else /* defined(_WIN32) && !defined(__CYGWIN__) */
       DWORD len;
 

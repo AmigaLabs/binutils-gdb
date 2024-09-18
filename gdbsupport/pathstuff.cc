@@ -291,7 +291,8 @@ get_standard_temp_dir ()
     return tmp;
 
   error (_("Couldn't find temp dir path, both TMP and TEMP are unset."));
-
+#elif __amigaos4__
+  return "T:";
 #else
   const char *tmp = getenv ("TMPDIR");
   if (tmp != nullptr)
@@ -330,7 +331,14 @@ get_standard_config_dir ()
       return path_join (abs.c_str (), HOME_CONFIG_DIR, "gdb");
     }
 
+#ifdef __amigaos4__
+  // Its always ENVARC: on AmigaOS
+  /* Make sure the path is absolute and tilde-expanded.  */
+  std::string abs = gdb_abspath ("ENVARC:");
+  return path_join (abs.c_str (), HOME_CONFIG_DIR, "gdb");
+#else
   return {};
+#endif
 }
 
 /* See pathstuff.h. */
