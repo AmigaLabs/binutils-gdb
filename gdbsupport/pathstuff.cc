@@ -232,6 +232,8 @@ get_standard_cache_dir ()
 {
 #ifdef __APPLE__
 #define HOME_CACHE_DIR "Library/Caches"
+#elif __amigaos4__
+#define HOME_CACHE_DIR "cache"
 #else
 #define HOME_CACHE_DIR ".cache"
 #endif
@@ -264,7 +266,14 @@ get_standard_cache_dir ()
     }
 #endif
 
+#ifdef __amigaos4__
+  // Its always PROGDIR: on AmigaOS
+  /* Make sure the path is absolute and tilde-expanded.  */
+  std::string abs = gdb_abspath ("PROGDIR:");
+  return path_join (abs.c_str (), HOME_CACHE_DIR, "gdb");
+#else
   return {};
+#endif
 }
 
 /* See gdbsupport/pathstuff.h.  */

@@ -83,7 +83,7 @@ extern "C" {
 #define IS_DOS_ABSOLUTE_PATH(f) IS_ABSOLUTE_PATH_1 (1, f)
 #define HAS_DOS_DRIVE_SPEC(f) HAS_DRIVE_SPEC_1 (1, f)
 
-#define IS_AMIGOS_DIR_SEPARATOR(c) IS_DIR_SEPARATOR_1 (0, c)
+#define IS_AMIGOS_DIR_SEPARATOR(c) ( ((c) == '/') || ((c) == ':') )
 #define IS_AMIGOS_ABSOLUTE_PATH(f) HAS_AMIGOS_DRIVE_SPEC(f)
 #define HAS_AMIGOS_DRIVE_SPEC(f) (index (&(f)[0], ':') != NULL ) 
 
