@@ -188,12 +188,29 @@ public:
 		IExec->RestartTask (task,0);
 	}
 
-	/*
 	void kill () override
 	{
-		printf( "[GDB] %s ()\n",__func__ );
+		struct inferior *inf = current_inferior ();
+
+		if (inferior_ptid == null_ptid)
+			return;
+
+		gdb_assert (inf != NULL);
+
+		struct Task *task = (struct Task *)inf->pid;
+
+		IExec->DebugPrintF( "[GDB] %s ( task: %p )\n",__func__,task );
+
+		if( task ) 
+		{
+			/* Clear the debug hook (necessary to avoid the shell reusing it) */ 
+			IDebug->AddDebugHook ( task,NULL );
+
+			IExec->DeleteTask ( task );		
+		}
+
+		target_mourn_inferior(inferior_ptid);		
 	}
-	*/
 	
 	/*
 	std::string pid_to_str (ptid_t ptid) override
@@ -359,9 +376,6 @@ ppc_amigaos_nat_target::ppc_amigaos_nat_target ()
 
 ppc_amigaos_nat_target::~ppc_amigaos_nat_target ()
 {
-	/* Clear the debug hook (necessary to avoid the shell reusing it) */ 
-	IDebug->AddDebugHook ((struct Task *)amigaos_debug_hook_data.current_process,NULL );
-
 	/* Free pending messages and port */
 	while (struct debugger_message *message = (struct debugger_message *)IExec->GetMsg (amigaos_debug_hook_data.debugger_port))
 		free_message (message);
