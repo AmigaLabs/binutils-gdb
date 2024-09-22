@@ -87,6 +87,7 @@ struct KernelDebugMessage
 };
 
 static VOID amigaos_debug_suspend ( struct Hook *amigaos_debug_hook );
+static VOID amigaos_debug_kill ( int32 return_code,struct debugger_message *dmsg );
 static ULONG amigaos_debug_callback (struct Hook *, struct Task *, struct KernelDebugMessage *);
 static int trap_to_signal(struct ExceptionContext *context, uint32 flags);
 void ppc_amigaos_relocate_sections (const char *exec_file,BPTR exec_seglist);
@@ -206,6 +207,7 @@ public:
 			/* Clear the debug hook (necessary to avoid the shell reusing it) */ 
 			IDebug->AddDebugHook ( task,NULL );
 
+			// ML: According to the dos Autodoc DeleteTask/RemTask shouldn't be used on Process, but no other API avaiblle
 			IExec->DeleteTask ( task );		
 		}
 
@@ -437,6 +439,8 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 
 	while( 1 )
 	{
+		IExec->DebugPrintF("[GDB] %s Entering wait loop\n",__func__);
+
 		uint32 signal = IExec->Wait (SIGBREAKF_CTRL_D|SIGBREAKF_CTRL_C|1<<amigaos_debug_hook_data.debugger_port->mp_SigBit);
 
 		if( ( signal & SIGBREAKF_CTRL_D ) == SIGBREAKF_CTRL_D )
@@ -444,6 +448,8 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 			IExec->DebugPrintF("[GDB] %s received SIGBREAKF_CTRL_D\n",__func__);
 
 			ourstatus->set_exited (0);
+
+			IExec->DebugPrintF("[GDB] %s@%d Leaving with ptid: 0x%08x\n",__func__,__LINE__,ptid );
 
 			return ptid;
 		}
@@ -456,105 +462,133 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 
 			ourstatus->set_stopped (GDB_SIGNAL_TRAP);
 
+			IExec->DebugPrintF("[GDB] %s@%d Leaving with ptid: 0x%08x\n",__func__,__LINE__,ptid );
+
 			return ptid;
 		}
 
 		while (struct Message *message = IExec->GetMsg (amigaos_debug_hook_data.debugger_port) ) 		
 		{
-			IExec->DebugPrintF("[GDB] %s received message: %p\n",__func__,message);
+			IExec->DebugPrintF("[GDB] %s received message: %p\n",__func__,message );
 
-			if( message->mn_Node.ln_Name != NULL && strcmp (message->mn_Node.ln_Name,"DeathMessage") == 0)
+			struct debugger_message *debuggerMessage = (struct debugger_message *)message;
+
+			IExec->DebugPrintF("[GDB] %s received debug message for task: %p\n",__func__,debuggerMessage->process );
+
+			if( debuggerMessage->signal == -1 )
 			{
-				struct DeathMessage *deathMesage = (struct DeathMessage *)message;
+				switch( debuggerMessage->flags )
+				{
+					case DM_FLAGS_TASK_OPENLIB:
+					{
+						IExec->DebugPrintF("[GDB] %s received task open library\n",__func__);
+
+						break;
+					}
+					case DM_FLAGS_TASK_CLOSELIB:
+					{
+						IExec->DebugPrintF("[GDB] %s received task close library\n",__func__);
+
+						break;
+					}
+					case DM_FLAGS_TASK_TERMINATED:
+					{
+						IExec->DebugPrintF("[GDB] %s received task terminated\n",__func__);
+
+						if( process == debuggerMessage->process) 
+						{
+							ourstatus->set_exited (0);
+
+							kill();
+						}
+
+						break;
+					}
+					case DM_FLAGS_TASK_FINAL:
+					{
+						IExec->DebugPrintF("[GDB] %s received SIGB_CHILD of Process %p with dos return: %ld\n",__func__,debuggerMessage->process,debuggerMessage->ReturnCode);
+
+						if( debuggerMessage->process == process ) {
+							ourstatus->set_exited (debuggerMessage->ReturnCode);
+
+							kill();
+
+							free_message (debuggerMessage);
+
+							IExec->DebugPrintF("[GDB] %s@%d Leaving with ptid: 0x%08x\n",__func__,__LINE__,ptid );
+
+							return ptid;
+						}
+						else
+						{
+							IExec->DebugPrintF("[GDB] Process %p already killed\n",__func__,__LINE__,debuggerMessage->process );
+						}
+
+						break;
+					}
+					default:
+					{
+						IExec->DebugPrintF("[GDB] %s received unknown flags for signal -1 from callback %ld\n",__func__,debuggerMessage->flags);
+	
+						break;
+					}
+				}
+
+				free_message (debuggerMessage);
+			}
+			else
+			{
+				IExec->DebugPrintF("[GDB] %s Inferior (%p) signaled : '%s'\n",__func__,process,gdb_signal_to_name ((enum gdb_signal)debuggerMessage->signal));
+
+				switch (debuggerMessage->signal)
+				{
+					case GDB_SIGNAL_CHLD:
+					{
+						ourstatus->set_signalled (GDB_SIGNAL_0);
+
+						break;
+					}
+					case GDB_SIGNAL_QUIT:
+					{
+						ourstatus->set_signalled (GDB_SIGNAL_QUIT);
+
+						break;
+					}
+					case GDB_SIGNAL_TRAP:
+					{
+						ourstatus->set_stopped (GDB_SIGNAL_TRAP);
+
+						break;
+					}
+					case GDB_SIGNAL_SEGV:
+					case GDB_SIGNAL_BUS:
+					case GDB_SIGNAL_INT:
+					case GDB_SIGNAL_FPE:
+					case GDB_SIGNAL_ILL:
+					case GDB_SIGNAL_ALRM:					
+					{					
+						ourstatus->set_stopped (GDB_SIGNAL_0);
+
+						break;
+					}
+					default:
+					{
+						IExec->DebugPrintF("[GDB] %s received unknown signal from callback %ld\n",__func__,debuggerMessage->signal);
+
+						break;
+					}
+				}
+
+				free_message (debuggerMessage);
 				
-				IExec->DebugPrintF("[GDB] %s received SIGB_CHILD with dos return: %ld\n",__func__,deathMesage->dm_ReturnCode);
-
-				ourstatus->set_exited (deathMesage->dm_ReturnCode);
-
-				IExec->FreeVec (deathMesage);
+				IExec->DebugPrintF("[GDB] %s@%d Leaving with ptid: 0x%08x\n",__func__,__LINE__,ptid );
 
 				return ptid;
-			}
-			else 
-			{
-				struct debugger_message *debuggerMessage = (struct debugger_message *)message;
-				if( debuggerMessage->signal == -1 )
-				{
-					switch( debuggerMessage->flags )
-					{
-						case DM_FLAGS_TASK_OPENLIB:
-						{
-							IExec->DebugPrintF("[GDB] %s received task open library\n",__func__);
-
-							break;
-						}
-						case DM_FLAGS_TASK_CLOSELIB:
-						{
-							IExec->DebugPrintF("[GDB] %s received task close library\n",__func__);
-
-							break;
-						}
-						default:
-						{
-							IExec->DebugPrintF("[GDB] %s received unknown flags for signal -1 from callback %ld\n",__func__,debuggerMessage->flags);
-		
-							break;
-						}
-					}
-
-
-					free_message (debuggerMessage);
-				}
-				else
-				{
-					IExec->DebugPrintF("[GDB] %s Inferior (%p) signaled : '%s'\n",__func__,process,gdb_signal_to_name ((enum gdb_signal)debuggerMessage->signal));
-
-					switch (debuggerMessage->signal)
-					{
-						case GDB_SIGNAL_CHLD:
-						{
-							ourstatus->set_signalled (GDB_SIGNAL_0);
-
-							break;
-						}
-						case GDB_SIGNAL_QUIT:
-						{
-							ourstatus->set_signalled (GDB_SIGNAL_QUIT);
-
-							break;
-						}
-						case GDB_SIGNAL_TRAP:
-						{
-							ourstatus->set_stopped (GDB_SIGNAL_TRAP);
-
-							break;
-						}
-						case GDB_SIGNAL_SEGV:
-						case GDB_SIGNAL_BUS:
-						case GDB_SIGNAL_INT:
-						case GDB_SIGNAL_FPE:
-						case GDB_SIGNAL_ILL:
-						case GDB_SIGNAL_ALRM:					
-						{					
-							ourstatus->set_stopped (GDB_SIGNAL_0);
-
-							break;
-						}
-						default:
-						{
-							IExec->DebugPrintF("[GDB] %s received unknown signal from callback %ld\n",__func__,debuggerMessage->signal);
-
-							break;
-						}
-					}
-
-					free_message (debuggerMessage);
-					
-					return ptid;
-				}
-			}
+			}		
 		}
 	}
+
+	IExec->DebugPrintF("[GDB] %s@%d Leaving with ptid: 0x%08x\n",__func__,__LINE__,ptid_t::make_minus_one () );
 
 	return ptid_t::make_minus_one ();
 }
@@ -812,23 +846,24 @@ void ppc_amigaos_nat_target::create_inferior (const char *exec_file,const std::s
 		IDOS->UnLock( exec_lock );
 	}
 
-	struct DeathMessage *dmsg = (struct DeathMessage *)IExec->AllocVecTags( sizeof( struct DeathMessage ),AVT_Type, MEMF_SHARED, TAG_DONE );
+	struct debugger_message *dmsg = alloc_message( NULL );
 	if( dmsg == NULL )
 	{
 		error ("Can't allocate memory for death message\n");
 	}
+	dmsg->msg.mn_Node.ln_Name	= (char*)"DeathMessage";
+	dmsg->msg.mn_ReplyPort		= amigaos_debug_hook_data.debugger_port;
+	dmsg->flags					= DM_FLAGS_TASK_FINAL;
+	dmsg->signal				= -1; 	
 
-	dmsg->dm_Msg.mn_ReplyPort = amigaos_debug_hook_data.debugger_port;
-	dmsg->dm_Msg.mn_Length = sizeof( struct DeathMessage );
-	dmsg->dm_Msg.mn_Node.ln_Name = (char*)"DeathMessage";
-
-	amigaos_debug_hook_data.current_process = IDOS->CreateNewProcTags(
+	dmsg->process = amigaos_debug_hook_data.current_process = IDOS->CreateNewProcTags(
 			NP_Seglist,										exec_seglist,
 			NP_FreeSeglist,									FALSE,
 			NP_EntryCode,									amigaos_debug_suspend,
 			NP_EntryData,									amigaos_debug_hook,
 			NP_Child,										TRUE,
-			NP_NotifyOnDeathMessage,						dmsg, // Signal parent with with prepared reply msg
+			NP_FinalCode,									amigaos_debug_kill,
+			NP_FinalData,									dmsg,
 			NP_Name,										lbasename( exec_file ),
 			NP_CommandName,									lbasename( exec_file ),
 			NP_Cli,											TRUE,
@@ -842,6 +877,8 @@ void ppc_amigaos_nat_target::create_inferior (const char *exec_file,const std::s
 			(exec_home ? NP_ProgramDir: TAG_IGNORE),		exec_home,
 			TAG_DONE
 		);
+
+	IExec->DebugPrintF ( "[GDB] Process %p has debug message %p\n",amigaos_debug_hook_data.current_process,dmsg );
 
 	if (! amigaos_debug_hook_data.current_process)
 	{
@@ -897,6 +934,17 @@ VOID amigaos_debug_suspend( struct Hook *amigaos_debug_hook )
 	IExec->DebugPrintF("[GDB] %s inferiorer %p started by gdb\n",__func__,current);
 }
 
+VOID amigaos_debug_kill( int32 return_code,struct debugger_message *dmsg ) 
+{
+	struct Task *current = IExec->FindTask (NULL);
+
+	dmsg->ReturnCode = return_code;
+
+	IExec->DebugPrintF("[GDB] %s inferiorer %p killed by kernel, sending death message: %p\n",__func__,current,dmsg);
+
+	IExec->PutMsg( dmsg->msg.mn_ReplyPort,(struct Message *)dmsg );	
+}
+
 ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct KernelDebugMessage *dbgmsg )
 {
 	class ppc_amigaos_nat_target *ppc_amigaos_nat_target = (class ppc_amigaos_nat_target *)hook->h_Data;
@@ -921,6 +969,8 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 			message->flags	= 0;
 			message->signal	= trap_to_signal( dbgmsg->message.context,message->flags );
 			
+			IExec->DebugPrintF ("[GDB] debug hook sending message: %p\n",message );
+
 			IExec->PutMsg (data->debugger_port,(struct Message *)message);
 
 			return 1; // Suspend execution
@@ -933,6 +983,8 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 			message->flags	= DM_FLAGS_TASK_ATTACHED;
 			message->signal	= -1;
 			
+			IExec->DebugPrintF ("[GDB] debug hook sending message: %p\n",message );
+
 			IExec->PutMsg (data->debugger_port,(struct Message *)message);
 
 			break;
@@ -945,6 +997,8 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 			message->flags	= DM_FLAGS_TASK_TERMINATED;
 			message->signal	= -1;
 			
+			IExec->DebugPrintF ("[GDB] debug hook sending message: %p\n",message );
+
 			IExec->PutMsg (data->debugger_port,(struct Message *)message);
 			
 			break;
@@ -958,6 +1012,8 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 			message->signal		= -1;
 			message->library	= dbgmsg->message.library;
 			
+			IExec->DebugPrintF ("[GDB] debug hook sending message: %p\n",message );
+
 			IExec->PutMsg (data->debugger_port,(struct Message *)message);
 
 			break;
@@ -970,6 +1026,8 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 			message->flags		= DM_FLAGS_TASK_CLOSELIB;
 			message->signal		= -1;
 			message->library	= dbgmsg->message.library;
+
+			IExec->DebugPrintF ("[GDB] debug hook sending message: %p\n",message );
 
 			IExec->PutMsg (data->debugger_port,(struct Message *)message);
 

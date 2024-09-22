@@ -66,13 +66,15 @@ struct debugger_message
 	uint32 flags;
 	uint32 signal;
 	struct Library *library;
+	int32 ReturnCode;
 };
 
 /* Possible debuger_message flags */
-#define    DM_FLAGS_TASK_TERMINATED            0x00000001
-#define    DM_FLAGS_TASK_ATTACHED              0x00000002
-#define    DM_FLAGS_TASK_INTERRUPTED           0x00000004
-#define	   DM_FLAGS_TASK_OPENLIB               0x00000008
-#define	   DM_FLAGS_TASK_CLOSELIB              0x00000010
+#define    DM_FLAGS_TASK_TERMINATED				0x00000001
+#define    DM_FLAGS_TASK_ATTACHED				0x00000002
+#define    DM_FLAGS_TASK_INTERRUPTED			0x00000004
+#define	   DM_FLAGS_TASK_OPENLIB				0x00000008
+#define	   DM_FLAGS_TASK_CLOSELIB				0x00000010
+#define    DM_FLAGS_TASK_FINAL					0x10000000
 
 #endif /* PPC_AMIGAOS_NAT_H */
