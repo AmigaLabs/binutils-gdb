@@ -178,7 +178,8 @@ public:
 	}
 	*/
 	
-	// TODO: void prepare_to_store (regcache *regs) override;
+	// TODO: ? void prepare_to_store (regcache *regs) override;
+	// TODO: ? int async_wait_fd () override
 	
 	void resume (ptid_t ptid,int step,enum gdb_signal signal) override
 	{
@@ -513,6 +514,8 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 
 							kill();
 
+							IDOS->UnLoadSeg( (BPTR)debuggerMessage->seglist );
+
 							free_message (debuggerMessage);
 
 							IExec->DebugPrintF("[GDB] %s@%d Leaving with ptid: 0x%08x\n",__func__,__LINE__,ptid );
@@ -831,8 +834,19 @@ void ppc_amigaos_nat_target::create_inferior (const char *exec_file,const std::s
 	    exec_file = get_exec_file (1);
 	}
 
-	BPTR exec_seglist = IDOS->LoadSeg( exec_file );
-	if( ! exec_seglist )
+	struct debugger_message *dmsg = alloc_message( NULL );
+	if( dmsg == NULL )
+	{
+		error ("Can't allocate memory for death message\n");
+	}
+
+	dmsg->msg.mn_Node.ln_Name	= (char*)"DeathMessage";
+	dmsg->msg.mn_ReplyPort		= amigaos_debug_hook_data.debugger_port;
+	dmsg->flags					= DM_FLAGS_TASK_FINAL;
+	dmsg->signal				= -1; 	
+
+	dmsg->seglist = (void*)IDOS->LoadSeg( exec_file );
+	if( ! dmsg->seglist )
 	{
 		error ("'%s': not an executable file\n",exec_file );
 	}
@@ -846,18 +860,8 @@ void ppc_amigaos_nat_target::create_inferior (const char *exec_file,const std::s
 		IDOS->UnLock( exec_lock );
 	}
 
-	struct debugger_message *dmsg = alloc_message( NULL );
-	if( dmsg == NULL )
-	{
-		error ("Can't allocate memory for death message\n");
-	}
-	dmsg->msg.mn_Node.ln_Name	= (char*)"DeathMessage";
-	dmsg->msg.mn_ReplyPort		= amigaos_debug_hook_data.debugger_port;
-	dmsg->flags					= DM_FLAGS_TASK_FINAL;
-	dmsg->signal				= -1; 	
-
 	dmsg->process = amigaos_debug_hook_data.current_process = IDOS->CreateNewProcTags(
-			NP_Seglist,										exec_seglist,
+			NP_Seglist,										dmsg->seglist,
 			NP_FreeSeglist,									FALSE,
 			NP_EntryCode,									amigaos_debug_suspend,
 			NP_EntryData,									amigaos_debug_hook,
@@ -906,12 +910,9 @@ void ppc_amigaos_nat_target::create_inferior (const char *exec_file,const std::s
 	clear_proceed_status (0);
 	init_wait_for_inferior ();
 
-	ppc_amigaos_relocate_sections (exec_file,exec_seglist);
+	ppc_amigaos_relocate_sections (exec_file,(BPTR)dmsg->seglist);
 
 	IExec->DebugPrintF("[GDB] %s inferior_ptid=0x%08x inf=%p thr=%p\n",__func__,inferior_ptid.pid(),inf,thr);
-
-	//  ML: Don't do it here, because we need to keep the exec_segliots until the task has finished
-	// IDOS->UnLoadSeg( exec_seglist );
 }
 
 static ppc_amigaos_nat_target the_ppc_amigaos_nat_target;

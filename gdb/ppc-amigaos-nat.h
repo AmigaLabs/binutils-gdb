@@ -66,6 +66,7 @@ struct debugger_message
 	uint32 flags;
 	uint32 signal;
 	struct Library *library;
+	void* seglist;
 	int32 ReturnCode;
 };
 
