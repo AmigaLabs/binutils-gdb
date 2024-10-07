@@ -3119,9 +3119,9 @@ fixup_size (bfd_reloc_code_real_type reloc, bool *pc_relative)
     case BFD_RELOC_PPC_TPREL16_HA:
     case BFD_RELOC_PPC_TPREL16_HI:
     case BFD_RELOC_PPC_TPREL16_LO:
-	case R_PPC_AMIGAOS_BREL_LO:
-	case R_PPC_AMIGAOS_BREL_HI:
-	case R_PPC_AMIGAOS_BREL_HA:
+	case BFD_RELOC_PPC_AMIGAOS_BREL_LO:
+	case BFD_RELOC_PPC_AMIGAOS_BREL_HI:
+	case BFD_RELOC_PPC_AMIGAOS_BREL_HA:
       size = 2;
       break;
 
@@ -3186,7 +3186,7 @@ fixup_size (bfd_reloc_code_real_type reloc, bool *pc_relative)
     case BFD_RELOC_PPC_VLE_SDAREL_LO16D:
     case BFD_RELOC_PPC64_TLS_PCREL:
     case BFD_RELOC_RVA:
-	case R_PPC_AMIGAOS_BREL:
+	case BFD_RELOC_PPC_AMIGAOS_BREL:
       size = 4;
       break;
 
@@ -7682,10 +7682,6 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg)
 	case BFD_RELOC_16:
 	case BFD_RELOC_16_PCREL:
 	case BFD_RELOC_8:
-	case R_PPC_AMIGAOS_BREL:
-	case R_PPC_AMIGAOS_BREL_LO:
-	case R_PPC_AMIGAOS_BREL_HI:
-	case R_PPC_AMIGAOS_BREL_HA:
 	  break;
 
 	default:
