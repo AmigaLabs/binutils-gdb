@@ -82,6 +82,7 @@ extern "C" {
 #else
 #define STRIP_DRIVE_SPEC(f)	((f) + 2)
 #endif
+#endif
 
 #define IS_DOS_DIR_SEPARATOR(c) IS_DIR_SEPARATOR_1 (1, c)
 #define IS_DOS_ABSOLUTE_PATH(f) IS_ABSOLUTE_PATH_1 (1, f)

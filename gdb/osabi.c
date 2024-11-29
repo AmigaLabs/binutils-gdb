@@ -83,6 +83,7 @@ static const struct osabi_names gdb_osabi_names[] =
   { "SDE", NULL },
   { "PikeOS", NULL },
   { "AmigaOS", NULL },
+  { "AmigaOS", NULL },
 
   { "<invalid>", NULL }
 };
