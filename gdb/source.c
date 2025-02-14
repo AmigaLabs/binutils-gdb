@@ -833,7 +833,7 @@ openp (const char *path, openp_flags opts, const char *string,
   if (!path)
   #if defined(__amigaos4__) 
     path = "\"\"";
-  #elif
+  #else
     path = ".";
   #endif
 
