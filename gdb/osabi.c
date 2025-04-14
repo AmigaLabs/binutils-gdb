@@ -620,7 +620,10 @@ generic_elf_osabi_sniffer (bfd *abfd)
 		asymbol **symbol_table = (asymbol **)xmalloc (bfd_get_symtab_upper_bound (abfd));
 		if (symbol_table)
 		{
-		  for (int i = 0; i < bfd_canonicalize_symtab(abfd, symbol_table); i++) {
+		  // Keep it out of the for loop for performence/memory optimization
+		  int symbol_count = bfd_canonicalize_symtab(abfd, symbol_table);
+
+		  for (int i = 0; i < symbol_count; i++) {
         	if (strcmp("__amigaos4__", bfd_asymbol_name(symbol_table[i])) == 0) {
               osabi = GDB_OSABI_AMIGAOS;
               break;
