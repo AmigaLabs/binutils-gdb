@@ -480,6 +480,10 @@ process_file (const char *file_name, const char *section_name,
 int
 main (int argc, char **argv)
 {
+#if defined(__amigaos4__) && !defined(ENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM)
+  enableUnixPaths();
+#endif
+	
   const char *file_name;
   const char *section_name;
   char *target;

@@ -132,6 +132,10 @@ int main (int, char **);
 int
 main (int argc, char **argv)
 {
+#if defined(__amigaos4__) && !defined(ENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM)
+  enableUnixPaths();
+#endif
+	
   int temp;
   int c;
 

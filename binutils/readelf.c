@@ -22969,6 +22969,10 @@ db_task_printsym (unsigned int addr)
 int
 main (int argc, char ** argv)
 {
+#if defined(__amigaos4__) && !defined(ENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM)
+  enableUnixPaths();
+#endif
+	
   int err;
 
 #ifdef HAVE_LC_MESSAGES

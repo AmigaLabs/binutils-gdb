@@ -1270,6 +1270,10 @@ free_notes (void)
 int
 main (int argc, char ** argv)
 {
+#if defined(__amigaos4__) && !defined(ENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM)
+  enableUnixPaths();
+#endif
+	
   char ** argv_orig = argv;
   struct stat sob;
 

@@ -54,7 +54,9 @@
 # define CANT_FORK
 # undef HAVE_POLL
 # undef HAVE_SOCKETPAIR
+#ifdef ENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM
 # define DIRNAME_SEPARATOR ';'
+#endif
 #endif
 
 #ifndef DIRNAME_SEPARATOR

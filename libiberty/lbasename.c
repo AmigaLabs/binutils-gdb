@@ -73,6 +73,7 @@ dos_lbasename (const char *name)
   return base;
 }
 
+#ifdef ENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM
 const char *
 amiga_lbasename (const char *name)
 {
@@ -90,6 +91,7 @@ amiga_lbasename (const char *name)
 
   return base;
 }
+#endif
 
 const char *
 lbasename (const char *name)

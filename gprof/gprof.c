@@ -183,6 +183,10 @@ Usage: %s [-[abcDhilLrsTvwxyz]] [-[ABCeEfFJnNOpPqQRStZ][name]] [-I dirs]\n\
 int
 main (int argc, char **argv)
 {
+#if defined(__amigaos4__) && !defined(ENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM)
+  enableUnixPaths();
+#endif
+	
   char **sp, *str;
   Sym **cg = 0;
   int ch, user_specified = 0;

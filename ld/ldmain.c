@@ -243,6 +243,10 @@ ld_bfd_error_handler (const char *fmt, va_list ap)
 int
 main (int argc, char **argv)
 {
+#if defined(__amigaos4__) && !defined(ENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM)
+  enableUnixPaths();
+#endif
+
   char *emulation;
   long start_time = get_run_time ();
 

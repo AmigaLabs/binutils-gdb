@@ -43,7 +43,7 @@ extern "C" {
 #  define HAS_DRIVE_SPEC(f) HAS_DOS_DRIVE_SPEC (f)
 #  define IS_DIR_SEPARATOR(c) IS_DOS_DIR_SEPARATOR (c)
 #  define IS_ABSOLUTE_PATH(f) IS_DOS_ABSOLUTE_PATH (f)
-#elif defined(__amigaos4__)
+#elif defined(__amigaos4__) && defined(ENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM)
 #  ifndef HAVE_AMIGA_BASED_FILE_SYSTEM
 #    define HAVE_AMIGA_BASED_FILE_SYSTEM 1
 #  endif
@@ -73,7 +73,7 @@ extern "C" {
 
 /* Remove the drive spec from F, assuming HAS_DRIVE_SPEC (f).
    The result is a pointer to the remainder of F.  */
-#if defined(__amigaos4__)
+#if defined(__amigaos4__) && defined(ENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM)
 #define STRIP_DRIVE_SPEC(f)	(index( &(f)[0],':') + 1 )
 #else
 #define STRIP_DRIVE_SPEC(f)	((f) + 2)
@@ -83,9 +83,11 @@ extern "C" {
 #define IS_DOS_ABSOLUTE_PATH(f) IS_ABSOLUTE_PATH_1 (1, f)
 #define HAS_DOS_DRIVE_SPEC(f) HAS_DRIVE_SPEC_1 (1, f)
 
+#ifdef ENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM
 #define IS_AMIGOS_DIR_SEPARATOR(c) ( ((c) == '/') || ((c) == ':') )
 #define IS_AMIGOS_ABSOLUTE_PATH(f) HAS_AMIGOS_DRIVE_SPEC(f)
 #define HAS_AMIGOS_DRIVE_SPEC(f) (index (&(f)[0], ':') != NULL ) 
+#endif
 
 #define IS_UNIX_DIR_SEPARATOR(c) IS_DIR_SEPARATOR_1 (0, c)
 #define IS_UNIX_ABSOLUTE_PATH(f) IS_ABSOLUTE_PATH_1 (0, f)
