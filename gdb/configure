@@ -17724,7 +17724,14 @@ if test "${with_gdb_datadir+set}" = set; then :
   withval=$with_gdb_datadir;
     GDB_DATADIR=$withval
 else
-  GDB_DATADIR=${datadir}/gdb
+	case "$host" in
+		powerpc-*-amigaos*)
+			GDB_DATADIR="SDK:gcc/share/gdb"
+		;;
+    	*)
+			GDB_DATADIR=${datadir}/gdb
+		;;
+	esac
 fi
 
 
@@ -17750,12 +17757,19 @@ _ACEOF
      test_prefix=$exec_prefix
   fi
   value=0
-  case ${ac_define_dir} in
-     "${test_prefix}"|"${test_prefix}/"*|\
-	'${exec_prefix}'|'${exec_prefix}/'*)
-     value=1
-     ;;
-  esac
+  case "$host" in
+    powerpc-*-amigaos*)
+	value=1
+    ;;
+    *)
+    case ${ac_define_dir} in
+		"${test_prefix}"|"${test_prefix}/"*|\
+		'${exec_prefix}'|'${exec_prefix}/'*)
+		value=1
+		;;
+	esac
+	;;
+  esac 
 
 cat >>confdefs.h <<_ACEOF
 #define GDB_DATADIR_RELOCATABLE $value
@@ -17790,7 +17804,14 @@ $as_echo_n "checking for default auto-load directory... " >&6; }
 if test "${with_auto_load_dir+set}" = set; then :
   withval=$with_auto_load_dir;
 else
-  with_auto_load_dir='$debugdir:$datadir/auto-load'
+	case "$host" in
+		powerpc-*-amigaos*)
+			with_auto_load_dir="SKD:gcc/lib/debug;SDK:gcc/share/gdb/auto-load"
+		;;
+    	*)
+			with_auto_load_dir='$debugdir:$datadir/auto-load'
+		;;
+	esac
 fi
 
 escape_dir=`echo $with_auto_load_dir | sed -e 's/[$]datadir\>/\\\\\\\\\\\\&/g' -e 's/[$]debugdir\>/\\\\\\\\\\\\&/g'`
@@ -20819,7 +20840,14 @@ if test "${with_jit_reader_dir+set}" = set; then :
   withval=$with_jit_reader_dir;
     JIT_READER_DIR=$withval
 else
-  JIT_READER_DIR=${libdir}/gdb
+	case "$host" in
+		powerpc-*-amigaos*)
+			JIT_READER_DIR="SDK:gcc/lib/gdb"
+		;;
+    	*)
+			JIT_READER_DIR=${libdir}/gdb
+		;;
+	esac
 fi
 
 
@@ -20845,12 +20873,20 @@ _ACEOF
      test_prefix=$exec_prefix
   fi
   value=0
-  case ${ac_define_dir} in
-     "${test_prefix}"|"${test_prefix}/"*|\
-	'${exec_prefix}'|'${exec_prefix}/'*)
-     value=1
-     ;;
-  esac
+  case "$host" in
+    powerpc-*-amigaos*)
+	value=1
+    ;;
+    *)
+	case ${ac_define_dir} in
+		"${test_prefix}"|"${test_prefix}/"*|\
+		'${exec_prefix}'|'${exec_prefix}/'*)
+		value=1
+		;;
+	esac
+	;;
+  esac 
+ 
 
 cat >>confdefs.h <<_ACEOF
 #define JIT_READER_DIR_RELOCATABLE $value

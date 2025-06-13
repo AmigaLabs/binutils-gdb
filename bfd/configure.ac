@@ -161,7 +161,14 @@ AS_IF([ test x"$enable_leading_mingw64_underscores" = xyes ],
   [AC_DEFINE(USE_MINGW64_LEADING_UNDERSCORES, 1,
     [Define if we should use leading underscore on 64 bit mingw targets])])
 
-DEBUGDIR=${libdir}/debug
+case "$host" in
+  powerpc-*-amigaos*)
+    DEBUGDIR="SKD:gcc/lib/debug"
+    ;;
+  *)
+	DEBUGDIR=${libdir}/debug
+	;;
+esac
 AC_ARG_WITH(separate-debug-dir,
   AS_HELP_STRING([--with-separate-debug-dir=DIR],
                  [Look for global separate debug info in DIR [[default=LIBDIR/debug]]]),

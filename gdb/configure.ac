@@ -126,7 +126,15 @@ AC_DEFINE_DIR(BINDIR, bindir, [Directory of programs.])
 
 GDB_AC_WITH_DIR(GDB_DATADIR, gdb-datadir,
     [look for global separate data files in this path @<:@DATADIR/gdb@:>@],
-    [${datadir}/gdb])
+    [
+case "$host" in
+	powerpc-*-amigaos*)
+    	"SDK:gcc/share/gdb"
+    ;;
+	*)
+		${datadir}/gdb
+    ;;
+esac])
 
 AC_ARG_WITH(relocated-sources,
 AS_HELP_STRING([--with-relocated-sources=PATH], [automatically relocate this path for source files]),
@@ -628,7 +636,16 @@ AC_SEARCH_LIBS(dlopen, dl)
 
 GDB_AC_WITH_DIR([JIT_READER_DIR], [jit-reader-dir],
                 [directory to load the JIT readers from],
-                [${libdir}/gdb])
+                [
+case "$host" in
+	powerpc-*-amigaos*)
+		"SDK:gcc/lib/gdb"
+	;;
+	*)
+		${libdir}/gdb
+	;;
+esac])
+
 
 AC_ARG_WITH(expat,
   AS_HELP_STRING([--with-expat], [include expat support (auto/yes/no)]),

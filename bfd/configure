@@ -12024,7 +12024,14 @@ $as_echo "#define USE_MINGW64_LEADING_UNDERSCORES 1" >>confdefs.h
 
 fi
 
-DEBUGDIR=${libdir}/debug
+case "$host" in
+  powerpc-*-amigaos*)
+    DEBUGDIR="SKD:gcc/lib/debug"
+    ;;
+  *)
+	DEBUGDIR=${libdir}/debug
+	;;
+esac
 
 # Check whether --with-separate-debug-dir was given.
 if test "${with_separate_debug_dir+set}" = set; then :
