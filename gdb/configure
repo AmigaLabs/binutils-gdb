@@ -17806,7 +17806,7 @@ if test "${with_auto_load_dir+set}" = set; then :
 else
 	case "$host" in
 		powerpc-*-amigaos*)
-			with_auto_load_dir="SKD:gcc/lib/debug;SDK:gcc/share/gdb/auto-load"
+			with_auto_load_dir="SDK:gcc/lib/debug;SDK:gcc/share/gdb/auto-load"
 		;;
     	*)
 			with_auto_load_dir='$debugdir:$datadir/auto-load'

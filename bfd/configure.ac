@@ -163,7 +163,7 @@ AS_IF([ test x"$enable_leading_mingw64_underscores" = xyes ],
 
 case "$host" in
   powerpc-*-amigaos*)
-    DEBUGDIR="SKD:gcc/lib/debug"
+    DEBUGDIR="SDK:gcc/lib/debug"
     ;;
   *)
 	DEBUGDIR=${libdir}/debug

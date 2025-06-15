@@ -12026,7 +12026,7 @@ fi
 
 case "$host" in
   powerpc-*-amigaos*)
-    DEBUGDIR="SKD:gcc/lib/debug"
+    DEBUGDIR="SDK:gcc/lib/debug"
     ;;
   *)
 	DEBUGDIR=${libdir}/debug
