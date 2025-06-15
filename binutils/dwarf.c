@@ -11514,7 +11514,11 @@ load_separate_debug_info (const char *            main_filename,
   canon_dir[canon_dirlen] = '\0';
 
 #ifndef DEBUGDIR
+#if __amigaos4__
+#define DEBUGDIR "SDK:gcc/lib/debug"
+#else
 #define DEBUGDIR "/lib/debug"
+#endif
 #endif
 #ifndef EXTRA_DEBUG_ROOT1
 #define EXTRA_DEBUG_ROOT1 "/usr/lib/debug"

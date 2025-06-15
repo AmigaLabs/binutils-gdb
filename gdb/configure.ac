@@ -112,7 +112,15 @@ AC_SUBST(MAKEINFO_EXTRA_FLAGS)
 
 GDB_AC_WITH_DIR(DEBUGDIR, separate-debug-dir,
     [look for global separate debug info in this path @<:@LIBDIR/debug@:>@],
-    [${libdir}/debug])
+    [
+case "$host" in
+powerpc-*-amigaos*)
+	DEBUGDIR="SDK:gcc/lib/debug"
+	;;
+*)
+	DEBUGDIR=${libdir}/debug
+	;;
+esac])
 
 # We can't pass paths as command line arguments.
 # Mingw32 tries to be clever and will convert the paths for us.

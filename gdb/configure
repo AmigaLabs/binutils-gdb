@@ -17657,7 +17657,14 @@ if test "${with_separate_debug_dir+set}" = set; then :
   withval=$with_separate_debug_dir;
     DEBUGDIR=$withval
 else
-  DEBUGDIR=${libdir}/debug
+	case "$host" in
+	powerpc-*-amigaos*)
+		DEBUGDIR="SDK:gcc/lib/debug"
+		;;
+	*)
+		DEBUGDIR=${libdir}/debug
+		;;
+	esac
 fi
 
 
