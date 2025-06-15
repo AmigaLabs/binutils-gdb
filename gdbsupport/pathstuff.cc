@@ -129,8 +129,11 @@ gdb_abspath (const char *path)
 {
   gdb_assert (path != NULL && path[0] != '\0');
 
+// TODO: ML: AmigaOS doesn have sometghing like ~, or let it expand to HOME: ??
+#ifndef __amigaos4__
   if (path[0] == '~')
     return gdb_tilde_expand (path);
+#endif
 
   if (IS_ABSOLUTE_PATH (path) || current_directory == NULL)
     return path;
@@ -201,6 +204,20 @@ path_join (gdb::array_view<const char *> paths)
 
       if (i > 0)
 	gdb_assert (strlen (path) == 0 || !IS_ABSOLUTE_PATH (path));
+
+#if defined(__amigaos4__)
+	  // ML: Check if the first path is root and must be converted to an Assign
+	  if( i == 0 && path[i] == '/')
+	 {
+	    char *str = (char *)paths[i];
+		int shift = 1;
+		for( ;str[shift] != '\0';shift++ )
+		{
+			str[ shift - 1 ] = str[shift];
+		}
+		str[ shift - 1] = ':';
+	 }	   
+#endif
 
       if (!ret.empty () && !IS_DIR_SEPARATOR (ret.back ()))
 	  ret += '/';
