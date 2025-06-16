@@ -450,7 +450,7 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 
 			ourstatus->set_exited (0);
 
-			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%08x\n"),__func__,__LINE__,ptid ).c_str());
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%s\n"),__func__,__LINE__,phex_nz (ptid.tid (),sizeof (ULONGEST)) ).c_str());
 
 			return ptid;
 		}
@@ -463,7 +463,7 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 
 			ourstatus->set_stopped (GDB_SIGNAL_TRAP);
 
-			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%08x\n"),__func__,__LINE__,ptid ).c_str());
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%s\n"),__func__,__LINE__,phex_nz (ptid.tid (),sizeof (ULONGEST)) ).c_str());
 
 			return ptid;
 		}
@@ -518,7 +518,7 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 
 							free_message (debuggerMessage);
 
-							IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%08x\n"),__func__,__LINE__,ptid ).c_str());
+							IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%s\n"),__func__,__LINE__,phex_nz (ptid.tid (),sizeof (ULONGEST)) ).c_str());
 
 							return ptid;
 						}
@@ -584,14 +584,14 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 
 				free_message (debuggerMessage);
 				
-				IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%08x\n"),__func__,__LINE__,ptid ).c_str());
+				IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%s\n"),__func__,__LINE__,phex_nz (ptid.tid (),sizeof (ULONGEST)) ).c_str());
 
 				return ptid;
 			}		
 		}
 	}
 
-	IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%08x\n"),__func__,__LINE__,ptid_t::make_minus_one () ).c_str());
+	IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%s\n"),__func__,__LINE__,phex_nz (ptid_t::make_minus_one ().tid (),sizeof (ULONGEST)) ).c_str());
 
 	return ptid_t::make_minus_one ();
 }

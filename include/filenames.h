@@ -28,6 +28,10 @@ Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA. 
 
 #include "hashtab.h" /* for hashval_t */
 
+#if defined(__amigaos4__) && defined(ENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM)
+#include <string.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -74,7 +78,7 @@ extern "C" {
 /* Remove the drive spec from F, assuming HAS_DRIVE_SPEC (f).
    The result is a pointer to the remainder of F.  */
 #if defined(__amigaos4__) && defined(ENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM)
-#define STRIP_DRIVE_SPEC(f)	(index( &(f)[0],':') + 1 )
+#define STRIP_DRIVE_SPEC(f)	(strchr( &(f)[0],':') + 1 )
 #else
 #define STRIP_DRIVE_SPEC(f)	((f) + 2)
 #endif
