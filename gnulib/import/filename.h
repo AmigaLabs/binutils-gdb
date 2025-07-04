@@ -88,6 +88,14 @@ extern "C" {
 # define IS_FILE_NAME_WITH_DIR(Filename) \
     (strchr ((Filename), '/') != NULL || strchr ((Filename), '\\') != NULL \
      || HAS_DEVICE (Filename))
+#elif defined __amigaos4__ && ENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM
+# define ISSLASH(C) ((C) == '/')
+# define HAS_DEVICE(Filename) (strchr ((Filename), ':') != NULL)
+# define FILE_SYSTEM_PREFIX_LEN(Filename) ((strchr ((Filename), ':') - (Filename)) + 1)
+# define FILE_SYSTEM_DRIVE_PREFIX_CAN_BE_RELATIVE 0
+# define IS_ABSOLUTE_FILE_NAME(Filename) (HAS_DEVICE (Filename))
+# define IS_RELATIVE_FILE_NAME(Filename) (! IS_ABSOLUTE_FILE_NAME (Filename))
+# define IS_FILE_NAME_WITH_DIR(Filename) (strchr ((Filename), '/') != NULL)
 #else
   /* Unix */
 # define ISSLASH(C) ((C) == '/')
