@@ -31,7 +31,14 @@ AC_DEFUN([gl_CANONICALIZE_LGPL],
   AC_REQUIRE([gl_STDLIB_H_DEFAULTS])
   AC_REQUIRE([gl_CANONICALIZE_LGPL_SEPARATE])
   if test $ac_cv_func_canonicalize_file_name = no; then
-    HAVE_CANONICALIZE_FILE_NAME=0
+    case "$host_os" in
+      amigaos*)
+        HAVE_CANONICALIZE_FILE_NAME=1
+        ;;
+      *)
+        HAVE_CANONICALIZE_FILE_NAME=0
+        ;;
+    esac
     if test $ac_cv_func_realpath = no; then
       HAVE_REALPATH=0
     else
@@ -45,8 +52,15 @@ AC_DEFUN([gl_CANONICALIZE_LGPL],
       *yes)
         ;;
       *)
-        REPLACE_CANONICALIZE_FILE_NAME=1
-        REPLACE_REALPATH=1
+        case "$host_os" in
+          amigaos*)
+           # Do not replace on AmigaOS
+            ;;
+          *)
+            REPLACE_CANONICALIZE_FILE_NAME=1
+            REPLACE_REALPATH=1
+            ;;
+       esac
         ;;
     esac
   fi

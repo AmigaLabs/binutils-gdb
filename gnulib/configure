@@ -13815,8 +13815,8 @@ rm -f core conftest.err conftest.$ac_objext \
         LIBS=$save_LIBS
         test $gl_pthread_api = yes && break
       done
-      echo "$as_me:13816: gl_pthread_api=$gl_pthread_api" >&5
-      echo "$as_me:13817: LIBPTHREAD=$LIBPTHREAD" >&5
+      echo "$as_me:${as_lineno-$LINENO}: gl_pthread_api=$gl_pthread_api" >&5
+      echo "$as_me:${as_lineno-$LINENO}: LIBPTHREAD=$LIBPTHREAD" >&5
 
       gl_pthread_in_glibc=no
       # On Linux with glibc >= 2.34, libc contains the fully functional
@@ -13841,7 +13841,7 @@ rm -f conftest*
 
           ;;
       esac
-      echo "$as_me:13842: gl_pthread_in_glibc=$gl_pthread_in_glibc" >&5
+      echo "$as_me:${as_lineno-$LINENO}: gl_pthread_in_glibc=$gl_pthread_in_glibc" >&5
 
       # Test for libpthread by looking for pthread_kill. (Not pthread_self,
       # since it is defined as a macro on OSF/1.)
@@ -13995,7 +13995,7 @@ fi
 
         fi
       fi
-      echo "$as_me:13996: LIBPMULTITHREAD=$LIBPMULTITHREAD" >&5
+      echo "$as_me:${as_lineno-$LINENO}: LIBPMULTITHREAD=$LIBPMULTITHREAD" >&5
     fi
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether POSIX threads API is available" >&5
 $as_echo_n "checking whether POSIX threads API is available... " >&6; }
@@ -17072,8 +17072,8 @@ rm -f core conftest.err conftest.$ac_objext \
         LIBS=$save_LIBS
         test $gl_pthread_api = yes && break
       done
-      echo "$as_me:17073: gl_pthread_api=$gl_pthread_api" >&5
-      echo "$as_me:17074: LIBPTHREAD=$LIBPTHREAD" >&5
+      echo "$as_me:${as_lineno-$LINENO}: gl_pthread_api=$gl_pthread_api" >&5
+      echo "$as_me:${as_lineno-$LINENO}: LIBPTHREAD=$LIBPTHREAD" >&5
 
       gl_pthread_in_glibc=no
       # On Linux with glibc >= 2.34, libc contains the fully functional
@@ -17098,7 +17098,7 @@ rm -f conftest*
 
           ;;
       esac
-      echo "$as_me:17099: gl_pthread_in_glibc=$gl_pthread_in_glibc" >&5
+      echo "$as_me:${as_lineno-$LINENO}: gl_pthread_in_glibc=$gl_pthread_in_glibc" >&5
 
       # Test for libpthread by looking for pthread_kill. (Not pthread_self,
       # since it is defined as a macro on OSF/1.)
@@ -17252,7 +17252,7 @@ fi
 
         fi
       fi
-      echo "$as_me:17253: LIBPMULTITHREAD=$LIBPMULTITHREAD" >&5
+      echo "$as_me:${as_lineno-$LINENO}: LIBPMULTITHREAD=$LIBPMULTITHREAD" >&5
     fi
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether POSIX threads API is available" >&5
 $as_echo_n "checking whether POSIX threads API is available... " >&6; }
@@ -17478,8 +17478,8 @@ rm -f core conftest.err conftest.$ac_objext \
         LIBS=$save_LIBS
         test $gl_pthread_api = yes && break
       done
-      echo "$as_me:17479: gl_pthread_api=$gl_pthread_api" >&5
-      echo "$as_me:17480: LIBPTHREAD=$LIBPTHREAD" >&5
+      echo "$as_me:${as_lineno-$LINENO}: gl_pthread_api=$gl_pthread_api" >&5
+      echo "$as_me:${as_lineno-$LINENO}: LIBPTHREAD=$LIBPTHREAD" >&5
 
       gl_pthread_in_glibc=no
       # On Linux with glibc >= 2.34, libc contains the fully functional
@@ -17504,7 +17504,7 @@ rm -f conftest*
 
           ;;
       esac
-      echo "$as_me:17505: gl_pthread_in_glibc=$gl_pthread_in_glibc" >&5
+      echo "$as_me:${as_lineno-$LINENO}: gl_pthread_in_glibc=$gl_pthread_in_glibc" >&5
 
       # Test for libpthread by looking for pthread_kill. (Not pthread_self,
       # since it is defined as a macro on OSF/1.)
@@ -17658,7 +17658,7 @@ fi
 
         fi
       fi
-      echo "$as_me:17659: LIBPMULTITHREAD=$LIBPMULTITHREAD" >&5
+      echo "$as_me:${as_lineno-$LINENO}: LIBPMULTITHREAD=$LIBPMULTITHREAD" >&5
     fi
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether POSIX threads API is available" >&5
 $as_echo_n "checking whether POSIX threads API is available... " >&6; }
@@ -22785,7 +22785,14 @@ $as_echo "$gl_cv___builtin_expect" >&6; }
 
 
   if test $ac_cv_func_canonicalize_file_name = no; then
-    HAVE_CANONICALIZE_FILE_NAME=0
+    case "$host_os" in
+      amigaos*)
+        HAVE_CANONICALIZE_FILE_NAME=1
+        ;;
+      *)
+        HAVE_CANONICALIZE_FILE_NAME=0
+        ;;
+    esac
     if test $ac_cv_func_realpath = no; then
       HAVE_REALPATH=0
     else
@@ -22799,8 +22806,15 @@ $as_echo "$gl_cv___builtin_expect" >&6; }
       *yes)
         ;;
       *)
-        REPLACE_CANONICALIZE_FILE_NAME=1
-        REPLACE_REALPATH=1
+        case "$host_os" in
+          amigaos*)
+            # Do not replace on AmigaOS
+            ;;
+          *)
+            REPLACE_CANONICALIZE_FILE_NAME=1
+            REPLACE_REALPATH=1
+            ;;
+       esac
         ;;
     esac
   fi
@@ -22824,25 +22838,6 @@ fi
 cat >>confdefs.h <<_ACEOF
 #define GNULIB_CANONICALIZE_LGPL 1
 _ACEOF
-
-
-
-
-
-
-
-
-
-
-
-          GL_GNULIB_CANONICALIZE_FILE_NAME=1
-
-
-
-
-
-$as_echo "#define GNULIB_TEST_CANONICALIZE_FILE_NAME 1" >>confdefs.h
-
 
 
 
