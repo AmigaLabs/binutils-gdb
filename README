@@ -35,7 +35,7 @@ If gdb shall be build use the following
 
 mkdir native-build
 cd native-build
-CFLAGS="-mcrt=clib4 -Wno-sign-compare -gstabs -lpthread -athread=native -DENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM" CXXFLAGS="-mcrt=clib4 -Wno-sign-compare -gstabs -lpthread -athread=native -DENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM" ../configure --disable-plugins --disable-sim --host=ppc-amigaos --target=ppc-amigaos --prefix=<absolut-path-to>/dist
+CFLAGS="-mcrt=clib4 -Wno-sign-compare -gstabs -lpthread -athread=native -DENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM" CXXFLAGS="-mcrt=clib4 -Wno-sign-compare -gstabs -lpthread -athread=native -DENABLE_HAVE_AMIGA_BASED_FILE_SYSTEM" ../configure --disable-plugins --disable-sim --without-auto-load-safe-path --host=ppc-amigaos --target=ppc-amigaos --prefix=<absolut-path-to>/dist
 make -j 4
 make install
 
