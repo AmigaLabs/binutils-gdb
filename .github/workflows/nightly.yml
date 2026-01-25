@@ -1,0 +1,77 @@
+name: Nightly Builds
+
+on:
+  push:
+    branches:
+      - 'ppc-amigaos'
+
+  workflow_dispatch:
+
+permissions: write-all
+
+jobs:
+  release:
+    name: Create Nightly Build
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: "nightly"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Set Tag
+        id: tag
+        run: |
+          echo "version=nightly" >> "$GITHUB_OUTPUT"
+      - name: Update Tag
+        uses: richardsimko/update-tag@v1
+        with:
+          tag_name: "nightly"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2.5.0
+        with:
+          tag_name: "nightly"
+          name: "binutils nightly-builds"
+          draft: false
+          prerelease: true
+          generate_release_notes: true
+          target_commitish: ppc-amigaos
+          body: >
+            Builds that include most recent changes as they happen. For non 
+            nightly builds check the whole list of [releases](https://github.com/AmigaLabs/binutils-gdb/releases).
+
+  build_non_spe:
+    name: Build non-SPE
+    needs: release
+    runs-on: ubuntu-latest
+    container:
+      image: walkero/amigagccondocker:os4-gcc11
+      volumes:
+        - '${{ github.workspace }}:/opt/code'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Compile binutils
+        run: |
+          make -f GNUmakefile.os4 build
+
+      - name: Create the LHA release archive
+        run: |
+          make -f GNUmakefile.os4 release && \
+          mv binutils_2.40.lha binutils_2.40-nightly.lha
+
+      - name: Upload Files
+        uses: softprops/action-gh-release@v2.5.0
+        with:
+          tag_name: "nightly"
+          draft: false
+          prerelease: true
+          target_commitish: ppc-amigaos
+          files: |
+            binutils_2.40-nightly.lha

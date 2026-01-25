@@ -1,0 +1,88 @@
+PREFIX=/gcc
+LIBC=clib4
+STRIP=ppc-amigaos-strip
+LHA=cd ./release && lha aq ../binutils_2.40.lha ./*
+
+default: build
+
+PHONY: build
+build:
+	@echo "Building for OS4..."
+	@mkdir native-build && cd native-build && \
+		CFLAGS="-mcrt=$(LIBC) -Wno-sign-compare -gstabs -lpthread -athread=native" \
+		CXXFLAGS="-mcrt=$(LIBC) -Wno-sign-compare -gstabs -lpthread -athread=native" \
+		LDFLAGS="-mcrt=$(LIBC)" \
+		../configure \
+			--target=ppc-amigaos \
+			--host=ppc-amigaos \
+			--disable-plugins \
+			--disable-gdb \
+			--disable-sim \
+			--disable-nls \
+			--prefix=$(PREFIX) && \
+		make -j $(shell nproc)
+
+PHONY: clean
+clean:
+	@echo "Cleaning build artifacts..."
+	@rm -rf native-build
+
+PHONY: release
+release:
+	@echo "Creating release folder..."
+	@mkdir -p ./release/binutils/share/info \
+		./release/binutils/include
+	@\cp ./native-build/binutils/addr2line \
+		./native-build/binutils/ar \
+		./native-build/binutils/cxxfilt \
+		./native-build/binutils/elfedit \
+		./native-build/binutils/nm-new \
+		./native-build/binutils/objcopy \
+		./native-build/binutils/objdump \
+		./native-build/binutils/ranlib \
+		./native-build/binutils/readelf \
+		./native-build/binutils/size \
+		./native-build/binutils/strings \
+		./native-build/binutils/strip-new \
+		./native-build/gas/as-new \
+		./native-build/gprof/gprof \
+		./native-build/ld/ld-new \
+		./release/binutils/
+	@mv ./release/binutils/nm-new ./release/binutils/nm
+	@mv ./release/binutils/strip-new ./release/binutils/strip
+	@mv ./release/binutils/as-new ./release/binutils/as
+	@mv ./release/binutils/ld-new ./release/binutils/ld
+	@mv ./release/binutils/cxxfilt ./release/binutils/c++filt
+	@\cp -r ./native-build/ld/ldscripts ./release/binutils/
+	@\cp ./native-build/gprof/gprof.info \
+		./native-build/gas/doc/as.info \
+		./native-build/bfd/doc/bfd.info \
+		./native-build/binutils/doc/binutils.info \
+		./native-build/ld/ld.info \
+		./release/binutils/share/info/
+	@\cp ./include/ansidecl.h \
+		./include/bfdlink.h \
+		./include/dis-asm.h \
+		./include/symcat.h \
+		./release/binutils/include/
+	@\cp COPYING* \
+		./release/binutils/
+	@$(STRIP) ./release/binutils/addr2line \
+		./release/binutils/ar \
+		./release/binutils/c++filt \
+		./release/binutils/elfedit \
+		./release/binutils/nm \
+		./release/binutils/objcopy \
+		./release/binutils/objdump \
+		./release/binutils/ranlib \
+		./release/binutils/readelf \
+		./release/binutils/size \
+		./release/binutils/strings \
+		./release/binutils/strip \
+		./release/binutils/as \
+		./release/binutils/gprof \
+		./release/binutils/ld
+	@echo "Creating release archive..."
+	@$(LHA)
+	@echo "Clean release files..."
+	@rm -rf release
