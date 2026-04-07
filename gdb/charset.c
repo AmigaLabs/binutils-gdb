@@ -1007,6 +1007,12 @@ _initialize_charset ()
      which GNU libiconv doesn't like (infinite loop).  */
   if (!strcmp (auto_host_charset_name, "646") || !*auto_host_charset_name)
     auto_host_charset_name = "ASCII";
+#ifdef __amigaos4__
+  /* clib4's nl_langinfo(CODESET) returns "ISO-8859-1" but its iconv
+     implementation cannot reliably convert ISO-8859-1 to/from UTF-32.
+     Force UTF-8 which clib4's iconv handles correctly.  */
+  auto_host_charset_name = "UTF-8";
+#endif
   auto_target_charset_name = auto_host_charset_name;
 #elif defined (USE_WIN32API)
   {

@@ -24,33 +24,26 @@
 
 #define PPC_AMIGAOS_SIZEOF_VRREGSET 532
 
-// Chapter Interrupt Reference union from different ppc32 cpus
-#define TRAP_RESET 			0x0100 /* System reset */
-#define TRAP_MCE   			0x0200 /* Machine check */
-#define TRAP_DSI    		0x0300 /* Data storage */
-#define TRAP_DSEGI   		0x0380 /* Data segment (Book III v2.01) */
-#define TRAP_ISI     		0x0400 /* Instruction storage */
-#define TRAP_ISEGI   		0x0480 /* Instruction segment (Book III v2.01)*/
-#define TRAP_EXTERN   		0x0500 /* External Interrupt */
-#define TRAP_ALIGN   		0x0600 /* Alignment */
-#define TRAP_PROG    		0x0700 /* Program */
-#define TRAP_FPU			0x0800 /* FPU Disabled */
-#define TRAP_DEC			0x0900 /* Decrementer */
-#define TRAP_RESERVEDA		0x0a00 /* Reserved (Book III v2.01)*/
-#define TRAP_RESERVEDB		0x0b00 /* Reserved (Book III v2.01)*/
-#define TRAP_SYSCALL		0x0c00 /* System call */
-#define TRAP_TRACEI			0x0d00 /* Trace */
-#define TRAP_FPA			0x0e00 /* Floating-point Assist */
-#define TRAP_PMI     		0x0f00 /* Performance monitor (Book III v2.01)*/
-#define TRAP_APU			0x0f20 /* APU Unavailble */
-#define TRAP_PIT			0x1000 /* Programmable-interval timer (PIT) */
-#define TRAP_FIT			0x1010 /* Fixed-interval timer (FIT) */
-#define TRAP_WATCHDOG		0x1020 /* Watch Dog */
-#define TRAP_DTBL			0x1100 /* Data TBL error */
-#define TRAP_ITBL			0x1200 /* Instruction TBL error */
-#define TRAP_DEBUG			0x2000 /* Debug */
+/* AmigaOS SDK trap numbers from exec/interrupts.h (enTrapNumbers).
+   ExceptionContext.Traptype uses these values, NOT raw PPC vector offsets. */
+#define TRAP_BUS_ERROR              0x01000000 /* Bus error / machine check */
+#define TRAP_DATA_SEGMENT           0x02000000 /* Data segment violation (DSI) */
+#define TRAP_INST_SEGMENT           0x03000000 /* Instruction segment violation (ISI) */
+#define TRAP_ALIGNMENT              0x04000000 /* Alignment violation */
+#define TRAP_ILLEGAL_INSTRUCTION    0x05000000 /* Illegal instruction */
+#define TRAP_PRIVILEGE_VIOLATION    0x06000000 /* Privilege violation */
+#define TRAP_TRAP                   0x07000000 /* Trap instruction (breakpoint) */
+#define TRAP_FPU                    0x08000000 /* Floating point (disabled/imprecise) */
+#define TRAP_TRACE                  0x09000000 /* Single step trace */
+#define TRAP_DATA_BREAKPOINT        0x0a000000 /* Data breakpoint (DABR) */
+#define TRAP_INST_BREAKPOINT        0x0b000000 /* Instruction breakpoint */
+#define TRAP_PERFORMANCE            0x0c000000 /* Performance monitor */
+#define TRAP_THERMAL                0x0d000000 /* Thermal management */
+#define TRAP_RESERVED1              0x0e000000 /* Reserved */
+#define TRAP_ALTIVEC_ASSIST         0x0f000000 /* AltiVec assist */
+#define TRAP_SMI                    0x10000000 /* System Management interrupt */
 
-/* MSR Bits */
+/* MSR Bits for Program exception sub-classification */
 #define    MSR_TRACE_ENABLE           0x00000400
 #define    EXC_FPE                    0x00100000
 #define    EXC_ILLEGAL                0x00080000

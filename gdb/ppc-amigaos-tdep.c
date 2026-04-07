@@ -127,20 +127,20 @@ ppc_amigaos_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 	/* Canonical paths on this target look like `SYS:Utilities/Clock', for example.  */
 	set_gdbarch_has_amiga_based_file_system (gdbarch, 1);
 
-	/* Everything runs in the same address space, but might have a priveta adresse area */
+	/* Everything runs in the same address space, but might have a private address area */
 	set_gdbarch_has_shared_address_space (gdbarch, ppc_amigaos_has_shared_address_space);
 
-	// PT_STEP not supported so, need to simulate it, like rs6000-aix
+	/* PT_STEP not supported, need to simulate it like rs6000-aix */
 	set_gdbarch_software_single_step (gdbarch, ppc_amigaos_software_single_step);
 	/* Displaced stepping is currently not supported in combination with
-		software single-stepping.  These override the values set by
-		rs6000_gdbarch_init.  */
+	   software single-stepping.  These override the values set by
+	   rs6000_gdbarch_init.  */
 	set_gdbarch_displaced_step_copy_insn (gdbarch, NULL);
 	set_gdbarch_displaced_step_fixup (gdbarch, NULL);
 	set_gdbarch_displaced_step_prepare (gdbarch, NULL);
 	set_gdbarch_displaced_step_finish (gdbarch, NULL);
 
-  	// Traget bfd name, seems to be only needed for message/debug output
+	/* Target bfd name for message/debug output */
 	set_gdbarch_gcore_bfd_target (gdbarch, "elf32-powerpc-amigaos");
 }
 

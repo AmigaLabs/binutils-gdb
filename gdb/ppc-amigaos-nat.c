@@ -61,7 +61,7 @@ const struct regset ppc_amigaos_vrregset =
 	regcache_collect_regset
 };
 
-// From clib4 , bucket list to clear up 
+/* ELF library references provided by clib4 runtime */
 extern struct Library *ElfBase;
 extern struct ElfIFace *IElf;
 
@@ -108,12 +108,25 @@ public:
 
 	/**
 	 * Get an empty message and initialize it.
-	 * @return
+	 *
+	 * No locking required: the debug callback (alloc) runs in the
+	 * debuggee's task context and suspends it immediately after
+	 * PutMsg, while free_message runs in the debugger's wait() after
+	 * the debuggee is already suspended.  The pool is therefore
+	 * accessed sequentially by design.  If multi-debuggee support
+	 * is added in the future, a Mutex would be appropriate here
+	 * (not Forbid/Permit which locks the entire OS).
 	 */
 	struct debugger_message *
 	alloc_message ( struct Process *process )
 	{
 		struct debugger_message *message = (struct debugger_message *)IExec->RemHead(amigaos_debug_messages_list);
+
+		if (!message)
+		{
+			IExec->DebugPrintF("[GDB] WARNING: message pool exhausted! Dropping debug event for task %p\n", process);
+			return NULL;
+		}
 
 		message->msg.mn_Node.ln_Type = NT_MESSAGE;
 		message->msg.mn_Node.ln_Name = NULL;
@@ -125,11 +138,8 @@ public:
 	}
 
 	/**
-	 * Return a message to the pool. Note that we disable here so that we're not
-	 * interrupted. Can't use semaphores because get_msg_packet is called during an
-	 * exception.
-	 *
-	 * @param msg
+	 * Return a message to the pool.  See alloc_message comment for
+	 * why no locking is needed.
 	 */
 	void
 	free_message( struct debugger_message *message )
@@ -178,8 +188,7 @@ public:
 	}
 	*/
 	
-	// TODO: ? void prepare_to_store (regcache *regs) override;
-	// TODO: ? int async_wait_fd () override
+	/* Not needed: prepare_to_store() and async_wait_fd() use defaults */
 	
 	void resume (ptid_t ptid,int step,enum gdb_signal signal) override
 	{
@@ -203,16 +212,19 @@ public:
 
 		IExec->DebugPrintF( "[GDB] %s ( task: %p )\n",__func__,task );
 
-		if( task ) 
+		if( task )
 		{
-			/* Clear the debug hook (necessary to avoid the shell reusing it) */ 
-			IDebug->AddDebugHook ( task,NULL );
+			/* Clear the debug hook first */
+			IDebug->AddDebugHook ( task, NULL );
 
-			// ML: According to the dos Autodoc DeleteTask/RemTask shouldn't be used on Process, but no other API avaiblle
-			IExec->DeleteTask ( task );		
+			/* Signal the process to break, then restart it so it can
+			   process the signal and exit via its normal shutdown path.
+			   This is safer than DeleteTask on a Process. */
+			IExec->Signal ( task, SIGBREAKF_CTRL_C );
+			IExec->RestartTask ( task, 0 );
 		}
 
-		target_mourn_inferior(inferior_ptid);		
+		target_mourn_inferior(inferior_ptid);
 	}
 	
 	/*
@@ -238,7 +250,7 @@ public:
 	}
 	*/
 	
-	// TODO: char *pid_to_exec_file (int pid) override;
+	/* Not yet implemented: pid_to_exec_file() for 'info proc' support */
 	
 	/*
 	bool info_proc (const char *args, enum info_proc_what what) override 
@@ -568,9 +580,10 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 					case GDB_SIGNAL_INT:
 					case GDB_SIGNAL_FPE:
 					case GDB_SIGNAL_ILL:
-					case GDB_SIGNAL_ALRM:					
-					{					
-						ourstatus->set_stopped (GDB_SIGNAL_0);
+					case GDB_SIGNAL_ALRM:
+					{
+						/* Preserve the actual signal so GDB can report the exception type */
+						ourstatus->set_stopped ((enum gdb_signal)debuggerMessage->signal);
 
 						break;
 					}
@@ -611,60 +624,73 @@ ppc_amigaos_nat_target::fetch_registers (struct regcache *regcache, int regno)
 
 	if( regno == -1 )
 	{
-		for (int i = 0; i < 31; i++)
-			regcache->raw_supply (regno, (void*)&context.gpr[i]);
+		/* Supply all GPRs (r0-r31) */
+		for (int i = 0; i < 32; i++)
+			regcache->raw_supply (tdep->ppc_gp0_regnum + i, (void*)&context.gpr[i]);
 
-		for (int i = 0; i < 31; i++)
-			regcache->raw_supply (regno, (void*)&context.fpr[i]);
+		/* Supply all FPRs (f0-f31) */
+		if (tdep->ppc_fp0_regnum >= 0)
+		{
+			for (int i = 0; i < 32; i++)
+				regcache->raw_supply (tdep->ppc_fp0_regnum + i, (void*)&context.fpr[i]);
+		}
 
+		/* Supply special registers */
 		regcache->raw_supply (gdbarch_pc_regnum (gdbarch), (void *)&context.ip);
 		regcache->raw_supply (tdep->ppc_ps_regnum, (void *)&context.msr);
 		regcache->raw_supply (tdep->ppc_cr_regnum, (void *)&context.cr);
 		regcache->raw_supply (tdep->ppc_lr_regnum, (void *)&context.lr);
 		regcache->raw_supply (tdep->ppc_ctr_regnum, (void *)&context.ctr);
 		regcache->raw_supply (tdep->ppc_xer_regnum, (void *)&context.xer);
-		regcache->raw_supply (tdep->ppc_fpscr_regnum, (void *)&context.fpscr);			
+		if (tdep->ppc_fpscr_regnum >= 0)
+			regcache->raw_supply (tdep->ppc_fpscr_regnum, (void *)&context.fpscr);
 
-		if (tdep->ppc_vr0_regnum != -1 && tdep->ppc_vrsave_regnum != -1)
+		/* Supply AltiVec registers if available */
+		if (tdep->ppc_vr0_regnum != -1 && tdep->ppc_vrsave_regnum != -1
+		    && (context.Flags & ECF_VECTOR))
 		{
-			ppc_amigaos_vrregset.supply_regset( &ppc_amigaos_vrregset,regcache,regno,(void *)&context.vscr,PPC_AMIGAOS_SIZEOF_VRREGSET );
+			ppc_amigaos_vrregset.supply_regset (&ppc_amigaos_vrregset, regcache, -1, (void *)&context.vscr, PPC_AMIGAOS_SIZEOF_VRREGSET);
 		}
 	}
-	else 
+	else
 	{
-		if (regno == gdbarch_pc_regnum (gdbarch) )
-		{			
+		if (regno == gdbarch_pc_regnum (gdbarch))
+		{
 			regcache->raw_supply (regno, (void*)&context.ip);
 		}
-		else if (regno >= 0 && regno <= 31) 
+		else if (regno >= tdep->ppc_gp0_regnum && regno < tdep->ppc_gp0_regnum + 32)
 		{
-			regcache->raw_supply (regno, (void*)&context.gpr[regno]);
+			regcache->raw_supply (regno, (void*)&context.gpr[regno - tdep->ppc_gp0_regnum]);
+		}
+		else if (tdep->ppc_fp0_regnum >= 0
+			 && regno >= tdep->ppc_fp0_regnum && regno < tdep->ppc_fp0_regnum + 32)
+		{
+			regcache->raw_supply (regno, (void*)&context.fpr[regno - tdep->ppc_fp0_regnum]);
 		}
 		else if (altivec_register_p (gdbarch, regno))
 		{
-			ppc_amigaos_vrregset.supply_regset( &ppc_amigaos_vrregset,regcache,regno,(void *)&context.vscr,PPC_AMIGAOS_SIZEOF_VRREGSET );
+			if (context.Flags & ECF_VECTOR)
+				ppc_amigaos_vrregset.supply_regset (&ppc_amigaos_vrregset, regcache, regno, (void *)&context.vscr, PPC_AMIGAOS_SIZEOF_VRREGSET);
 		}
-		else if (regno >= 32 && regno <= 64)
-			regcache->raw_supply (regno, (void*)&context.fpr[regno]);
 		else if (regno == tdep->ppc_ps_regnum)
 			regcache->raw_supply (regno, (void *)&context.msr);
 		else if (regno == tdep->ppc_cr_regnum)
-			regcache->raw_supply (tdep->ppc_cr_regnum, (void *)&context.cr);
+			regcache->raw_supply (regno, (void *)&context.cr);
 		else if (regno == tdep->ppc_lr_regnum)
-			regcache->raw_supply (tdep->ppc_lr_regnum, (void *)&context.lr);
-		else if (regno == tdep->ppc_ctr_regnum) 
-			regcache->raw_supply (tdep->ppc_ctr_regnum, (void *)&context.ctr);
+			regcache->raw_supply (regno, (void *)&context.lr);
+		else if (regno == tdep->ppc_ctr_regnum)
+			regcache->raw_supply (regno, (void *)&context.ctr);
 		else if (regno == tdep->ppc_xer_regnum)
-			regcache->raw_supply (tdep->ppc_xer_regnum, (void *)&context.xer);
-		else if (regno == tdep->ppc_fpscr_regnum)
-			regcache->raw_supply (tdep->ppc_fpscr_regnum, (void *)&context.fpscr);		
-		else if (regno == tdep->ppc_vr0_regnum)
-			regcache->raw_supply (tdep->ppc_vr0_regnum, (void *)&context.vr );		
-		else if (regno == tdep->ppc_vrsave_regnum)
-			regcache->raw_supply (tdep->ppc_vrsave_regnum, (void *)&context.vrsave );		
+			regcache->raw_supply (regno, (void *)&context.xer);
+		else if (tdep->ppc_fpscr_regnum >= 0 && regno == tdep->ppc_fpscr_regnum)
+			regcache->raw_supply (regno, (void *)&context.fpscr);
+		else if (tdep->ppc_vrsave_regnum >= 0 && regno == tdep->ppc_vrsave_regnum)
+			regcache->raw_supply (regno, (void *)&context.vrsave);
 		else
 		{
-			internal_error (_("fetch_registers: unexpected register: '%s'"),gdbarch_register_name ( gdbarch,regno ));
+			/* Unknown register — supply zeros rather than crashing */
+			IExec->DebugPrintF("[GDB] %s: unknown register %d ('%s'), supplying zero\n",
+				__func__, regno, gdbarch_register_name (gdbarch, regno));
 		}
 	}
 }
@@ -672,7 +698,101 @@ ppc_amigaos_nat_target::fetch_registers (struct regcache *regcache, int regno)
 void
 ppc_amigaos_nat_target::store_registers (struct regcache *regcache, int regno)
 {
-	printf( "[GDB] %s Todo ( regcache: %p, regno: %d)\n",__func__,regcache,regno );
+	struct gdbarch *gdbarch = regcache->arch ();
+	ppc_gdbarch_tdep *tdep = gdbarch_tdep<ppc_gdbarch_tdep> (gdbarch);
+	struct Task *task = (struct Task *)regcache->ptid().pid();
+
+	IExec->DebugPrintF("[GDB] %s ( regcache: %p, regno: %d (%s), task: %p)\n",
+		__func__, regcache, regno, gdbarch_register_name (gdbarch, regno), task);
+
+	/* Read current context so we only modify the requested register(s) */
+	struct ExceptionContext context;
+	uint32 read_flags = RTCF_INFO | RTCF_SPECIAL | RTCF_STATE | RTCF_GENERAL | RTCF_FPU;
+	IDebug->ReadTaskContext (task, &context, read_flags);
+
+	uint32 write_flags = 0;
+
+	if (regno == -1)
+	{
+		/* Store all GPRs */
+		for (int i = 0; i < 32; i++)
+			regcache->raw_collect (tdep->ppc_gp0_regnum + i, (void*)&context.gpr[i]);
+		write_flags |= RTCF_GENERAL;
+
+		/* Store all FPRs */
+		if (tdep->ppc_fp0_regnum >= 0)
+		{
+			for (int i = 0; i < 32; i++)
+				regcache->raw_collect (tdep->ppc_fp0_regnum + i, (void*)&context.fpr[i]);
+			write_flags |= RTCF_FPU;
+		}
+
+		/* Store special registers */
+		regcache->raw_collect (gdbarch_pc_regnum (gdbarch), (void *)&context.ip);
+		regcache->raw_collect (tdep->ppc_ps_regnum, (void *)&context.msr);
+		regcache->raw_collect (tdep->ppc_cr_regnum, (void *)&context.cr);
+		regcache->raw_collect (tdep->ppc_lr_regnum, (void *)&context.lr);
+		regcache->raw_collect (tdep->ppc_ctr_regnum, (void *)&context.ctr);
+		regcache->raw_collect (tdep->ppc_xer_regnum, (void *)&context.xer);
+		if (tdep->ppc_fpscr_regnum >= 0)
+			regcache->raw_collect (tdep->ppc_fpscr_regnum, (void *)&context.fpscr);
+		write_flags |= RTCF_SPECIAL | RTCF_STATE;
+	}
+	else if (regno == gdbarch_pc_regnum (gdbarch))
+	{
+		regcache->raw_collect (regno, (void *)&context.ip);
+		write_flags = RTCF_SPECIAL;
+	}
+	else if (regno >= tdep->ppc_gp0_regnum && regno < tdep->ppc_gp0_regnum + 32)
+	{
+		regcache->raw_collect (regno, (void*)&context.gpr[regno - tdep->ppc_gp0_regnum]);
+		write_flags = RTCF_GENERAL;
+	}
+	else if (tdep->ppc_fp0_regnum >= 0
+		 && regno >= tdep->ppc_fp0_regnum && regno < tdep->ppc_fp0_regnum + 32)
+	{
+		regcache->raw_collect (regno, (void*)&context.fpr[regno - tdep->ppc_fp0_regnum]);
+		write_flags = RTCF_FPU;
+	}
+	else if (regno == tdep->ppc_ps_regnum)
+	{
+		regcache->raw_collect (regno, (void *)&context.msr);
+		write_flags = RTCF_SPECIAL;
+	}
+	else if (regno == tdep->ppc_cr_regnum)
+	{
+		regcache->raw_collect (regno, (void *)&context.cr);
+		write_flags = RTCF_SPECIAL;
+	}
+	else if (regno == tdep->ppc_lr_regnum)
+	{
+		regcache->raw_collect (regno, (void *)&context.lr);
+		write_flags = RTCF_SPECIAL;
+	}
+	else if (regno == tdep->ppc_ctr_regnum)
+	{
+		regcache->raw_collect (regno, (void *)&context.ctr);
+		write_flags = RTCF_SPECIAL;
+	}
+	else if (regno == tdep->ppc_xer_regnum)
+	{
+		regcache->raw_collect (regno, (void *)&context.xer);
+		write_flags = RTCF_SPECIAL;
+	}
+	else if (tdep->ppc_fpscr_regnum >= 0 && regno == tdep->ppc_fpscr_regnum)
+	{
+		regcache->raw_collect (regno, (void *)&context.fpscr);
+		write_flags = RTCF_FPU;
+	}
+	else
+	{
+		IExec->DebugPrintF("[GDB] %s: unknown register %d ('%s'), not writing\n",
+			__func__, regno, gdbarch_register_name (gdbarch, regno));
+		return;
+	}
+
+	if (write_flags)
+		IDebug->WriteTaskContext (task, &context, write_flags);
 }
 
 enum target_xfer_status
@@ -748,7 +868,55 @@ ppc_amigaos_nat_target::xfer_partial (enum target_object object,const char *anne
 void
 ppc_amigaos_nat_target::attach (const char *args, int from_tty)
 {
-	printf( "[GDB] %s ( args: '%s', from_tty: %d )\n",__func__,args,from_tty );
+	IExec->DebugPrintF("[GDB] %s ( args: '%s', from_tty: %d )\n", __func__, args, from_tty);
+
+	if (!args || !*args)
+		error ("No task name or address specified for attach");
+
+	/* Try to interpret args as a hex address first, then as a task name */
+	struct Task *task = NULL;
+	char *endptr;
+	unsigned long addr = strtoul (args, &endptr, 0);
+	if (*endptr == '\0' && addr != 0)
+	{
+		/* Numeric address — use directly as task pointer */
+		task = (struct Task *)addr;
+	}
+	else
+	{
+		/* Try to find task by name */
+		IExec->Forbid ();
+		task = IExec->FindTask (args);
+		IExec->Permit ();
+	}
+
+	if (!task)
+		error ("Cannot find task '%s'", args);
+
+	/* Suspend the task before installing the debug hook */
+	IExec->SuspendTask (task, 0);
+
+	amigaos_debug_hook_data.current_process = (struct Process *)task;
+
+	/* Install debug hook */
+	IDebug->AddDebugHook (task, amigaos_debug_hook);
+
+	/* Set up GDB inferior tracking */
+	inferior *inf = current_inferior ();
+	inferior_ptid = ptid_t ((int)task);
+	inferior_appeared (inf, (int)task);
+
+	inf->unpush_target (this);
+	if (!inf->target_is_pushed (this))
+		inf->push_target (this);
+
+	thread_info *thr = add_thread (this, inferior_ptid);
+	switch_to_thread (thr);
+
+	if (from_tty)
+		gdb_printf ("Attached to task %p ('%s')\n", task, task->tc_Node.ln_Name ? task->tc_Node.ln_Name : "unknown");
+
+	IExec->DebugPrintF("[GDB] %s attached to task %p ('%s')\n", __func__, task, task->tc_Node.ln_Name);
 }
 
 void
@@ -964,26 +1132,30 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 	{
 		case DBHMT_EXCEPTION:
 		{
-			IExec->DebugPrintF ("[GDB] Task: %p ('%s'),Exception ooccured (DBHMT_EXCEPTION)\n",currentTask,currentTask->tc_Node.ln_Name);
+			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), Exception occurred (DBHMT_EXCEPTION)\n",currentTask,currentTask->tc_Node.ln_Name);
 
 			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);
+			if (!message)
+				return 0; /* Pool exhausted — resume execution, cannot report */
+
 			message->flags	= 0;
-			message->signal	= trap_to_signal( dbgmsg->message.context,message->flags );
-			
+			message->signal	= trap_to_signal( dbgmsg->message.context, message->flags );
+
 			IExec->DebugPrintF ("[GDB] debug hook sending message: %p\n",message );
 
 			IExec->PutMsg (data->debugger_port,(struct Message *)message);
 
-			return 1; // Suspend execution
+			return 1; /* Suspend execution */
 		}
 		case DBHMT_ADDTASK:
 		{
 			IExec->DebugPrintF("[GDB] Task: %p ('%s'), (DBHMT_ADDTASK), Task added\n",currentTask,currentTask->tc_Node.ln_Name);
 
-			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);	
+			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);
+			if (!message) break;
 			message->flags	= DM_FLAGS_TASK_ATTACHED;
 			message->signal	= -1;
-			
+
 			IExec->DebugPrintF ("[GDB] debug hook sending message: %p\n",message );
 
 			IExec->PutMsg (data->debugger_port,(struct Message *)message);
@@ -995,6 +1167,7 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_REMTASK), Task removed\n",currentTask,currentTask->tc_Node.ln_Name);
 
 			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);
+			if (!message) break;
 			message->flags	= DM_FLAGS_TASK_TERMINATED;
 			message->signal	= -1;
 			
@@ -1009,10 +1182,11 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_OPENLIB), Task opened library '%s'\n",currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString);
 
 			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);
+			if (!message) break;
 			message->flags		= DM_FLAGS_TASK_OPENLIB;
 			message->signal		= -1;
 			message->library	= dbgmsg->message.library;
-			
+
 			IExec->DebugPrintF ("[GDB] debug hook sending message: %p\n",message );
 
 			IExec->PutMsg (data->debugger_port,(struct Message *)message);
@@ -1023,7 +1197,8 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 		{
 			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_CLOSELIB), Task closed library '%s'\n",currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString);
 
-			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);	
+			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);
+			if (!message) break;
 			message->flags		= DM_FLAGS_TASK_CLOSELIB;
 			message->signal		= -1;
 			message->library	= dbgmsg->message.library;
@@ -1053,70 +1228,69 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 	return 0; // Resume execution
 }
 
+/* Map AmigaOS SDK trap numbers (from ExceptionContext.Traptype)
+   to GDB signal numbers.  These use the TRAPNUM_* values from
+   exec/interrupts.h, NOT raw PPC vector offsets. */
 static int
 trap_to_signal(struct ExceptionContext *context, uint32 flags)
 {
 	IExec->DebugPrintF( "[GDB] trap_to_signal ( flags: 0x%lx )\n",flags );
 
 	if (!context || (flags & DM_FLAGS_TASK_TERMINATED)) {
-		IExec->DebugPrintF( "[GDB] Return GDB_SIGNAL_QUIT )\n" );
-	
+		IExec->DebugPrintF( "[GDB] Return GDB_SIGNAL_QUIT\n" );
 		return GDB_SIGNAL_QUIT;
 	}
 
-	IExec->DebugPrintF( "[GDB] traptype: 0x%lx\n",context->Traptype );
+	IExec->DebugPrintF( "[GDB] traptype: 0x%08lx\n",context->Traptype );
 
 	switch (context->Traptype)
 	{
-	case TRAP_MCE:
-	case TRAP_DSI:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_SEGV )\n" );
+	case TRAP_BUS_ERROR:
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_SEGV ) - bus error/machine check\n" );
 		return GDB_SIGNAL_SEGV;
-	case TRAP_ISI:
-	case TRAP_ALIGN:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_BUS )\n" );
+	case TRAP_DATA_SEGMENT:
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_SEGV ) - data segment violation\n" );
+		return GDB_SIGNAL_SEGV;
+	case TRAP_INST_SEGMENT:
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_BUS ) - instruction segment violation\n" );
 		return GDB_SIGNAL_BUS;
-	case TRAP_EXTERN:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_INT )\n" );
-		return GDB_SIGNAL_INT;
-	case TRAP_PROG: 
+	case TRAP_ALIGNMENT:
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_BUS ) - alignment\n" );
+		return GDB_SIGNAL_BUS;
+	case TRAP_ILLEGAL_INSTRUCTION:
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_ILL ) - illegal instruction\n" );
+		return GDB_SIGNAL_ILL;
+	case TRAP_PRIVILEGE_VIOLATION:
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_ILL ) - privilege violation\n" );
+		return GDB_SIGNAL_ILL;
+	case TRAP_TRAP:
+		/* Trap instruction — this is how software breakpoints work */
 		if (context->msr & EXC_FPE) {
-			IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_FPE )\n" );
+			IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_FPE ) - trap with FPE\n" );
 			return GDB_SIGNAL_FPE;
 		}
-		else if (context->msr & EXC_ILLEGAL) {
-			IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_ILL )\n" );
-			return GDB_SIGNAL_ILL;
-		}
-		else if (context->msr & EXC_PRIV) {
-			IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_ILL )\n" );
-			return GDB_SIGNAL_ILL;
-		}
-		else {
-			IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_TRAP )\n" );
-			return GDB_SIGNAL_TRAP;
-		}
-	case TRAP_FPU:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_FPE )\n" );
-		return GDB_SIGNAL_FPE;
-	case TRAP_DEC:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_ALRM )\n" );
-		return GDB_SIGNAL_ALRM;
-	case TRAP_RESERVEDA:
-	case TRAP_RESERVEDB:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_ILL )\n" );
-		return GDB_SIGNAL_ILL;
-	case TRAP_SYSCALL:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_CHLD )\n" );
-		return GDB_SIGNAL_CHLD;
-	case TRAP_TRACEI:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_TRAP )\n" );
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_TRAP ) - breakpoint/trap\n" );
 		return GDB_SIGNAL_TRAP;
-	case TRAP_FPA:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_FPE )\n" );
+	case TRAP_FPU:
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_FPE ) - FPU exception\n" );
 		return GDB_SIGNAL_FPE;
+	case TRAP_TRACE:
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_TRAP ) - single step trace\n" );
+		return GDB_SIGNAL_TRAP;
+	case TRAP_DATA_BREAKPOINT:
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_TRAP ) - data breakpoint (DABR)\n" );
+		return GDB_SIGNAL_TRAP;
+	case TRAP_INST_BREAKPOINT:
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_TRAP ) - instruction breakpoint\n" );
+		return GDB_SIGNAL_TRAP;
+	case TRAP_ALTIVEC_ASSIST:
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_FPE ) - AltiVec assist\n" );
+		return GDB_SIGNAL_FPE;
+	case TRAP_RESERVED1:
+		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_ILL ) - reserved trap\n" );
+		return GDB_SIGNAL_ILL;
 	default:
-		IExec->DebugPrintF( "[GDB] Return ( -1 )\n" );
-		return -1;
+		IExec->DebugPrintF( "[GDB] Unknown traptype 0x%08lx, returning GDB_SIGNAL_TRAP\n",context->Traptype );
+		return GDB_SIGNAL_TRAP;
 	}
 }

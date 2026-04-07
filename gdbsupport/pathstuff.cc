@@ -71,6 +71,13 @@ gdb_realpath (const char *filename)
     if (len > 0 && len < MAX_PATH)
       return make_unique_xstrdup (buf);
   }
+#elif defined (__amigaos4__)
+  /* AmigaOS realpath() resolves assigns and volume names (e.g. T: ->
+     "RAM Disk:T/", SYS: -> "AmigaOS:"), which can produce paths that
+     fail to reopen later via BFD's file cache (spaces in volume names,
+     inconsistent resolution of assigns).  Return the path as-is to
+     preserve the original working path that was successfully opened.  */
+  return make_unique_xstrdup (filename);
 #else
   {
     char *rp = canonicalize_file_name (filename);
