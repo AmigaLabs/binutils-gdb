@@ -836,8 +836,7 @@ openp (const char *path, openp_flags opts, const char *string,
   #else
     path = ".";
   #endif
-  #endif
-
+  
   mode |= O_BINARY;
 
   if ((opts & OPF_TRY_CWD_FIRST) || IS_ABSOLUTE_PATH (string))
@@ -883,7 +882,6 @@ openp (const char *path, openp_flags opts, const char *string,
       size_t len = strlen (dir);
       int reg_file_errno;
 
-      if (strcmp (dir, "$cwd") == 0 || strcmp (dir, "") == 0)
       if (strcmp (dir, "$cwd") == 0 || strcmp (dir, "") == 0)
 	{
 	  /* Name is $cwd -- insert current directory name instead.  */
