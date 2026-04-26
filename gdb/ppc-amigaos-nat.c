@@ -194,7 +194,7 @@ public:
 	{
 		struct Task *task = (struct Task *)(ptid == minus_one_ptid ? inferior_ptid.pid () : ptid.pid ());
 		
-		IExec->DebugPrintF("[GDB] %s ( step: %d, gdb_signal: %d, Task: %p  )\n",__func__,step,signal,task);
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d ( step: %d, gdb_signal: %d, Task: %p )\n"),__func__,__LINE__,step,signal,task ).c_str());;
 
 		IExec->RestartTask (task,0);
 	}
@@ -210,7 +210,7 @@ public:
 
 		struct Task *task = (struct Task *)inf->pid;
 
-		IExec->DebugPrintF( "[GDB] %s ( task: %p )\n",__func__,task );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d ( task: %p )\n"),__func__,__LINE__,task ).c_str());
 
 		if( task )
 		{
@@ -230,7 +230,7 @@ public:
 	/*
 	std::string pid_to_str (ptid_t ptid) override
 	{
-		IExec->DebugPrintF ("[GDB] %s Entering\n",__func__);
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Entering\n"),__func__,__LINE__ ).c_str());
 		
 		/ *
 		if( ptid != minus_one_ptid )
@@ -255,7 +255,7 @@ public:
 	/*
 	bool info_proc (const char *args, enum info_proc_what what) override 
 	{
-		IExec->DebugPrintF("[GDB] %s (false)\n",__func__);
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d (false)\n"),__func__,__LINE__ ).c_str());
 		return false;
 	}
 	*/
@@ -452,41 +452,41 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 
 	while( 1 )
 	{
-		IExec->DebugPrintF("[GDB] %s Entering wait loop\n",__func__);
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Entering wait loop\n"),__func__,__LINE__ ).c_str());
 
 		uint32 signal = IExec->Wait (SIGBREAKF_CTRL_D|SIGBREAKF_CTRL_C|1<<amigaos_debug_hook_data.debugger_port->mp_SigBit);
 
 		if( ( signal & SIGBREAKF_CTRL_D ) == SIGBREAKF_CTRL_D )
 		{
-			IExec->DebugPrintF("[GDB] %s received SIGBREAKF_CTRL_D\n",__func__);
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d received SIGBREAKF_CTRL_D\n"),__func__,__LINE__ ).c_str());
 
 			ourstatus->set_exited (0);
 
-			IExec->DebugPrintF("[GDB] %s@%d Leaving with ptid: 0x%08x\n",__func__,__LINE__,ptid );
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%s\n"),__func__,__LINE__,phex_nz (ptid.tid (),sizeof (ULONGEST)) ).c_str());
 
 			return ptid;
 		}
 
 		if( ( signal & SIGBREAKF_CTRL_C ) == SIGBREAKF_CTRL_C )
 		{
-			IExec->DebugPrintF("[GDB] %s received SIGBREAKF_CTRL_C\n",__func__);
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d received SIGBREAKF_CTRL_C\n"),__func__,__LINE__ ).c_str());
 
 			IExec->SuspendTask ((struct Task *)process,0);
 
 			ourstatus->set_stopped (GDB_SIGNAL_TRAP);
 
-			IExec->DebugPrintF("[GDB] %s@%d Leaving with ptid: 0x%08x\n",__func__,__LINE__,ptid );
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%s\n"),__func__,__LINE__,phex_nz (ptid.tid (),sizeof (ULONGEST)) ).c_str());
 
 			return ptid;
 		}
 
 		while (struct Message *message = IExec->GetMsg (amigaos_debug_hook_data.debugger_port) ) 		
 		{
-			IExec->DebugPrintF("[GDB] %s received message: %p\n",__func__,message );
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d received message: %p\n"),__func__,__LINE__,message ).c_str());
 
 			struct debugger_message *debuggerMessage = (struct debugger_message *)message;
 
-			IExec->DebugPrintF("[GDB] %s received debug message for task: %p\n",__func__,debuggerMessage->process );
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d received debug message for task: %p\n"),__func__,__LINE__,debuggerMessage->process ).c_str());
 
 			if( debuggerMessage->signal == -1 )
 			{
@@ -494,19 +494,19 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 				{
 					case DM_FLAGS_TASK_OPENLIB:
 					{
-						IExec->DebugPrintF("[GDB] %s received task open library\n",__func__);
+						IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d received task open library\n"),__func__,__LINE__ ).c_str());
 
 						break;
 					}
 					case DM_FLAGS_TASK_CLOSELIB:
 					{
-						IExec->DebugPrintF("[GDB] %s received task close library\n",__func__);
+						IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d received task close library\n"),__func__,__LINE__ ).c_str());
 
 						break;
 					}
 					case DM_FLAGS_TASK_TERMINATED:
 					{
-						IExec->DebugPrintF("[GDB] %s received task terminated\n",__func__);
+						IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d received task terminated\n"),__func__,__LINE__ ).c_str());
 
 						if( process == debuggerMessage->process) 
 						{
@@ -519,7 +519,7 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 					}
 					case DM_FLAGS_TASK_FINAL:
 					{
-						IExec->DebugPrintF("[GDB] %s received SIGB_CHILD of Process %p with dos return: %ld\n",__func__,debuggerMessage->process,debuggerMessage->ReturnCode);
+						IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d received SIGB_CHILD of Process %p with dos return: %ld\n"),__func__,__LINE__,debuggerMessage->process,debuggerMessage->ReturnCode ).c_str());
 
 						if( debuggerMessage->process == process ) {
 							ourstatus->set_exited (debuggerMessage->ReturnCode);
@@ -530,20 +530,20 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 
 							free_message (debuggerMessage);
 
-							IExec->DebugPrintF("[GDB] %s@%d Leaving with ptid: 0x%08x\n",__func__,__LINE__,ptid );
+							IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%s\n"),__func__,__LINE__,phex_nz (ptid.tid (),sizeof (ULONGEST)) ).c_str());
 
 							return ptid;
 						}
 						else
 						{
-							IExec->DebugPrintF("[GDB] Process %p already killed\n",__func__,__LINE__,debuggerMessage->process );
+							IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Process %p already killed\n"),__func__,__LINE__,debuggerMessage->process ).c_str());
 						}
 
 						break;
 					}
 					default:
 					{
-						IExec->DebugPrintF("[GDB] %s received unknown flags for signal -1 from callback %ld\n",__func__,debuggerMessage->flags);
+						IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d received unknown flags for signal -1 from callback %ld\n"),__func__,__LINE__,debuggerMessage->flags ).c_str());
 	
 						break;
 					}
@@ -553,7 +553,7 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 			}
 			else
 			{
-				IExec->DebugPrintF("[GDB] %s Inferior (%p) signaled : '%s'\n",__func__,process,gdb_signal_to_name ((enum gdb_signal)debuggerMessage->signal));
+				IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Inferior (%p) signaled : '%s'\n"),__func__,__LINE__,process,gdb_signal_to_name ((enum gdb_signal)debuggerMessage->signal) ).c_str());
 
 				switch (debuggerMessage->signal)
 				{
@@ -589,7 +589,7 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 					}
 					default:
 					{
-						IExec->DebugPrintF("[GDB] %s received unknown signal from callback %ld\n",__func__,debuggerMessage->signal);
+						IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d received unknown signal from callback %ld\n"),__func__,__LINE__,debuggerMessage->signal ).c_str());
 
 						break;
 					}
@@ -597,14 +597,14 @@ ppc_amigaos_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,t
 
 				free_message (debuggerMessage);
 				
-				IExec->DebugPrintF("[GDB] %s@%d Leaving with ptid: 0x%08x\n",__func__,__LINE__,ptid );
+				IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%s\n"),__func__,__LINE__,phex_nz (ptid.tid (),sizeof (ULONGEST)) ).c_str());
 
 				return ptid;
 			}		
 		}
 	}
 
-	IExec->DebugPrintF("[GDB] %s@%d Leaving with ptid: 0x%08x\n",__func__,__LINE__,ptid_t::make_minus_one () );
+	IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Leaving with ptid: 0x%s\n"),__func__,__LINE__,phex_nz (ptid_t::make_minus_one ().tid (),sizeof (ULONGEST)) ).c_str());
 
 	return ptid_t::make_minus_one ();
 }
@@ -617,7 +617,7 @@ ppc_amigaos_nat_target::fetch_registers (struct regcache *regcache, int regno)
 	ppc_gdbarch_tdep *tdep = gdbarch_tdep<ppc_gdbarch_tdep> (gdbarch);	
 	struct Task *task = (struct Task *)regcache->ptid().pid();
 
-	IExec->DebugPrintF("[GDB] %s ( regcache: %p, regno: %d (%s), task: %p)\n",__func__,regcache,regno,gdbarch_register_name( gdbarch,regno ),task);
+	IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d ( regcache: %p, regno: %d (%s), task: %p)\n"),__func__,__LINE__,regcache,regno,gdbarch_register_name( gdbarch,regno ),task ).c_str());
 
 	struct ExceptionContext context;
 	IDebug->ReadTaskContext( task,&context,RTCF_INFO | RTCF_SPECIAL | RTCF_STATE | RTCF_GENERAL | RTCF_FPU | RTCF_VECTOR );
@@ -691,6 +691,8 @@ ppc_amigaos_nat_target::fetch_registers (struct regcache *regcache, int regno)
 			/* Unknown register — supply zeros rather than crashing */
 			IExec->DebugPrintF("[GDB] %s: unknown register %d ('%s'), supplying zero\n",
 				__func__, regno, gdbarch_register_name (gdbarch, regno));
+
+			internal_error (_("fetch_registers: unexpected register: '%s'"),gdbarch_register_name ( gdbarch,regno ));
 		}
 	}
 }
@@ -702,8 +704,8 @@ ppc_amigaos_nat_target::store_registers (struct regcache *regcache, int regno)
 	ppc_gdbarch_tdep *tdep = gdbarch_tdep<ppc_gdbarch_tdep> (gdbarch);
 	struct Task *task = (struct Task *)regcache->ptid().pid();
 
-	IExec->DebugPrintF("[GDB] %s ( regcache: %p, regno: %d (%s), task: %p)\n",
-		__func__, regcache, regno, gdbarch_register_name (gdbarch, regno), task);
+	IExec->DebugPrintF(  string_printf (_("[GDB] %s ( regcache: %p, regno: %d (%s), task: %p)\n"),
+		__func__, regcache, regno, gdbarch_register_name (gdbarch, regno), task.c_str() ) );
 
 	/* Read current context so we only modify the requested register(s) */
 	struct ExceptionContext context;
@@ -788,6 +790,9 @@ ppc_amigaos_nat_target::store_registers (struct regcache *regcache, int regno)
 	{
 		IExec->DebugPrintF("[GDB] %s: unknown register %d ('%s'), not writing\n",
 			__func__, regno, gdbarch_register_name (gdbarch, regno));
+
+		internal_error (_("store_registers: unknown register: '%s'"),gdbarch_register_name ( gdbarch,regno ));
+		// Needed?
 		return;
 	}
 
@@ -814,6 +819,8 @@ ppc_amigaos_nat_target::xfer_partial (enum target_object object,const char *anne
 				APTR user_stack = IExec->SuperState();
 
 				ULONG currentAttrs = IMMU->GetMemoryAttrs( (APTR)offset,0 );
+				IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Address 0x%s attributes 0x%s\n"),__func__,__LINE__,phex (offset, sizeof (offset)),phex (currentAttrs, sizeof (currentAttrs))).c_str());
+
 				IMMU->SetMemoryAttrs ( (APTR)offset,len,MEMATTRF_READ_WRITE );
 
 				if (readbuf) 
@@ -844,7 +851,7 @@ ppc_amigaos_nat_target::xfer_partial (enum target_object object,const char *anne
 
 		case TARGET_OBJECT_LIBRARIES:
 		{
-			IExec->DebugPrintF("[GDB] %s tansferfed object library '%s' failed, aka not supported yet\n",__func__,annex);
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d tansferfed object library '%s' failed, aka not supported yet\n"),__func__,__LINE__,annex ).c_str());
 
 			return TARGET_XFER_E_IO;			
 		}
@@ -853,7 +860,7 @@ ppc_amigaos_nat_target::xfer_partial (enum target_object object,const char *anne
 		default:
 			if (beneath()) 
 			{
-				IExec->DebugPrintF("[GDB] %s tansferfed delegated to beneath for target_object %d\n",__func__,object);
+				IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d tansferfed delegated to beneath for target_object %d\n"),__func__,__LINE__,object ).c_str());
 
 				return this->beneath ()->xfer_partial (object,annex,readbuf,writebuf,offset,len,xfered_len);
 			}
@@ -868,7 +875,7 @@ ppc_amigaos_nat_target::xfer_partial (enum target_object object,const char *anne
 void
 ppc_amigaos_nat_target::attach (const char *args, int from_tty)
 {
-	IExec->DebugPrintF("[GDB] %s ( args: '%s', from_tty: %d )\n", __func__, args, from_tty);
+	IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d args: '%s', from_tty: %d\n"),__func__,__LINE__,args,from_tty ).c_str());	
 
 	if (!args || !*args)
 		error ("No task name or address specified for attach");
@@ -970,7 +977,7 @@ ppc_amigaos_relocate_sections (const char *exec_file,BPTR exec_seglist)
 								
 					if( address )
 					{
-						printf ( "[GDB] On exec_bfd relocated %d section '%s' from %08lx to %p, size %ld\n",section->index,section->name,section->vma,address,section->size);
+						IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d On exec_bfd relocated %d section '%s' from 0x%08lx to %p, size %ld\n"),__func__,__LINE__,section->index,section->name,section->vma,address,section->size).c_str());
 						
 						exec_set_section_address( exec_file,section->index,(CORE_ADDR)address );							
 					}
@@ -1050,7 +1057,7 @@ void ppc_amigaos_nat_target::create_inferior (const char *exec_file,const std::s
 			TAG_DONE
 		);
 
-	IExec->DebugPrintF ( "[GDB] Process %p has debug message %p\n",amigaos_debug_hook_data.current_process,dmsg );
+	IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Process %p has debug message %p\n"),__func__,__LINE__,amigaos_debug_hook_data.current_process,dmsg ).c_str());
 
 	if (! amigaos_debug_hook_data.current_process)
 	{
@@ -1080,7 +1087,7 @@ void ppc_amigaos_nat_target::create_inferior (const char *exec_file,const std::s
 
 	ppc_amigaos_relocate_sections (exec_file,(BPTR)dmsg->seglist);
 
-	IExec->DebugPrintF("[GDB] %s inferior_ptid=0x%08x inf=%p thr=%p\n",__func__,inferior_ptid.pid(),inf,thr);
+	IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d inferior_ptid=0x%08x inf=%p thr=%p\n"),__func__,__LINE__,inferior_ptid.pid(),inf,thr ).c_str());
 }
 
 static ppc_amigaos_nat_target the_ppc_amigaos_nat_target;
@@ -1096,11 +1103,11 @@ VOID amigaos_debug_suspend( struct Hook *amigaos_debug_hook )
 {
 	struct Task *current = IExec->FindTask (NULL);
 
-	IExec->DebugPrintF("[GDB] %s inferiorer %p started by kernel, suspending myself and installing debug hook: %p\n",__func__,current,amigaos_debug_hook);
+	IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d inferiorer %p started by kernel, suspending myself and installing debug hook: %p\n"),__func__,__LINE__,current,amigaos_debug_hook ).c_str());
 	
 	IExec->SuspendTask (current,0);
 
-	IExec->DebugPrintF("[GDB] %s inferiorer %p started by gdb\n",__func__,current);
+	IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d inferiorer %p started by gdb\n"),__func__,__LINE__,current ).c_str());
 }
 
 VOID amigaos_debug_kill( int32 return_code,struct debugger_message *dmsg ) 
@@ -1109,7 +1116,7 @@ VOID amigaos_debug_kill( int32 return_code,struct debugger_message *dmsg )
 
 	dmsg->ReturnCode = return_code;
 
-	IExec->DebugPrintF("[GDB] %s inferiorer %p killed by kernel, sending death message: %p\n",__func__,current,dmsg);
+	IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d inferiorer %p killed by kernel, sending death message: %p\n"),__func__,__LINE__,current,dmsg ).c_str());
 
 	IExec->PutMsg( dmsg->msg.mn_ReplyPort,(struct Message *)dmsg );	
 }
@@ -1121,18 +1128,18 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 	
 	if( (struct Task *)data->current_process != currentTask )
 	{
-		IExec->DebugPrintF ("[GDB] Task: %p ('%s'), task NOT under our observation\n",currentTask,currentTask->tc_Node.ln_Name);
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Task: %p ('%s'), task NOT under our observation\n"),__func__,__LINE__,currentTask,currentTask->tc_Node.ln_Name ).c_str());
 
 		return 0;
 	}
-	IExec->DebugPrintF ("[GDB] Task: %p ('%s'), task IS under our observation\n",currentTask,currentTask->tc_Node.ln_Name);
+	IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Task: %p ('%s'), task IS under our observation\n"),__func__,__LINE__,currentTask,currentTask->tc_Node.ln_Name ).c_str());
 
 
 	switch( dbgmsg->type ) 
 	{
 		case DBHMT_EXCEPTION:
 		{
-			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), Exception occurred (DBHMT_EXCEPTION)\n",currentTask,currentTask->tc_Node.ln_Name);
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Task: %p ('%s'),Exception ooccured (DBHMT_EXCEPTION)\n"),__func__,__LINE__,currentTask,currentTask->tc_Node.ln_Name ).c_str());
 
 			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);
 			if (!message)
@@ -1141,7 +1148,7 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 			message->flags	= 0;
 			message->signal	= trap_to_signal( dbgmsg->message.context, message->flags );
 
-			IExec->DebugPrintF ("[GDB] debug hook sending message: %p\n",message );
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d debug hook sending message: %p\n"),__func__,__LINE__,message ).c_str());
 
 			IExec->PutMsg (data->debugger_port,(struct Message *)message);
 
@@ -1149,7 +1156,7 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 		}
 		case DBHMT_ADDTASK:
 		{
-			IExec->DebugPrintF("[GDB] Task: %p ('%s'), (DBHMT_ADDTASK), Task added\n",currentTask,currentTask->tc_Node.ln_Name);
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Task: %p ('%s'), (DBHMT_ADDTASK), Task added\n"),__func__,__LINE__,currentTask,currentTask->tc_Node.ln_Name ).c_str());
 
 			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);
 			if (!message) break;
@@ -1164,14 +1171,14 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 		}
 		case DBHMT_REMTASK:
 		{
-			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_REMTASK), Task removed\n",currentTask,currentTask->tc_Node.ln_Name);
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Task: %p ('%s'), (DBHMT_REMTASK), Task removed\n"),__func__,__LINE__,currentTask,currentTask->tc_Node.ln_Name ).c_str());
 
 			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);
 			if (!message) break;
 			message->flags	= DM_FLAGS_TASK_TERMINATED;
 			message->signal	= -1;
 			
-			IExec->DebugPrintF ("[GDB] debug hook sending message: %p\n",message );
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d debug hook sending message: %p\n"),__func__,__LINE__,message ).c_str());
 
 			IExec->PutMsg (data->debugger_port,(struct Message *)message);
 			
@@ -1179,7 +1186,7 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 		}
 		case DBHMT_OPENLIB:
 		{
-			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_OPENLIB), Task opened library '%s'\n",currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString);
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Task: %p ('%s'), (DBHMT_OPENLIB), Task opened library '%s'\n"),__func__,__LINE__,currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString ).c_str());
 
 			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);
 			if (!message) break;
@@ -1187,7 +1194,7 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 			message->signal		= -1;
 			message->library	= dbgmsg->message.library;
 
-			IExec->DebugPrintF ("[GDB] debug hook sending message: %p\n",message );
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d debug hook sending message: %p\n"),__func__,__LINE__,message ).c_str());
 
 			IExec->PutMsg (data->debugger_port,(struct Message *)message);
 
@@ -1195,7 +1202,7 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 		}
 		case DBHMT_CLOSELIB:
 		{
-			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_CLOSELIB), Task closed library '%s'\n",currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString);
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Task: %p ('%s'), (DBHMT_CLOSELIB), Task closed library '%s'\n"),__func__,__LINE__,currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString ).c_str());
 
 			struct debugger_message *message = ppc_amigaos_nat_target->alloc_message ((struct Process *)currentTask);
 			if (!message) break;
@@ -1203,7 +1210,7 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 			message->signal		= -1;
 			message->library	= dbgmsg->message.library;
 
-			IExec->DebugPrintF ("[GDB] debug hook sending message: %p\n",message );
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d debug hook sending message: %p\n"),__func__,__LINE__,message ).c_str());
 
 			IExec->PutMsg (data->debugger_port,(struct Message *)message);
 
@@ -1211,17 +1218,17 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 		}
 		case DBHMT_SHAREDOBJECTOPEN:
 		{
-			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_SHAREDOBJECTOPEN), Task opened shared object '%s'\n",currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString);
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Task: %p ('%s'), (DBHMT_SHAREDOBJECTOPEN), Task opened shared object '%s'\n"),__func__,__LINE__,currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString ).c_str());
 			break;
 		}
 		case DBHMT_SHAREDOBJECTCLOSE:
 		{
-			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_SHAREDOBJECTCLOSE), Task closed shared object '%s'\n",currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString);
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Task: %p ('%s'), (DBHMT_SHAREDOBJECTCLOSE), Task closed shared object '%s'\n"),__func__,__LINE__,currentTask,currentTask->tc_Node.ln_Name,(char*)dbgmsg->message.library->lib_IdString ).c_str());
 			break;
 		}
 		default:
 		{
-			IExec->DebugPrintF ("[GDB] Task: %p ('%s'), (DBHMT_UNKNOWN), Task unknown message type %lu\n",currentTask,currentTask->tc_Node.ln_Name,dbgmsg->type);
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Task: %p ('%s'), (DBHMT_UNKNOWN), Task unknown message type %lu\n"),__func__,__LINE__,currentTask,currentTask->tc_Node.ln_Name,dbgmsg->type ).c_str());
 		}
 	}
 
@@ -1234,10 +1241,11 @@ ULONG amigaos_debug_callback (struct Hook *hook, struct Task *currentTask,struct
 static int
 trap_to_signal(struct ExceptionContext *context, uint32 flags)
 {
-	IExec->DebugPrintF( "[GDB] trap_to_signal ( flags: 0x%lx )\n",flags );
+	IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d trap_to_signal ( flags: 0x%lx )\n"),__func__,__LINE__,flags ).c_str());
 
 	if (!context || (flags & DM_FLAGS_TASK_TERMINATED)) {
-		IExec->DebugPrintF( "[GDB] Return GDB_SIGNAL_QUIT\n" );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return GDB_SIGNAL_QUIT )\n"),__func__,__LINE__ ).c_str());
+
 		return GDB_SIGNAL_QUIT;
 	}
 
@@ -1246,51 +1254,51 @@ trap_to_signal(struct ExceptionContext *context, uint32 flags)
 	switch (context->Traptype)
 	{
 	case TRAP_BUS_ERROR:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_SEGV ) - bus error/machine check\n" );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_SEGV ) - bus error/machine check\n"),__func__,__LINE__ ).c_str());
 		return GDB_SIGNAL_SEGV;
 	case TRAP_DATA_SEGMENT:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_SEGV ) - data segment violation\n" );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_SEGV ) - data segment violation\n"),__func__,__LINE__ ).c_str());
 		return GDB_SIGNAL_SEGV;
 	case TRAP_INST_SEGMENT:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_BUS ) - instruction segment violation\n" );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_BUS ) - instruction segment violation\n"),__func__,__LINE__ ).c_str());
 		return GDB_SIGNAL_BUS;
 	case TRAP_ALIGNMENT:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_BUS ) - alignment\n" );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_BUS ) - alignment\n"),__func__,__LINE__ ).c_str());
 		return GDB_SIGNAL_BUS;
 	case TRAP_ILLEGAL_INSTRUCTION:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_ILL ) - illegal instruction\n" );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_ILL ) - illegal instruction\n"),__func__,__LINE__ ).c_str());
 		return GDB_SIGNAL_ILL;
 	case TRAP_PRIVILEGE_VIOLATION:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_ILL ) - privilege violation\n" );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_ILL ) - privilege violation\n"),__func__,__LINE__ ).c_str());
 		return GDB_SIGNAL_ILL;
 	case TRAP_TRAP:
 		/* Trap instruction — this is how software breakpoints work */
 		if (context->msr & EXC_FPE) {
-			IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_FPE ) - trap with FPE\n" );
+			IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_FPE ) - trap with FPE\\n"),__func__,__LINE__ ).c_str());
 			return GDB_SIGNAL_FPE;
 		}
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_TRAP ) - breakpoint/trap\n" );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_TRAP ) - breakpoint/trap\n"),__func__,__LINE__ ).c_str());
 		return GDB_SIGNAL_TRAP;
 	case TRAP_FPU:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_FPE ) - FPU exception\n" );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_FPE ) - FPU exception\n"),__func__,__LINE__ ).c_str());
 		return GDB_SIGNAL_FPE;
 	case TRAP_TRACE:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_TRAP ) - single step trace\n" );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_TRAP ) - single step trace\n"),__func__,__LINE__ ).c_str());
 		return GDB_SIGNAL_TRAP;
 	case TRAP_DATA_BREAKPOINT:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_TRAP ) - data breakpoint (DABR)\n" );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_TRAP ) - data breakpoint (DABR)\n"),__func__,__LINE__ ).c_str());
 		return GDB_SIGNAL_TRAP;
 	case TRAP_INST_BREAKPOINT:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_TRAP ) - instruction breakpoint\n" );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_TRAP ) - instruction breakpoint\n"),__func__,__LINE__ ).c_str());
 		return GDB_SIGNAL_TRAP;
 	case TRAP_ALTIVEC_ASSIST:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_FPE ) - AltiVec assist\n" );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_FPE ) - AltiVec assist\n"),__func__,__LINE__ ).c_str());
 		return GDB_SIGNAL_FPE;
 	case TRAP_RESERVED1:
-		IExec->DebugPrintF( "[GDB] Return ( GDB_SIGNAL_ILL ) - reserved trap\n" );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_ILL ) - reserved trap\n"),__func__,__LINE__ ).c_str());
 		return GDB_SIGNAL_ILL;
 	default:
-		IExec->DebugPrintF( "[GDB] Unknown traptype 0x%08lx, returning GDB_SIGNAL_TRAP\n",context->Traptype );
+		IExec->DebugPrintF ( string_printf (_("[GDB] %s@%d Return ( GDB_SIGNAL_TRAP ) - Unknown traptype 0x%08lx\n"),__func__,__LINE__,context->Traptype ).c_str());
 		return GDB_SIGNAL_TRAP;
 	}
 }
