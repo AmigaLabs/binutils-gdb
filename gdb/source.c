@@ -836,7 +836,7 @@ openp (const char *path, openp_flags opts, const char *string,
   #else
     path = ".";
   #endif
-
+  
   mode |= O_BINARY;
 
   if ((opts & OPF_TRY_CWD_FIRST) || IS_ABSOLUTE_PATH (string))

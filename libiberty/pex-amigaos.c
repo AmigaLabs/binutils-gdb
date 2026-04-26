@@ -47,13 +47,13 @@ extern int errno;
 #endif
 
 static int pex_amiga_open_read (struct pex_obj *, const char *, int);
-static int pex_amiga_open_write (struct pex_obj *, const char *, int, int);
+static int pex_amiga_open_write (struct pex_obj *, const char *, int);
 static pid_t pex_amiga_exec_child (struct pex_obj *, int, const char *,
 				 char * const *, char * const *,
 				 int, int, int, int,
 				 const char **, int *);
 static int pex_amiga_close (struct pex_obj *, int);
-static pid_t pex_amiga_wait (struct pex_obj *, pid_t, int *, struct pex_time *,
+static int pex_amiga_wait (struct pex_obj *, long, int *, struct pex_time *,
 			   int, const char **, int *);
 static FILE *pex_amiga_fdopenr (struct pex_obj *, int, int);
 static FILE *pex_amiga_fdopenw (struct pex_obj *, int, int);
@@ -96,7 +96,7 @@ pex_amiga_open_read (struct pex_obj *obj ATTRIBUTE_UNUSED, const char *name,
 
 static int
 pex_amiga_open_write (struct pex_obj *obj ATTRIBUTE_UNUSED, const char *name,
-		     int binary ATTRIBUTE_UNUSED, int append ATTRIBUTE_UNUSED)
+		     int binary ATTRIBUTE_UNUSED)
 {
   /* Note that we can't use O_EXCL here because gcc may have already
      created the temporary file via make_temp_file.  */
@@ -307,8 +307,8 @@ pex_amiga_fdopenw (struct pex_obj *obj ATTRIBUTE_UNUSED, int fd,
    has already completed, and we just need to return the exit
    status.  */
 
-static pid_t
-pex_amiga_wait (struct pex_obj *obj, pid_t pid, int *status,
+static int
+pex_amiga_wait (struct pex_obj *obj, long pid, int *status,
 		struct pex_time *time, int done ATTRIBUTE_UNUSED,
 		const char **errmsg ATTRIBUTE_UNUSED,
 		int *err ATTRIBUTE_UNUSED)
